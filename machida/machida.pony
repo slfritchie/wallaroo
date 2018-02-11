@@ -40,6 +40,8 @@ use @user_serialization_get_size[USize](o: Pointer[U8] tag)
 use @user_serialization[None](o: Pointer[U8] tag, bs: Pointer[U8] tag)
 use @user_deserialization[Pointer[U8] val](bs: Pointer[U8] tag)
 
+use @init_python_threads[None]()
+
 use @load_module[ModuleP](module_name: CString)
 
 use @application_setup[Pointer[U8] val](module: ModuleP, args: Pointer[U8] val)
@@ -87,7 +89,6 @@ use @py_decref[None](o: Pointer[U8] box)
 use @py_list_check[I32](b: Pointer[U8] box)
 
 use @Py_Initialize[None]()
-use @PyErr_Clear[None]()
 use @PyErr_Occurred[Pointer[U8]]()
 use @PyErr_print[None]()
 use @PyTuple_GetItem[Pointer[U8] val](t: Pointer[U8] val, idx: USize)
@@ -271,7 +272,7 @@ class PyFramedSourceHandler is FramedSourceHandler[PyData val]
   new create(source_decoder: Pointer[U8] val) ? =>
     _source_decoder = source_decoder
     let hl = Machida.framed_source_decoder_header_length(_source_decoder)
-    if (Machida.err_occurred()) or (hl == 0) then
+    if (Machida.print_errors()) or (hl == 0) then
       @printf[U32]("ERROR: _header_length %d is invalid\n".cstring(), hl)
       error
     else
@@ -477,14 +478,17 @@ class PyKafkaEncoder is KafkaSinkEncoder[PyData val]
 
 primitive Machida
   fun print_errors(): Bool =>
-    if err_occurred() then
+    @acquire_python_lock[None]()
+    let r = if _err_occurred() then
       @PyErr_Print[None]()
       true
     else
       false
     end
+    @release_python_lock[None]()
+    r
 
-  fun err_occurred(): Bool =>
+  fun _err_occurred(): Bool =>
     let er = @PyErr_Occurred[Pointer[U8]]()
     if not er.is_null() then
       true
@@ -494,6 +498,7 @@ primitive Machida
 
   fun start_python() =>
     @Py_Initialize()
+    @init_python_threads()
 
   fun load_module(module_name: String): ModuleP ? =>
     let r = @load_module(module_name.cstring())
@@ -668,7 +673,6 @@ primitive Machida
     app as Application
 
   fun framed_source_decoder_header_length(source_decoder: Pointer[U8] val): USize =>
-    @PyErr_Clear[None]()
     let r = @source_decoder_header_length(source_decoder)
     print_errors()
     if (r >= 1) and (r <= 8) then
@@ -681,10 +685,8 @@ primitive Machida
   fun framed_source_decoder_payload_length(source_decoder: Pointer[U8] val,
     data: Pointer[U8] tag, size: USize): USize
   =>
-    @PyErr_Clear[None]()
     let r = @source_decoder_payload_length(source_decoder, data, size)
-    if err_occurred() then
-      print_errors()
+    if print_errors() then
       4
     else
       r
@@ -875,7 +877,10 @@ primitive Machida
     implements_method(o, "compute_multi")
 
   fun implements_method(o: Pointer[U8] box, method: String): Bool =>
-    @PyObject_HasAttrString(o, method.cstring()) == 1
+    @acquire_python_lock[None]()
+    let r = @PyObject_HasAttrString(o, method.cstring()) == 1
+    @release_python_lock[None]()
+    r
 
 primitive _SourceConfig
   fun from_tuple(source_config_tuple: Pointer[U8] val, env: Env):

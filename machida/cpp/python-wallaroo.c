@@ -27,18 +27,64 @@ Copyright 2017 The Wallaroo Authors.
     #include <python2.7/Python.h>
 #endif
 
+#include "pony.h"
+
+PyThreadState* main_thread_state;
+
+PyInterpreterState* interpreter_state;
+
+PyThreadState** thread_states;
+
+int ponyint_sched_cores();
+
 PyObject *g_user_deserialization_fn;
 PyObject *g_user_serialization_fn;
+
+extern void init_python_threads()
+{
+  PyEval_InitThreads();
+  main_thread_state = PyThreadState_Get();
+  interpreter_state = main_thread_state->interp;
+
+  int idx = pony_scheduler_index(pony_ctx());
+
+  thread_states = calloc(ponyint_sched_cores(), sizeof(PyThreadState));
+
+  thread_states[idx] = PyEval_SaveThread();
+}
+
+extern void acquire_python_lock()
+{
+  int idx = pony_scheduler_index(pony_ctx());
+
+  PyThreadState *thread_state = thread_states[idx];
+
+  if (thread_state == NULL)
+  {
+    thread_state = thread_states[idx] = PyThreadState_New(interpreter_state);
+  }
+
+  PyEval_RestoreThread(thread_state);
+}
+
+extern void release_python_lock()
+{
+  int idx = pony_scheduler_index(pony_ctx());
+
+  thread_states[idx] = PyEval_SaveThread();
+}
 
 extern PyObject *load_module(char *module_name)
 {
   PyObject *pName, *pModule;
 
+  acquire_python_lock();
   pName = PyString_FromString(module_name);
   /* Error checking of pName left out */
 
   pModule = PyImport_Import(pName);
   Py_DECREF(pName);
+  release_python_lock();
 
   return pModule;
 }
@@ -47,9 +93,11 @@ extern PyObject *application_setup(PyObject *pModule, PyObject *args)
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(pModule, "application_setup");
   pValue = PyObject_CallFunctionObjArgs(pFunc, args, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   return pValue;
 }
@@ -76,12 +124,16 @@ extern size_t source_decoder_header_length(PyObject *source_decoder)
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
+  PyErr_Clear();
   pFunc = PyObject_GetAttrString(source_decoder, "header_length");
   pValue = PyObject_CallFunctionObjArgs(pFunc, NULL);
 
   size_t sz = PyInt_AsSsize_t(pValue);
   Py_XDECREF(pFunc);
   Py_DECREF(pValue);
+  release_python_lock();
+
   if (sz > 0 && sz < SIZE_MAX) {
     return sz;
   } else {
@@ -93,6 +145,9 @@ extern size_t source_decoder_payload_length(PyObject *source_decoder, char *byte
 {
   PyObject *pFunc, *pValue, *pBytes;
 
+  acquire_python_lock();
+  PyErr_Clear();
+
   pFunc = PyObject_GetAttrString(source_decoder, "payload_length");
   pBytes = PyBytes_FromStringAndSize(bytes, size);
   pValue = PyObject_CallFunctionObjArgs(pFunc, pBytes, NULL);
@@ -102,6 +157,8 @@ extern size_t source_decoder_payload_length(PyObject *source_decoder, char *byte
   Py_XDECREF(pFunc);
   Py_XDECREF(pBytes);
   Py_XDECREF(pValue);
+
+  release_python_lock();
 
   /*
   ** NOTE: This doesn't protect us from Python from returning
@@ -120,30 +177,37 @@ extern PyObject *source_decoder_decode(PyObject *source_decoder, char *bytes, si
 {
   PyObject *pFunc, *pBytes, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(source_decoder, "decode");
   pBytes = PyBytes_FromStringAndSize(bytes, size);
   pValue = PyObject_CallFunctionObjArgs(pFunc, pBytes, NULL);
 
   Py_DECREF(pFunc);
   Py_DECREF(pBytes);
+  release_python_lock();
 
   return pValue;
 }
 
 extern PyObject *instantiate_python_class(PyObject *class)
 {
-  return PyObject_CallFunctionObjArgs(class, NULL);
+  acquire_python_lock();
+  PyObject *p = PyObject_CallFunctionObjArgs(class, NULL);
+  release_python_lock();
+  return p;
 }
 
 extern PyObject *get_name(PyObject *pObject)
 {
   PyObject *pFunc, *pValue = NULL;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(pObject, "name");
   if (pFunc != NULL) {
     pValue = PyObject_CallFunctionObjArgs(pFunc, NULL);
     Py_DECREF(pFunc);
   }
+  release_python_lock();
 
   return pValue;
 }
@@ -153,9 +217,11 @@ extern PyObject *computation_compute(PyObject *computation, PyObject *data,
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(computation, method);
   pValue = PyObject_CallFunctionObjArgs(pFunc, data, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   if (pValue != Py_None)
     return pValue;
@@ -167,30 +233,38 @@ extern PyObject *sink_encoder_encode(PyObject *sink_encoder, PyObject *data)
 {
   PyObject *pFunc, *pArgs, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(sink_encoder, "encode");
   pValue = PyObject_CallFunctionObjArgs(pFunc, data, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   return pValue;
 }
 
 extern void py_incref(PyObject *o)
 {
+  acquire_python_lock();
   Py_INCREF(o);
+  release_python_lock();
 }
 
 extern void py_decref(PyObject *o)
 {
+  acquire_python_lock();
   Py_DECREF(o);
+  release_python_lock();
 }
 
 extern PyObject *state_builder_build_state(PyObject *state_builder)
 {
   PyObject *pFunc, *pArgs, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(state_builder, "____wallaroo_build____");
   pValue = PyObject_CallFunctionObjArgs(pFunc, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   return pValue;
 }
@@ -200,31 +274,42 @@ extern PyObject *stateful_computation_compute(PyObject *computation,
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(computation, method);
   pValue = PyObject_CallFunctionObjArgs(pFunc, data, state, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   return pValue;
 }
 
 extern long key_hash(PyObject *key)
 {
-  return PyObject_Hash(key);
+  acquire_python_lock();
+  PyErr_Clear();
+  long l = PyObject_Hash(key);
+  release_python_lock();
+  return l;
 }
 
 
 extern int key_eq(PyObject *key, PyObject* other)
 {
-  return PyObject_RichCompareBool(key, other, Py_EQ);
+  acquire_python_lock();
+  int i = PyObject_RichCompareBool(key, other, Py_EQ);
+  release_python_lock();
+  return i;
 }
 
 extern PyObject *partition_function_partition(PyObject *partition_function, PyObject *data)
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(partition_function, "partition");
   pValue = PyObject_CallFunctionObjArgs(pFunc, data, NULL);
   Py_DECREF(pFunc);
+  release_python_lock();
 
   return pValue;
 }
@@ -233,17 +318,21 @@ extern long partition_function_partition_u64(PyObject *partition_function, PyObj
 {
   PyObject *pFunc, *pValue;
 
+  acquire_python_lock();
   pFunc = PyObject_GetAttrString(partition_function, "partition");
   pValue = PyObject_CallFunctionObjArgs(pFunc, data, NULL);
   Py_DECREF(pFunc);
 
   long rtn = PyInt_AsLong(pValue);
   Py_DECREF(pValue);
+  release_python_lock();
+
   return rtn;
 }
 
 extern void set_user_serialization_fns(PyObject *module)
 {
+  acquire_python_lock();
   if (PyObject_HasAttrString(module, "deserialize") && PyObject_HasAttrString(module, "serialize"))
   {
     g_user_deserialization_fn = PyObject_GetAttrString(module, "deserialize");
@@ -256,6 +345,7 @@ extern void set_user_serialization_fns(PyObject *module)
     g_user_serialization_fn = PyObject_GetAttrString(wallaroo, "serialize");
     Py_DECREF(wallaroo);
   }
+  release_python_lock();
 }
 
 extern void *user_deserialization(char *bytes)
@@ -267,17 +357,22 @@ extern void *user_deserialization(char *bytes)
     + (((size_t)ubytes[2]) << 8)
     + ((size_t)ubytes[3]);
 
+  acquire_python_lock();
   PyObject *py_bytes = PyBytes_FromStringAndSize(bytes + 4, size);
   PyObject *ret = PyObject_CallFunctionObjArgs(g_user_deserialization_fn, py_bytes, NULL);
 
   Py_DECREF(py_bytes);
+  release_python_lock();
 
   return ret;
 }
 
 extern size_t user_serialization_get_size(PyObject *o)
 {
+  acquire_python_lock();
   PyObject *user_bytes = PyObject_CallFunctionObjArgs(g_user_serialization_fn, o, NULL);
+
+  size_t ret = 0;
 
   // This will be null if there was an exception.
   if (user_bytes)
@@ -286,14 +381,18 @@ extern size_t user_serialization_get_size(PyObject *o)
     Py_DECREF(user_bytes);
 
     // return the size of the buffer plus the 4 bytes needed to record that size.
-    return 4 + size;
+    ret = 4 + size;
   }
 
-  return 0;
+  release_python_lock();
+
+  return ret;
 }
 
 extern void user_serialization(PyObject *o, char *bytes)
 {
+  acquire_python_lock();
+
   PyObject *user_bytes = PyObject_CallFunctionObjArgs(g_user_serialization_fn, o, NULL);
 
   // This will be null if there was an exception.
@@ -312,11 +411,15 @@ extern void user_serialization(PyObject *o, char *bytes)
 
     Py_DECREF(user_bytes);
   }
+
+  release_python_lock();
 }
 
 extern int py_bool_check(PyObject *b)
 {
+  acquire_python_lock();
   return PyBool_Check(b);
+  release_python_lock();
 }
 
 extern int is_py_none(PyObject *o)
@@ -326,5 +429,8 @@ extern int is_py_none(PyObject *o)
 
 extern int py_list_check(PyObject *l)
 {
-  return PyList_Check(l);
+  acquire_python_lock();
+  int c = PyList_Check(l);
+  release_python_lock();
+  return c;
 }
