@@ -40,7 +40,10 @@ def split(data):
 def count_word(word, word_totals):
     print "in count word!"
     word_totals.update(word)
-    return (word_totals.get_count(word), True)
+    print "  updated!"
+    ret = (word_totals.get_count(word), True)
+    print "  got ret!"
+    return ret
 
 
 class WordTotals(object):
@@ -75,7 +78,13 @@ def partition(data):
 @wallaroo.decoder(header_length=4, length_fmt=">I")
 def decoder(bs):
     print "in decoder!"
-    return bs.decode("utf-8")
+    try:
+        out = bs.decode("utf-8")
+    except:
+        print "FUCK NO FUCK NO FUCK NO\n" * 200
+        print "bs =", [ord(x) for x in bs]
+        out = ""
+    return out
 
 
 @wallaroo.encoder

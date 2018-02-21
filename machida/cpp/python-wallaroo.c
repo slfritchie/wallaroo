@@ -418,8 +418,9 @@ extern void user_serialization(PyObject *o, char *bytes)
 extern int py_bool_check(PyObject *b)
 {
   acquire_python_lock();
-  return PyBool_Check(b);
+  int ret = PyBool_Check(b);
   release_python_lock();
+  return ret;
 }
 
 extern int is_py_none(PyObject *o)
