@@ -22,7 +22,6 @@ def application_setup(args):
 
 @wallaroo.computation_multi(name="split into words")
 def split(data):
-    print "in split!"
     punctuation = " !\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
 
     words = []
@@ -38,12 +37,8 @@ def split(data):
 
 @wallaroo.state_computation(name="Count Word")
 def count_word(word, word_totals):
-    print "in count word!"
     word_totals.update(word)
-    print "  updated!"
-    ret = (word_totals.get_count(word), True)
-    print "  got ret!"
-    return ret
+    return (word_totals.get_count(word), True)
 
 
 class WordTotals(object):
@@ -68,7 +63,6 @@ class WordCount(object):
 
 @wallaroo.partition
 def partition(data):
-    print "in partition!"
     if data[0] >= 'a' and data[0] <= 'z':
         return data[0]
     else:
@@ -77,19 +71,12 @@ def partition(data):
 
 @wallaroo.decoder(header_length=4, length_fmt=">I")
 def decoder(bs):
-    print "in decoder!"
-    try:
-        out = bs.decode("utf-8")
-    except:
-        print "FUCK NO FUCK NO FUCK NO\n" * 200
-        print "bs =", [ord(x) for x in bs]
-        out = ""
-    return out
+    # return bs.decode("utf-8")
+    return str(bs)
 
 
 @wallaroo.encoder
 def encoder(data):
-    print "in encoder!"
     output = data.word + " => " + str(data.count) + "\n"
     print output
     return output
