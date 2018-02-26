@@ -478,15 +478,7 @@ class PyKafkaEncoder is KafkaSinkEncoder[PyData val]
 
 primitive Machida
   fun print_errors(): Bool =>
-    @acquire_python_lock[None]()
-    let r = if _err_occurred() then
-      @PyErr_Print[None]()
-      true
-    else
-      false
-    end
-    @release_python_lock[None]()
-    r
+    false
 
   fun _err_occurred(): Bool =>
     let er = @PyErr_Occurred[Pointer[U8]]()
