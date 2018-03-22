@@ -90,6 +90,7 @@ actor TCPSource is Producer
   var _muted: Bool = true
   var _expect_read_buf: Reader = Reader
   let _muted_downstream: SetIs[Any tag] = _muted_downstream.create()
+  let _max_received_count: U8 = 50
 
   let _router_registry: RouterRegistry
 
@@ -435,6 +436,7 @@ actor TCPSource is Producer
     """
     try
       var sum: USize = 0
+      var received_count: U8 = 0
       _reading = true
 
       while _readable and not _shutdown_peer do
@@ -449,12 +451,19 @@ actor TCPSource is Producer
             data.truncate(_read_buf_offset)
             _read_buf_offset = 0
 
+            received_count = received_count + 1
             if not _notify.received(this, consume data) then
               _read_buf_size()
               _read_again()
+              _reading = false
               return
             else
               _read_buf_size()
+            end
+            if received_count >= _max_received_count then
+              _read_again()
+              _reading = false
+              return
             end
           else
             while _read_buf_offset >= _expect do
@@ -462,9 +471,19 @@ actor TCPSource is Producer
               (let data, _read_buf) = (consume x).chop(_expect)
               _read_buf_offset = _read_buf_offset - _expect
 
+              // increment max reads
+              received_count = received_count + 1
               if not _notify.received(this, consume data) then
                 _read_buf_size()
                 _read_again()
+                _reading = false
+                return
+              end
+
+              if received_count >= _max_received_count then
+                _read_buf_size()
+                _read_again()
+                _reading = false
                 return
               end
             end
@@ -474,7 +493,9 @@ actor TCPSource is Producer
 
           if sum >= _max_size then
             // If we've read _max_size, yield and read again later.
+            // _read_buf_size()
             _read_again()
+            _reading = false
             return
           end
         else
