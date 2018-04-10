@@ -130,7 +130,7 @@ actor TCPSink is Consumer
   var _from: String
 
   // Producer (Resilience)
-  let _timers: Timers = Timers
+  var _timers: Timers = Timers
 
   let _terminus_route: TerminusRoute = TerminusRoute
 
@@ -354,6 +354,7 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
+            _release_backpressure_in_runtime()
 
             match _initializer
             | let initializer: LocalTopologyInitializer =>
@@ -395,6 +396,7 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
+            _release_backpressure_in_runtime()
 
             _closed = false
             _shutdown = false
@@ -641,6 +643,7 @@ actor TCPSink is Consumer
       // The socket has been closed from the other side.
       _shutdown_peer = true
       _hard_close()
+      _apply_backpressure_in_runtime()
       _schedule_reconnect()
     end
 
@@ -814,6 +817,13 @@ actor TCPSink is Consumer
     if (_host != "") and (_service != "") and not _no_more_reconnect then
       @printf[I32]("RE-Connecting TCPSink to %s:%s\n".cstring(),
                    _host.cstring(), _service.cstring())
+      // Bug/feature work-around: we need to create a new timer wheel/actor
+      // for each reconnect attempt.  The timer actor sends a message to
+      // us; we are under pressure, so the sender (the timer actor!) will
+      // be muted.  It's very difficult to create exemptions to the
+      // runtime's back-pressure regime: no such exemption exists yet.
+      let old_timers = _timers = Timers
+      old_timers.dispose()
       let timer = Timer(PauseBeforeReconnectTCPSink(this), _reconnect_pause)
       _timers(consume timer)
     end
