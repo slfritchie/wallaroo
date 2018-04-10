@@ -354,6 +354,11 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
+            try
+              @printf[I32]("BACKPRESSURE tcp_sink: QQQ1 release by %s:%s\n".cstring(),
+                _host.cstring(), _service.cstring())
+              Backpressure.release(_env.root as AmbientAuth)
+            end
 
             match _initializer
             | let initializer: LocalTopologyInitializer =>
@@ -395,6 +400,11 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
+            try
+              @printf[I32]("BACKPRESSURE tcp_sink: QQQ2 release by %s:%s\n".cstring(),
+                _host.cstring(), _service.cstring())
+              Backpressure.release(_env.root as AmbientAuth)
+            end
 
             _closed = false
             _shutdown = false
@@ -640,6 +650,11 @@ actor TCPSink is Consumer
       // The socket has been closed from the other side.
       _shutdown_peer = true
       _hard_close()
+      try
+        @printf[I32]("BACKPRESSURE tcp_sink: QQQ apply by %s:%s\n".cstring(),
+          _host.cstring(), _service.cstring())
+        Backpressure.apply(_env.root as AmbientAuth)
+      end
       _schedule_reconnect()
     end
 
