@@ -564,6 +564,7 @@ actor TCPSink is Consumer
     _pending_writev_total = 0
     _readable = false
     _writeable = false
+    _throttled = false
     @pony_asio_event_set_readable[None](_event, false)
     @pony_asio_event_set_writeable[None](_event, false)
 
