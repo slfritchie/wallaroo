@@ -567,7 +567,7 @@ actor TCPSink is Consumer
     _readable = false
     _writeable = false
     _throttled = false
-    _release_backpressure_in_runtime()
+    _apply_backpressure_in_runtime()
     @pony_asio_event_set_readable[None](_event, false)
     @pony_asio_event_set_writeable[None](_event, false)
 
