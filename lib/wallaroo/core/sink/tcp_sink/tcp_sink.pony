@@ -155,7 +155,15 @@ actor TCPSink is Consumer
     _read_buf = recover Array[U8].>undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
-    _notify = TCPSinkNotify
+    _notify = TCPSinkNotify(env.root, host, service)
+/***
+    match env.root
+    | let auth: AmbientAuth =>
+      _notify = TCPSinkNotify(auth, host, service)
+    else
+      Fail()
+    end
+ ***/
     _initial_msgs = initial_msgs
     _reconnect_pause = reconnect_pause
     _host = host
@@ -354,7 +362,6 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
-            _release_backpressure_in_runtime()
 
             match _initializer
             | let initializer: LocalTopologyInitializer =>
@@ -371,10 +378,7 @@ actor TCPSink is Consumer
               _writev(msg, None)
             end
             ifdef not windows then
-              if _pending_writes() then
-                //sent all data; release backpressure
-                _release_backpressure()
-              end
+              _pending_writes()
             end
           else
             // The connection failed, unsubscribe the event and close.
@@ -396,8 +400,6 @@ actor TCPSink is Consumer
             _connected = true
             _writeable = true
             _readable = true
-            _release_backpressure_in_runtime()
-
             _closed = false
             _shutdown = false
             _shutdown_peer = false
@@ -406,10 +408,7 @@ actor TCPSink is Consumer
             _pending_reads()
 
             ifdef not windows then
-              if _pending_writes() then
-                //sent all data; release backpressure
-                _release_backpressure()
-              end
+              _pending_writes()
             end
           else
             // The connection failed, unsubscribe the event and close.
@@ -435,10 +434,7 @@ actor TCPSink is Consumer
         if AsioEvent.writeable(flags) then
           _writeable = true
           ifdef not windows then
-            if _pending_writes() then
-              //sent all data; release backpressure
-              _release_backpressure()
-            end
+            _pending_writes()
           end
         end
 
@@ -567,7 +563,6 @@ actor TCPSink is Consumer
     _readable = false
     _writeable = false
     _throttled = false
-    _apply_backpressure_in_runtime()
     @pony_asio_event_set_readable[None](_event, false)
     @pony_asio_event_set_writeable[None](_event, false)
 
@@ -643,7 +638,6 @@ actor TCPSink is Consumer
       // The socket has been closed from the other side.
       _shutdown_peer = true
       _hard_close()
-      _apply_backpressure_in_runtime()
       _schedule_reconnect()
     end
 
@@ -714,6 +708,7 @@ actor TCPSink is Consumer
 
             // do tracking finished stuff
             _tracking_finished(bytes_sent)
+            _release_backpressure()
             return true
           else
            for d in Range[USize](0, num_to_send, 1) do
@@ -836,22 +831,9 @@ actor TCPSink is Consumer
       _notify_connecting()
     end
 
-  fun ref _apply_backpressure_in_runtime() =>
-    ifdef debug then
-      @printf[I32]("TCPSink: back-pressure apply by %s:%s\n".cstring(),
-        _host.cstring(), _service.cstring())
-    end
-    match _env.root
-    | None =>
-      Fail()
-    | let auth: AmbientAuth =>
-      Backpressure.apply(auth)
-    end
-
   fun ref _apply_backpressure() =>
     if not _throttled then
       _throttled = true
-      _apply_backpressure_in_runtime()
       _notify.throttled(this)
     end
     _writeable = false
@@ -860,22 +842,9 @@ actor TCPSink is Consumer
     @pony_asio_event_set_writeable[None](_event, false)
     @pony_asio_event_resubscribe_write(_event)
 
-  fun ref _release_backpressure_in_runtime() =>
-    ifdef debug then
-      @printf[I32]("TCPsink: back-pressure release by %s:%s\n".cstring(),
-        _host.cstring(), _service.cstring())
-    end
-    match _env.root
-    | None =>
-      Fail()
-    | let auth: AmbientAuth =>
-      Backpressure.release(auth)
-    end
-
   fun ref _release_backpressure() =>
     if _throttled then
       _throttled = false
-      _release_backpressure_in_runtime()
       _notify.unthrottled(this)
     end
 
@@ -910,15 +879,25 @@ actor TCPSink is Consumer
     None
 
 class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
+  let _auth: (AmbientAuth | None)
+  let _host: String
+  let _service: String
+
+  new iso create(auth: (AmbientAuth | None), host: String, service: String) =>
+    _auth = auth
+    _host = host
+    _service = service
+
   fun ref connecting(conn: WallarooOutgoingNetworkActor ref, count: U32) =>
     None
 
   fun ref connected(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connected\n".cstring())
-
+    _release_backpressure_in_runtime()
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection closed\n".cstring())
+    _apply_backpressure_in_runtime()
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection failed\n".cstring())
@@ -938,10 +917,26 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
 
   fun ref throttled(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink is experiencing back pressure\n".cstring())
+    _apply_backpressure_in_runtime()
 
   fun ref unthrottled(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32](("TCPSink is no longer experiencing" +
       " back pressure\n").cstring())
+    _release_backpressure_in_runtime()
+
+  fun ref _apply_backpressure_in_runtime() =>
+    ifdef debug then
+      @printf[I32]("TCPsink: back-pressure apply by %s:%s\n".cstring(),
+        _host.cstring(), _service.cstring())
+    end
+    try Backpressure.apply(_auth as AmbientAuth) end
+
+  fun ref _release_backpressure_in_runtime() =>
+    ifdef debug then
+      @printf[I32]("TCPsink: back-pressure release by %s:%s\n".cstring(),
+        _host.cstring(), _service.cstring())
+    end
+    try Backpressure.release(_auth as AmbientAuth) end
 
 class PauseBeforeReconnectTCPSink is TimerNotify
   let _tcp_sink: TCPSink
