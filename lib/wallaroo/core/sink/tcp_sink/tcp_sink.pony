@@ -828,6 +828,11 @@ actor TCPSink is Consumer
     if (_host != "") and (_service != "") and not _no_more_reconnect then
       @printf[I32]("RE-Connecting TCPSink to %s:%s\n".cstring(),
                    _host.cstring(), _service.cstring())
+      // Bug/feature work-around: we need to create a new timer wheel/actor
+      // for each reconnect attempt.  The timer actor sends a message to
+      // us; we are under pressure, so the sender (the timer actor!) will
+      // be muted.  It's very difficult to create exemptions to the
+      // runtime's back-pressure regime: no such exemption exists yet.
       let old_timers = _timers = Timers
       old_timers.dispose()
       let timer = Timer(PauseBeforeReconnectTCPSink(this), _reconnect_pause)
