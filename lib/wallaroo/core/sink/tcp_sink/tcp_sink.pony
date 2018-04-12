@@ -156,14 +156,6 @@ actor TCPSink is Consumer
     _next_size = init_size
     _max_size = max_size
     _notify = TCPSinkNotify(env.root, host, service)
-/***
-    match env.root
-    | let auth: AmbientAuth =>
-      _notify = TCPSinkNotify(auth, host, service)
-    else
-      Fail()
-    end
- ***/
     _initial_msgs = initial_msgs
     _reconnect_pause = reconnect_pause
     _host = host
@@ -348,8 +340,6 @@ actor TCPSink is Consumer
           @printf[I32]("YO, fd %d setting buf sizes\n".cstring(), fd)
           @pony_os_rcvbuf[None](fd, I32(1024))
           @pony_os_sndbuf[None](fd, I32(1024))
-        else
-          @printf[I32]("YO, 'setsockopt' is not defined, skipping.\n".cstring())
         end
         _connect_count = _connect_count - 1
 
@@ -926,14 +916,14 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
 
   fun ref _apply_backpressure_in_runtime() =>
     ifdef debug then
-      @printf[I32]("TCPsink: back-pressure apply by %s:%s\n".cstring(),
+      @printf[I32]("TCPSink: back-pressure apply by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
     try Backpressure.apply(_auth as AmbientAuth) end
 
   fun ref _release_backpressure_in_runtime() =>
     ifdef debug then
-      @printf[I32]("TCPsink: back-pressure release by %s:%s\n".cstring(),
+      @printf[I32]("TCPSink: back-pressure release by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
     try Backpressure.release(_auth as AmbientAuth) end
