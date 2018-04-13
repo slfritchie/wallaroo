@@ -838,9 +838,6 @@ actor TCPSink is Consumer
       _notify.unthrottled(this)
     end
 
-  fun _can_send(): Bool =>
-    _connected and not _closed and _writeable
-
   fun ref set_nodelay(state: Bool) =>
     """
     Turn Nagle on/off. Defaults to on. This can only be set on a connected
