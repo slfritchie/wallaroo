@@ -954,7 +954,7 @@ actor OutgoingBoundary is Consumer
     end
     _writeable = false
     // this is safe because asio thread isn't currently subscribed
-    // for a write event so will not be writing to the readable flag
+    // for a write event so will not be writing to the writeable flag
     @pony_asio_event_set_writeable[None](_event, false)
     @pony_asio_event_resubscribe_write(_event)
 
