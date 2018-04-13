@@ -380,7 +380,7 @@ actor OutgoingBoundary is Consumer
 
     let flush_count: USize = (seq_id - _lowest_queue_id).usize()
     _queue.remove(0, flush_count)
-    if (_queue.size() < _queue_max_size) and _throttle_by_queue then
+    if (_queue.size() == 0) and _throttle_by_queue then
       // TODO if debug wrapper
       @printf[I32]("OutgoingBoundary: release _fd %d _queue.size() %d by %s:%s\n".cstring(),
         _fd, _queue.size(), _host.cstring(), _service.cstring())
@@ -997,13 +997,6 @@ actor OutgoingBoundary is Consumer
       _throttled = false
       _notify.unthrottled(this)
     end
-
-  fun _can_send(): Bool =>
-    _connected and
-      _writeable and
-      not _closed and
-      not _replaying and
-      not _backup_queue_is_overflowing()
 
   fun _backup_queue_is_overflowing(): Bool =>
     _queue.size() >= 16_384
