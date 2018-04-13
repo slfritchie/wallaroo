@@ -971,9 +971,10 @@ actor OutgoingBoundary is Consumer
   /*
   ** TODO/WIP Problem statement: I believe it's possible to be
   ** both of 1). _queue is too big, and 2). _fd is not writeable.
-  ** #1 can happen if we aren't connected yet to the remote worker,
+  ** #1 can happen if we aren't connected yet to the remote worker
+  ** or if the remote worker is slow to send us acks,
   ** and #2 can happen if _pending_writev data contains enough big
-  ** hunks of bytes.
+  ** hunks of bytes at inconvenient times & places.
   **
   ** Thus I believe that we cannot call _notify.throttle/unthrottle
   ** based on state change of only #1 or only #2.
