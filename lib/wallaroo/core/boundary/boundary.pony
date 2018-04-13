@@ -119,6 +119,8 @@ actor OutgoingBoundary is Consumer
   var _closed: Bool = false
   var _writeable: Bool = false
   var _throttled: Bool = false
+  var _throttle_by_queue: Bool = false
+  var _throttle_by_socket: Bool = false
   var _event: AsioEventID = AsioEvent.none()
   // _pending is used to avoid GC prematurely reaping memory.
   // See Wallaroo commit 75f1c394e for more.  It looks like a write-only
@@ -145,6 +147,7 @@ actor OutgoingBoundary is Consumer
   let _service: String
   let _from: String
   let _queue: Array[Array[ByteSeq] val] = _queue.create()
+  let _queue_max_size: USize = 16_384
   var _lowest_queue_id: SeqId = 0
   // TODO: this should go away and TerminusRoute entirely takes
   // over seq_id generation whether there is resilience or not.
@@ -377,6 +380,13 @@ actor OutgoingBoundary is Consumer
 
     let flush_count: USize = (seq_id - _lowest_queue_id).usize()
     _queue.remove(0, flush_count)
+    if (_queue.size() < _queue_max_size) and _throttle_by_queue then
+      // TODO if debug wrapper
+      @printf[I32]("OutgoingBoundary: release _fd %d _queue.size() %d by %s:%s\n".cstring(),
+        _fd, _queue.size(), _host.cstring(), _service.cstring())
+      _throttle_by_queue = false
+      _release_backpressure()
+    end
     _lowest_queue_id = _lowest_queue_id + flush_count.u64()
 
     ifdef "resilience" then
@@ -745,6 +755,8 @@ actor OutgoingBoundary is Consumer
     _readable = false
     _writeable = false
     _throttled = false
+    _throttle_by_queue = false
+    _throttle_by_socket = false
     @pony_asio_event_set_readable[None](_event, false)
     @pony_asio_event_set_writeable[None](_event, false)
 
@@ -880,13 +892,15 @@ actor OutgoingBoundary is Consumer
               len = 0
             end
           end
-          _apply_backpressure()
+          _throttle_by_socket = true
+          _apply_backpressure(true)
         else
           // sent all data we requested in this batch
           _pending_writev_total = _pending_writev_total - bytes_to_send
           if _pending_writev_total == 0 then
             _pending_writev.clear()
             _pending.clear()
+            _throttle_by_socket = false
             _release_backpressure()
             return true
           else
@@ -946,20 +960,39 @@ actor OutgoingBoundary is Consumer
 
   fun ref _add_to_upstream_backup(msg: Array[ByteSeq] val) =>
     _queue.push(msg)
+    if (_queue.size() > _queue_max_size) and (not _throttle_by_queue) then
+      // TODO if debug wrapper
+      @printf[I32]("OutgoingBoundary: apply _fd %d _queue.size() %d by %s:%s\n".cstring(),
+        _fd, _queue.size(), _host.cstring(), _service.cstring())
+      _throttle_by_queue = true
+      _apply_backpressure(false)
+    end
 
-  fun ref _apply_backpressure() =>
-    if not _throttled then
+  /*
+  ** TODO/WIP Problem statement: I believe it's possible to be
+  ** both of 1). _queue is too big, and 2). _fd is not writeable.
+  ** #1 can happen if we aren't connected yet to the remote worker,
+  ** and #2 can happen if _pending_writev data contains enough big
+  ** hunks of bytes.
+  **
+  ** Thus I believe that we cannot call _notify.throttle/unthrottle
+  ** based on state change of only #1 or only #2.
+  */
+  fun ref _apply_backpressure(caused_by_socket: Bool) =>
+    if (_throttle_by_queue or _throttle_by_socket) and (not _throttled) then
       _throttled = true
       _notify.throttled(this)
     end
-    _writeable = false
-    // this is safe because asio thread isn't currently subscribed
-    // for a write event so will not be writing to the writeable flag
-    @pony_asio_event_set_writeable[None](_event, false)
-    @pony_asio_event_resubscribe_write(_event)
+    if caused_by_socket then
+      _writeable = false
+      // this is safe because asio thread isn't currently subscribed
+      // for a write event so will not be writing to the writeable flag
+      @pony_asio_event_set_writeable[None](_event, false)
+      @pony_asio_event_resubscribe_write(_event)
+    end
 
   fun ref _release_backpressure() =>
-    if _throttled then
+    if (not (_throttle_by_queue or _throttle_by_socket)) and _throttled then
       _throttled = false
       _notify.unthrottled(this)
     end
@@ -1082,23 +1115,23 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     qty
 
   fun ref throttled(conn: WallarooOutgoingNetworkActor ref) =>
-    @printf[I32]("BoundaryNotify: throttled\n\n".cstring())
+    @printf[I32]("OutgoingBoundary: throttled\n\n".cstring())
     _apply_backpressure_in_runtime()
 
   fun ref unthrottled(conn: WallarooOutgoingNetworkActor ref) =>
-    @printf[I32]("BoundaryNotify: unthrottled\n\n".cstring())
+    @printf[I32]("OutgoingBoundary: unthrottled\n\n".cstring())
     _release_backpressure_in_runtime()
 
   fun ref _apply_backpressure_in_runtime() =>
     ifdef debug then
-      @printf[I32]("BoundaryNotify: back-pressure apply by %s:%s\n".cstring(),
+      @printf[I32]("OutgoingBoundary: back-pressure apply by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
     Backpressure.apply(_auth)
 
   fun ref _release_backpressure_in_runtime() =>
     ifdef debug then
-      @printf[I32]("BoundaryNotify: back-pressure release by %s:%s\n".cstring(),
+      @printf[I32]("OutgoingBoundary: back-pressure release by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
     Backpressure.release(_auth)
