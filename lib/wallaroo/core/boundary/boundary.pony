@@ -381,9 +381,10 @@ actor OutgoingBoundary is Consumer
     let flush_count: USize = (seq_id - _lowest_queue_id).usize()
     _queue.remove(0, flush_count)
     if (_queue.size() < (_queue_max_size / 2)) and _throttle_by_queue then
-      // TODO if debug wrapper
-      @printf[I32]("OutgoingBoundary: release _fd %d _queue.size() %d by %s:%s\n".cstring(),
-        _fd, _queue.size(), _host.cstring(), _service.cstring())
+      if _DebugBackPressure.yes() then
+        @printf[I32]("OutgoingBoundary: release _fd %d _queue.size() %d by %s:%s\n".cstring(),
+          _fd, _queue.size(), _host.cstring(), _service.cstring())
+      end
       _throttle_by_queue = false
       _release_backpressure()
     end
@@ -962,8 +963,10 @@ actor OutgoingBoundary is Consumer
     _queue.push(msg)
     if (_queue.size() > _queue_max_size) and (not _throttle_by_queue) then
       // TODO if debug wrapper
-      @printf[I32]("OutgoingBoundary: apply _fd %d _queue.size() %d by %s:%s\n".cstring(),
-        _fd, _queue.size(), _host.cstring(), _service.cstring())
+      if _DebugBackPressure.yes() then
+        @printf[I32]("OutgoingBoundary: apply _fd %d _queue.size() %d by %s:%s\n".cstring(),
+          _fd, _queue.size(), _host.cstring(), _service.cstring())
+      end
       _throttle_by_queue = true
       _apply_backpressure(false)
       // We are applying backpressure because of
@@ -1125,14 +1128,14 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     _release_backpressure_in_runtime()
 
   fun ref _apply_backpressure_in_runtime() =>
-    ifdef debug then
+    if _DebugBackPressure.yes() then
       @printf[I32]("OutgoingBoundary: back-pressure apply by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
     Backpressure.apply(_auth)
 
   fun ref _release_backpressure_in_runtime() =>
-    ifdef debug then
+    if _DebugBackPressure.yes() then
       @printf[I32]("OutgoingBoundary: back-pressure release by %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
     end
@@ -1146,4 +1149,14 @@ class _PauseBeforeReconnect is TimerNotify
 
   fun ref apply(timer: Timer, count: U64): Bool =>
     _ob.reconnect()
+    false
+
+primitive _DebugBackPressure
+  fun yes(): Bool =>
+    ifdef debug then
+      return true
+    end
+    ifdef "debug_back_pressure" then
+      return true
+    end
     false

@@ -818,7 +818,6 @@ actor ReconnectingMetricsSink
 
   fun ref _apply_backpressure() =>
     if not _throttled then
-      @printf[I32]("ReconnectingMetricsSink: _apply_backpressure\n".cstring())
       _throttled = true
       _notify.throttled(this)
     end
@@ -832,7 +831,6 @@ actor ReconnectingMetricsSink
 
   fun ref _release_backpressure() =>
     if _throttled then
-      @printf[I32]("ReconnectingMetricsSink: _release_backpressure\n".cstring())
       _throttled = false
       _notify.unthrottled(this)
     end
@@ -920,7 +918,7 @@ interface _MetricsSinkNotify
     the `throttled` notification will result in outgoing data queuing in the
     connection and increasing memory usage.
     """
-    None
+    @printf[I32]("ReconnectingMetricsSink: unthrottled\n".cstring())
 
   fun ref unthrottled(conn: MetricsSink ref) =>
     """
@@ -928,7 +926,7 @@ interface _MetricsSinkNotify
     receiving this notification, you should feel free to start making calls to
     `write` and `writev` again.
     """
-    None
+    @printf[I32]("ReconnectingMetricsSink: unthrottled\n".cstring())
 
 class MetricsSinkNotify is _MetricsSinkNotify
   let _name: String

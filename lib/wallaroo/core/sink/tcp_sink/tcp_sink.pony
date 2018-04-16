@@ -336,11 +336,7 @@ actor TCPSink is Consumer
       if AsioEvent.writeable(flags) then
         // A connection has completed.
         var fd = @pony_asio_event_fd(event)
-        ifdef "setsockopt" then
-          @printf[I32]("YO, fd %d setting buf sizes\n".cstring(), fd)
-          @pony_os_rcvbuf[None](fd, I32(1024))
-          @pony_os_sndbuf[None](fd, I32(1024))
-        end
+        // TODO setsockopt here?
         _connect_count = _connect_count - 1
 
         if not _connected and not _closed then
@@ -912,17 +908,13 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
     _release_backpressure_in_runtime()
 
   fun ref _apply_backpressure_in_runtime() =>
-    ifdef debug then
-      @printf[I32]("TCPSink: back-pressure apply by %s:%s\n".cstring(),
-        _host.cstring(), _service.cstring())
-    end
+    @printf[I32]("TCPSink: back-pressure apply by %s:%s\n".cstring(),
+      _host.cstring(), _service.cstring())
     try Backpressure.apply(_auth as AmbientAuth) end
 
   fun ref _release_backpressure_in_runtime() =>
-    ifdef debug then
-      @printf[I32]("TCPSink: back-pressure release by %s:%s\n".cstring(),
-        _host.cstring(), _service.cstring())
-    end
+    @printf[I32]("TCPSink: back-pressure release by %s:%s\n".cstring(),
+      _host.cstring(), _service.cstring())
     try Backpressure.release(_auth as AmbientAuth) end
 
 class PauseBeforeReconnectTCPSink is TimerNotify
