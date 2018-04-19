@@ -407,6 +407,7 @@ actor Connections is Cluster
         consume reporter, host, service, _spike_config)
       let boundary = builder.build_and_initialize(boundary_id, target,
         local_topology_initializer)
+@printf[I32]("#*#*# %s %d: call build_and_initialize -> px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), boundary)
       _register_disposable(boundary)
       local_topology_initializer.add_boundary_to_joining_worker(target,
         boundary, builder)
@@ -673,6 +674,7 @@ actor Connections is Cluster
       _spike_config)
     let outgoing_boundary =
       boundary_builder.build_and_initialize(_step_id_gen(), target_name, li)
+@printf[I32]("#*#*# %s %d: call build_and_initialize -> px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), outgoing_boundary)
     _data_conn_builders(target_name) = boundary_builder
     _register_disposable(outgoing_boundary)
     _data_conns(target_name) = outgoing_boundary

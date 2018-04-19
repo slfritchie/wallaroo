@@ -168,6 +168,7 @@ actor OutgoingBoundary is Consumer
     Connect via IPv4 or IPv6. If `from` is a non-empty string, the connection
     will be made from the specified interface.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _auth = auth
     ifdef "spike" then
       match spike_config
@@ -196,12 +197,14 @@ actor OutgoingBoundary is Consumer
   //
 
   be application_begin_reporting(initializer: LocalTopologyInitializer) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _initializer = initializer
     initializer.report_created(this)
 
   be application_created(initializer: LocalTopologyInitializer,
     omni_router: OmniRouter)
   =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _connect_count = @pony_os_connect_tcp[U32](this,
       _host.cstring(), _service.cstring(),
       _from.cstring())
@@ -211,6 +214,7 @@ actor OutgoingBoundary is Consumer
       "\n").cstring())
 
   be application_initialized(initializer: LocalTopologyInitializer) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     try
       if _step_id == 0 then
         Fail()
@@ -224,12 +228,14 @@ actor OutgoingBoundary is Consumer
     end
 
   be application_ready_to_work(initializer: LocalTopologyInitializer) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     None
 
   be quick_initialize(initializer: LayoutInitializer) =>
     """
     Called when initializing as part of a new worker joining a running cluster.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _reported_initialized then
       try
         _initializer = initializer
@@ -256,6 +262,7 @@ actor OutgoingBoundary is Consumer
     end
 
   be reconnect() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _connected and not _no_more_reconnect then
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
@@ -269,6 +276,7 @@ actor OutgoingBoundary is Consumer
   be migrate_step[K: (Hashable val & Equatable[K] val)](step_id: StepId,
     state_name: String, key: K, state: ByteSeq val)
   =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     try
       let outgoing_msg = ChannelMsgEncoder.migrate_step[K](step_id,
         state_name, key, state, _worker_name, _auth)?
@@ -278,6 +286,7 @@ actor OutgoingBoundary is Consumer
     end
 
   be send_migration_batch_complete() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     try
       let migration_batch_complete_msg =
         ChannelMsgEncoder.migration_batch_complete(_worker_name, _auth)?
@@ -287,6 +296,7 @@ actor OutgoingBoundary is Consumer
     end
 
   be register_step_id(step_id: StepId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _step_id = step_id
     _in_flight_ack_waiter = InFlightAckWaiter(_step_id)
 
@@ -311,6 +321,7 @@ actor OutgoingBoundary is Consumer
     i_producer: Producer, i_seq_id: SeqId, i_route_id: RouteId, latest_ts: U64,
     metrics_id: U16, worker_ingress_ts: U64)
   =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     let metric_name = delivery_msg.metric_name()
     // TODO: delete
     let msg_uid = delivery_msg.msg_uid()
@@ -364,11 +375,13 @@ actor OutgoingBoundary is Consumer
     end
 
   be writev(data: Array[ByteSeq] val) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _writev(data)
 
   be receive_state(state: ByteSeq val) => Fail()
 
   fun ref receive_ack(seq_id: SeqId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     ifdef debug then
       Invariant(seq_id > _lowest_queue_id)
     end
@@ -382,8 +395,8 @@ actor OutgoingBoundary is Consumer
     _queue.remove(0, flush_count)
     if (_queue.size() < (_queue_max_size / 2)) and _throttle_by_queue then
       if _DebugBackPressure.yes() then
-        @printf[I32]("OutgoingBoundary: release _fd %d _queue.size() %d by %s:%s\n".cstring(),
-          _fd, _queue.size(), _host.cstring(), _service.cstring())
+        @printf[I32]("OutgoingBoundary: release _fd %d this px%lx this px%lx _queue.size() %d by %s:%s\n".cstring(),
+          _fd, this, _queue.size(), _host.cstring(), _service.cstring())
       end
       _throttle_by_queue = false
       _release_backpressure()
@@ -395,9 +408,11 @@ actor OutgoingBoundary is Consumer
     end
 
   fun ref receive_connect_ack(last_id_seen: SeqId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _replay_from(last_id_seen)
 
   fun ref start_normal_sending() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _reported_ready_to_work then
       match _initializer
       | let li: LayoutInitializer =>
@@ -411,6 +426,7 @@ actor OutgoingBoundary is Consumer
     _replaying = false
 
   fun ref _replay_from(idx: SeqId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     try
       var cur_id = _lowest_queue_id
       for msg in _queue.values() do
@@ -428,6 +444,7 @@ actor OutgoingBoundary is Consumer
     """
     No-op: OutgoingBoundary has no router
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     None
 
   be dispose() =>
@@ -436,6 +453,7 @@ actor OutgoingBoundary is Consumer
     to be sent but any writes that arrive after this will be
     silently discarded and not acknowleged.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     @printf[I32]("Shutting down OutgoingBoundary\n".cstring())
     _no_more_reconnect = true
     _timers.dispose()
@@ -444,9 +462,11 @@ actor OutgoingBoundary is Consumer
 
   be request_ack() =>
     // TODO: How do we propagate this down?
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     None
 
   be register_producer(producer: Producer) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     ifdef debug then
       Invariant(not _upstreams.contains(producer))
     end
@@ -454,6 +474,7 @@ actor OutgoingBoundary is Consumer
     _upstreams.set(producer)
 
   be unregister_producer(producer: Producer) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     // TODO: Determine if we need this Invariant.
     // ifdef debug then
     //   Invariant(_upstreams.contains(producer))
@@ -462,6 +483,7 @@ actor OutgoingBoundary is Consumer
     _upstreams.unset(producer)
 
   be report_status(code: ReportStatusCode) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _in_flight_ack_waiter.report_status(code)
     try
       _writev(ChannelMsgEncoder.report_status(code, _auth)?)
@@ -472,16 +494,17 @@ actor OutgoingBoundary is Consumer
   be request_in_flight_ack(upstream_request_id: RequestId,
     requester_id: StepId, upstream_requester: InFlightAckRequester)
   =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _in_flight_ack_waiter.already_added_request(requester_id) then
       try
         _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
           upstream_requester)
         let request_id = _in_flight_ack_waiter.add_consumer_request(
           requester_id)
-@printf[I32]("boundary: request_in_flight_ack A _fd %d request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, upstream_request_id, _pending.size())
+@printf[I32]("boundary: request_in_flight_ack A _fd %d this px%lx request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, this, upstream_request_id, _pending.size())
         _writev(ChannelMsgEncoder.request_in_flight_ack(_worker_name,
           request_id, requester_id, _auth)?)
-@printf[I32]("boundary: request_in_flight_ack B _fd %d request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, upstream_request_id, _pending.size())
+@printf[I32]("boundary: request_in_flight_ack B _fd %d this px%lx request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, this, upstream_request_id, _pending.size())
       else
         Fail()
       end
@@ -493,6 +516,7 @@ actor OutgoingBoundary is Consumer
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester, leaving_workers: Array[String] val)
   =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
       request_id, requester_id, requester)
     then
@@ -508,12 +532,15 @@ actor OutgoingBoundary is Consumer
     end
 
   be try_finish_in_flight_request_early(requester_id: StepId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
   be receive_in_flight_ack(request_id: RequestId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
   be receive_in_flight_resume_ack(request_id: RequestId) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _in_flight_ack_waiter.unmark_consumer_resume_request(request_id)
 
   //
@@ -522,6 +549,7 @@ actor OutgoingBoundary is Consumer
     """
     Handle socket events.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if event isnt _event then
       if AsioEvent.writeable(flags) then
         // A connection has completed.
@@ -532,7 +560,7 @@ actor OutgoingBoundary is Consumer
           // We don't have a connection yet.
           if @pony_os_connected[Bool](fd) then
             // The connection was successful, make it ours.
-@printf[I32]("EVENT-NOTIFY-WHOO A: _fd %d fd %d _pending.size() = %d\n".cstring(), _fd, fd, _pending.size())
+@printf[I32]("EVENT-NOTIFY-WHOO A: _fd %d fd %d this px%lx _pending.size() = %d\n".cstring(), _fd, fd, this, _pending.size())
             _fd = fd
             _event = event
             _connected = true
@@ -556,7 +584,7 @@ actor OutgoingBoundary is Consumer
           @printf[I32]("Reconnection asio event\n".cstring())
           if @pony_os_connected[Bool](fd) then
             // The connection was successful, make it ours.
-@printf[I32]("EVENT-NOTIFY-WHOO B: _fd %d fd %d _pending.size() = %d\n".cstring(), _fd, fd, _pending.size())
+@printf[I32]("EVENT-NOTIFY-WHOO B: _fd %d fd %d this px%lx _pending.size() = %d\n".cstring(), _fd, fd, this, _pending.size())
             _fd = fd
             _event = event
 
@@ -636,6 +664,7 @@ actor OutgoingBoundary is Consumer
     end
 
   fun ref _on_connected() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _reported_initialized then
       // If connecting failed, we should handle here
       match _initializer
@@ -648,6 +677,7 @@ actor OutgoingBoundary is Consumer
     end
 
   fun ref _schedule_reconnect() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if (_host != "") and (_service != "") and not _no_more_reconnect then
       @printf[I32]("RE-Connecting OutgoingBoundary to %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
@@ -666,6 +696,7 @@ actor OutgoingBoundary is Consumer
     """
     Write a sequence of sequences of bytes.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _in_sent = true
 
     var data_size: USize = 0
@@ -686,6 +717,7 @@ actor OutgoingBoundary is Consumer
     everything was written. On an error, close the connection. This is for
     data that has already been transformed by the notifier.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _pending_writev.>push(data.cpointer().usize()).>push(data.size())
     _pending_writev_total = _pending_writev_total + data.size()
 
@@ -696,6 +728,7 @@ actor OutgoingBoundary is Consumer
     """
     Inform the notifier that we're connecting.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if _connect_count > 0 then
       _notify.connecting(this, _connect_count)
     else
@@ -709,6 +742,7 @@ actor OutgoingBoundary is Consumer
     Perform a graceful shutdown. Don't accept new writes, but don't finish
     closing until we get a zero length read.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _closed = true
     _try_shutdown()
 
@@ -717,6 +751,7 @@ actor OutgoingBoundary is Consumer
     If we have closed and we have no remaining writes or pending connections,
     then shutdown.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _closed then
       return
     end
@@ -743,6 +778,7 @@ actor OutgoingBoundary is Consumer
     """
     When an error happens, do a non-graceful close.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _connected then
       return
     end
@@ -777,6 +813,7 @@ actor OutgoingBoundary is Consumer
     guessing the next packet length as we go. If we read 4 kb of data, send
     ourself a resume message and stop reading, to avoid starving other actors.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     try
       var sum: USize = 0
       var received_called: USize = 0
@@ -791,6 +828,7 @@ actor OutgoingBoundary is Consumer
           _event,
           _read_buf.cpointer().usize() + _read_len,
           _read_buf.size() - _read_len) ?
+if _fd == 34 then @printf[I32]("boundary: _pending_reads: _fd %d this px%lx len %d\n".cstring(), _fd, this, len) end
 
         match len
         | 0 =>
@@ -844,6 +882,7 @@ actor OutgoingBoundary is Consumer
     """
     Resume reading.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _pending_reads()
 
   fun ref _pending_writes(): Bool =>
@@ -852,6 +891,7 @@ actor OutgoingBoundary is Consumer
     writeable. On an error, dispose of the connection. Returns whether
     it sent all pending data or not.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     // TODO: Make writev_batch_size user configurable
     let writev_batch_size: USize = @pony_os_writev_max[I32]().usize()
     var num_to_send: USize = 0
@@ -876,7 +916,7 @@ actor OutgoingBoundary is Consumer
         // Write as much data as possible.
         var len = @pony_os_writev[USize](_event,
           _pending_writev.cpointer(), num_to_send) ?
-if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send %d len %d\n".cstring(), _fd, bytes_to_send, len) end
+if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d this px%lx bytes_to_send %d len %d\n".cstring(), _fd, this, bytes_to_send, len) end
 
         // keep track of how many bytes we sent
         bytes_sent = bytes_sent + len
@@ -930,6 +970,7 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
     """
     Resize the read buffer.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if _expect != 0 then
       _read_buf.undefined(_expect)
     else
@@ -942,6 +983,7 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
     `qty` is zero, the call can contain any amount of data. This has no effect
     if called in the `sent` notifier callback.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if not _in_sent then
       _expect = _notify.expect(this, qty)
       _read_buf_size()
@@ -951,6 +993,7 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
     """
     Return the local IP address.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     let ip = recover NetAddress end
     @pony_os_sockname[Bool](_fd, ip)
     ip
@@ -960,17 +1003,19 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
     Turn Nagle on/off. Defaults to on. This can only be set on a connected
     socket.
     """
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if _connected then
       @pony_os_nodelay[None](_fd, state)
     end
 
   fun ref _add_to_upstream_backup(msg: Array[ByteSeq] val) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     _queue.push(msg)
     if (_queue.size() > _queue_max_size) and (not _throttle_by_queue) then
       // TODO if debug wrapper
       if _DebugBackPressure.yes() then
-        @printf[I32]("OutgoingBoundary: apply _fd %d _queue.size() %d by %s:%s\n".cstring(),
-          _fd, _queue.size(), _host.cstring(), _service.cstring())
+        @printf[I32]("OutgoingBoundary: apply _fd %d this px%lx _queue.size() %d by %s:%s\n".cstring(),
+          _fd, this, _queue.size(), _host.cstring(), _service.cstring())
       end
       _throttle_by_queue = true
       _apply_backpressure(false)
@@ -997,6 +1042,7 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
   ** based on state change of only #1 or only #2.
   */
   fun ref _apply_backpressure(caused_by_socket: Bool) =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if (_throttle_by_queue or _throttle_by_socket) and (not _throttled) then
       _throttled = true
       _notify.throttled(this)
@@ -1010,6 +1056,7 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send 
     end
 
   fun ref _release_backpressure() =>
+//@printf[I32]("--#*#*# %s %d: px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), this)
     if (not (_throttle_by_queue or _throttle_by_socket)) and _throttled then
       _throttled = false
       _notify.unthrottled(this)

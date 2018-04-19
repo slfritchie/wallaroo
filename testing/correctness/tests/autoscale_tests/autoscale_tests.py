@@ -72,7 +72,7 @@ def create_autoscale_test(api, cmd, seq, cycles, initial=None):
     test_name = AUTOSCALE_TEST_NAME_FMT.format(api=api, ops=ops)
     def f():
         autoscale_sequence(cmd, ops=seq, cycles=cycles, initial=initial)
-        raise PipelineTestError("SLF intentional error")
+        #### raise PipelineTestError("SLF intentional error")
     f.func_name = test_name
     globals()[test_name] = f
 
