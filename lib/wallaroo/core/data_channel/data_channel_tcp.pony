@@ -236,6 +236,7 @@ class DataChannelConnectNotifier is DataChannelNotify
         // layout_initializer then router_registry.
         _layout_initializer.ack_migration_batch_complete(m.sender_name)
       | let aw: AckWatermarkMsg =>
+        @printf[I32]("...data: Received AckWatermarkMsg from %s request_id 0x%lx\n".cstring(), aw.sender_name.cstring(), aw.seq_id)
         ifdef "trace" then
           @printf[I32]("Received AckWatermarkMsg on Data Channel\n".cstring())
         end
@@ -269,6 +270,7 @@ class DataChannelConnectNotifier is DataChannelNotify
       | let m: SpinUpLocalTopologyMsg =>
         @printf[I32]("Received spin up local topology message!\n".cstring())
       | let m: RequestInFlightAckMsg =>
+        @printf[I32]("...data: Received RequestInFlightAckMsg from %s request_id 0x%lx\n".cstring(), m.sender.cstring(), m.request_id)
         ifdef "trace" then
           @printf[I32]("Received RequestInFlightAckMsg from %s\n".cstring(),
             m.sender.cstring())
@@ -277,6 +279,7 @@ class DataChannelConnectNotifier is DataChannelNotify
       | let m: ReportStatusMsg =>
         _receiver.report_status(m.code)
       | let m: RequestInFlightResumeAckMsg =>
+        @printf[I32]("...data: Received RequestInFlightResumeAckMsg from %s request_id 0x%lx\n".cstring(), m.sender.cstring(), m.request_id)
         ifdef "trace" then
           @printf[I32]("Received RequestInFlightResumeAckMsg from %s\n"
             .cstring(), m.sender.cstring())
@@ -348,7 +351,8 @@ class _InitDataReceiver is _DataReceiverWrapper
     Fail()
 
   fun request_in_flight_ack(request_id: RequestId, requester_id: StepId) =>
-    Fail()
+    //SLF orig: Fail()
+    @printf[I32]("data_channel_tcp: request_in_flight_ack: request_id 0x%ld\n".cstring(), request_id)
 
   fun request_in_flight_resume_ack(
     in_flight_resume_ack_id: InFlightResumeAckId,

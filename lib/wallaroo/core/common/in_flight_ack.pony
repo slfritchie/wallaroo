@@ -33,6 +33,10 @@ actor InitialInFlightAckRequester is InFlightAckRequester
     _step_id = step_id
 
   be receive_in_flight_ack(request_id: RequestId) =>
+@printf[I32](("Received in flight ack at InitialInFlightAckRequester. " +
+  "This indicates the originator of a chain of in flight ack requests " +
+  "has received the final ack. Request id received: 0x%lx. Reported from %s\n").cstring(),
+  request_id, _step_id.string().cstring())
     ifdef debug then
       @printf[I32](("Received in flight ack at InitialInFlightAckRequester. " +
         "This indicates the originator of a chain of in flight ack requests " +
@@ -127,6 +131,7 @@ class InFlightAckWaiter
   fun ref initiate_request(initiator_id: StepId,
     custom_action: (CustomAction | None) = None)
   =>
+    @printf[I32]("... alright ... in_flight_ack: initiate_request initiator_id = %ld\n".cstring(), initiator_id)
     add_new_request(initiator_id, 0, InitialInFlightAckRequester(_step_id))
     match custom_action
     | let ca: CustomAction =>
@@ -147,6 +152,7 @@ class InFlightAckWaiter
     // If _upstream_request_ids contains the requester_id, then we're
     // already processing a request from it.
     if not _upstream_request_ids.contains(requester_id) then
+    @printf[I32]("in_flight_ack: add_new_request clause A request_id 0x%lx initiator_id = %lld\n".cstring(), request_id, requester_id)
       _upstream_request_ids(requester_id) = request_id
       _upstream_requesters(requester_id) = upstream_requester
       _pending_acks(requester_id) = SetIs[RequestId]
@@ -155,6 +161,7 @@ class InFlightAckWaiter
         set_custom_action(requester_id, ca)
       end
     else
+    @printf[I32]("in_flight_ack: add_new_request clause B request_id 0x%lx initiator_id = %lld\n".cstring(), request_id, requester_id)
       ifdef debug then
         @printf[I32]("Already processing a request from %s. Ignoring.\n"
           .cstring(), requester_id.string().cstring())
@@ -207,6 +214,7 @@ class InFlightAckWaiter
     _upstream_request_ids.contains(requester_id)
 
   fun ref unmark_consumer_request(request_id: RequestId) =>
+    @printf[I32]("unmark_consumer_request: request_id 0x%lx\n".cstring(), request_id)
     try
       let requester_id = _downstream_request_ids(request_id)?
       let id_set = _pending_acks(requester_id)?
@@ -215,6 +223,7 @@ class InFlightAckWaiter
       end
       id_set.unset(request_id)
       _downstream_request_ids.remove(request_id)?
+    @printf[I32]("unmark_consumer_request: ZZ request_id 0x%lx\n".cstring(), request_id)
       _check_send_run(requester_id)
     else
       Fail()
@@ -364,6 +373,7 @@ class InFlightAckWaiter
 
   fun ref _check_send_run(requester_id: StepId) =>
     try
+@printf[I32]("_check_send_run: _pending_acks(...).size() = %d\n".cstring(), _pending_acks(requester_id)?.size())
       if _pending_acks(requester_id)?.size() == 0 then
         let upstream_request_id = _upstream_request_ids(requester_id)?
         _upstream_requesters(requester_id)?

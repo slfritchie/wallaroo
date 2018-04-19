@@ -478,8 +478,10 @@ actor OutgoingBoundary is Consumer
           upstream_requester)
         let request_id = _in_flight_ack_waiter.add_consumer_request(
           requester_id)
+@printf[I32]("boundary: request_in_flight_ack A _fd %d request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, upstream_request_id, _pending.size())
         _writev(ChannelMsgEncoder.request_in_flight_ack(_worker_name,
           request_id, requester_id, _auth)?)
+@printf[I32]("boundary: request_in_flight_ack B _fd %d request_id 0x%lx _pending.size() = %d\n".cstring(), _fd, upstream_request_id, _pending.size())
       else
         Fail()
       end
@@ -530,6 +532,7 @@ actor OutgoingBoundary is Consumer
           // We don't have a connection yet.
           if @pony_os_connected[Bool](fd) then
             // The connection was successful, make it ours.
+@printf[I32]("EVENT-NOTIFY-WHOO A: _fd %d fd %d _pending.size() = %d\n".cstring(), _fd, fd, _pending.size())
             _fd = fd
             _event = event
             _connected = true
@@ -553,6 +556,7 @@ actor OutgoingBoundary is Consumer
           @printf[I32]("Reconnection asio event\n".cstring())
           if @pony_os_connected[Bool](fd) then
             // The connection was successful, make it ours.
+@printf[I32]("EVENT-NOTIFY-WHOO B: _fd %d fd %d _pending.size() = %d\n".cstring(), _fd, fd, _pending.size())
             _fd = fd
             _event = event
 
@@ -872,6 +876,7 @@ actor OutgoingBoundary is Consumer
         // Write as much data as possible.
         var len = @pony_os_writev[USize](_event,
           _pending_writev.cpointer(), num_to_send) ?
+if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d bytes_to_send %d len %d\n".cstring(), _fd, bytes_to_send, len) end
 
         // keep track of how many bytes we sent
         bytes_sent = bytes_sent + len
@@ -976,6 +981,7 @@ actor OutgoingBoundary is Consumer
       // socket is in a state that we'll get an ASIO
       // event for an ACK that arrives sometime
       // after now.  So force a read, asynchronously.
+@printf[I32]("SLF paranoia: are we here?\n".cstring())
       _read_again() // message to self
     end
 
@@ -1073,6 +1079,8 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
           @printf[I32]("Received InFlightAckMsg from %s\n".cstring(),
             fa.sender.cstring())
         end
+@printf[I32]("Received InFlightAckMsg from %s request_id 0x%lx\n".cstring(),
+  fa.sender.cstring(), fa.request_id)
         _outgoing_boundary.receive_in_flight_ack(fa.request_id)
       | let fa: FinishedCompleteAckMsg =>
         ifdef "trace" then
@@ -1106,6 +1114,7 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: closed\n\n".cstring())
+    //SLF HACK: @printf[I32]("BoundaryNotify: SLF HACKHACKHACK\n\n".cstring())
     _apply_backpressure_in_runtime()
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>

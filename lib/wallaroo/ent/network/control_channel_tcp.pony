@@ -380,6 +380,7 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
           m.in_flight_resume_ack_id, m.request_id, m.requester_id,
           m.leaving_workers)
       | let m: InFlightAckMsg =>
+        @printf[I32]("...control: Received InFlightAckMsg from %s request_id 0x%lx\n".cstring(), m.sender.cstring(), m.request_id)
         ifdef "trace" then
           @printf[I32]("Received InFlightAckMsg from %s\n".cstring(),
             m.sender.cstring())
