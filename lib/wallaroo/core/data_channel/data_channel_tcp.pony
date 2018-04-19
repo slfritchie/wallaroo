@@ -365,11 +365,7 @@ class _InitDataReceiver is _DataReceiverWrapper
     // 
     // We do not have an actor tag to send "ourself" a message, so
     // let's do this the old fashioned way: keep a queue.
-    /////////////////FIX ME!!! request_in_flight_ack_queue.push((request_id, requester_id))
-    @printf[I32]("data_channel_tcp: request_in_flight_ack: request_id 0x%ld\n".cstring(), request_id)
-    let deleteme = request_in_flight_ack_queue.size()
-    let yo = (request_id, requester_id)
-    request_in_flight_ack_queue.push(yo)
+    request_in_flight_ack_queue.push((request_id, requester_id))
 
   fun request_in_flight_resume_ack(
     in_flight_resume_ack_id: InFlightResumeAckId,
