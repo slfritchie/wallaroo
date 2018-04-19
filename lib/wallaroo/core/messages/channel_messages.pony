@@ -45,14 +45,14 @@ primitive ChannelMsgEncoder
     pipeline_time_spent: U64, seq_id: SeqId, wb: Writer, auth: AmbientAuth,
     latest_ts: U64, metrics_id: U16, metric_name: String): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(DataMsg(delivery_msg, pipeline_time_spent, seq_id, latest_ts,
+    _encode(DataMsg(delivery_msg, pipeline_time_spent, seq_id, latest_ts,
       metrics_id, metric_name), auth, wb)?
 
   fun migrate_step[K: (Hashable val & Equatable[K] val)](step_id: StepId,
     state_name: String, key: K, state: ByteSeq val, worker: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(KeyedStepMigrationMsg[K](step_id, state_name, key, state, worker),
+    _encode(KeyedStepMigrationMsg[K](step_id, state_name, key, state, worker),
       auth)?
 
   fun migration_batch_complete(sender: String,
@@ -62,7 +62,7 @@ primitive ChannelMsgEncoder
     Sent to signal to joining worker that a batch of steps has finished
     emigrating from this step.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(MigrationBatchCompleteMsg(sender), auth)?
+    _encode(MigrationBatchCompleteMsg(sender), auth)?
 
   fun ack_migration_batch_complete(worker: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
@@ -70,7 +70,7 @@ primitive ChannelMsgEncoder
     """
     Sent to ack that a batch of steps has finished immigrating to this step
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(AckMigrationBatchCompleteMsg(worker), auth)?
+    _encode(AckMigrationBatchCompleteMsg(worker), auth)?
 
   fun step_migration_complete(step_id: StepId,
     auth: AmbientAuth): Array[ByteSeq] val ?
@@ -78,7 +78,7 @@ primitive ChannelMsgEncoder
     """
     Sent when the migration of step step_id is complete
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(StepMigrationCompleteMsg(step_id), auth)?
+    _encode(StepMigrationCompleteMsg(step_id), auth)?
 
   fun begin_leaving_migration(remaining_workers: Array[String] val,
     leaving_workers: Array[String] val, auth: AmbientAuth):
@@ -90,14 +90,14 @@ primitive ChannelMsgEncoder
     after stopping the world. At that point, it's safe for leaving workers to
     migrate steps to the remaining workers.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(BeginLeavingMigrationMsg(remaining_workers, leaving_workers),
+    _encode(BeginLeavingMigrationMsg(remaining_workers, leaving_workers),
       auth)?
 
   fun initiate_shrink(remaining_workers: Array[String] val,
     leaving_workers: Array[String] val, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(InitiateShrinkMsg(remaining_workers, leaving_workers), auth)?
+    _encode(InitiateShrinkMsg(remaining_workers, leaving_workers), auth)?
 
   fun prepare_shrink(remaining_workers: Array[String] val,
     leaving_workers: Array[String] val, auth: AmbientAuth):
@@ -107,17 +107,17 @@ primitive ChannelMsgEncoder
     The worker initially contacted for autoscale shrink sends this message to
     all other remaining workers so they can prepare for the shrink event.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(PrepareShrinkMsg(remaining_workers, leaving_workers), auth)?
+    _encode(PrepareShrinkMsg(remaining_workers, leaving_workers), auth)?
 
   fun mute_request(originating_worker: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(MuteRequestMsg(originating_worker), auth)?
+    _encode(MuteRequestMsg(originating_worker), auth)?
 
   fun unmute_request(originating_worker: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(UnmuteRequestMsg(originating_worker), auth)?
+    _encode(UnmuteRequestMsg(originating_worker), auth)?
 
   fun delivery[D: Any val](target_id: StepId,
     from_worker_name: String, msg_data: D,
@@ -125,89 +125,88 @@ primitive ChannelMsgEncoder
     proxy_address: ProxyAddress, msg_uid: MsgId,
     frac_ids: FractionalMessageId): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ForwardMsg[D](target_id, from_worker_name,
+    _encode(ForwardMsg[D](target_id, from_worker_name,
       msg_data, metric_name, proxy_address, msg_uid, frac_ids), auth)?
 
   fun identify_control_port(worker_name: String, service: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(IdentifyControlPortMsg(worker_name, service), auth)?
+    _encode(IdentifyControlPortMsg(worker_name, service), auth)?
 
   fun identify_data_port(worker_name: String, service: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(IdentifyDataPortMsg(worker_name, service), auth)?
+    _encode(IdentifyDataPortMsg(worker_name, service), auth)?
 
   fun reconnect_data_port(worker_name: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ReconnectDataPortMsg(worker_name), auth)?
+    _encode(ReconnectDataPortMsg(worker_name), auth)?
 
   fun spin_up_local_topology(local_topology: LocalTopology,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(SpinUpLocalTopologyMsg(local_topology), auth)?
+    _encode(SpinUpLocalTopologyMsg(local_topology), auth)?
 
   fun spin_up_step(step_id: U64, step_builder: StepBuilder,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(SpinUpStepMsg(step_id, step_builder), auth)?
+    _encode(SpinUpStepMsg(step_id, step_builder), auth)?
 
   fun topology_ready(worker_name: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(TopologyReadyMsg(worker_name), auth)?
+    _encode(TopologyReadyMsg(worker_name), auth)?
 
   fun create_connections(
     c_addrs: Map[String, (String, String)] val,
     d_addrs: Map[String, (String, String)] val,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(CreateConnectionsMsg(c_addrs, d_addrs), auth)?
+    _encode(CreateConnectionsMsg(c_addrs, d_addrs), auth)?
 
   fun connections_ready(worker_name: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ConnectionsReadyMsg(worker_name), auth)?
+    _encode(ConnectionsReadyMsg(worker_name), auth)?
 
   fun create_data_channel_listener(workers: Array[String] val,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(CreateDataChannelListener(workers), auth)?
+    _encode(CreateDataChannelListener(workers), auth)?
 
   fun data_connect(sender_name: String, sender_step_id: StepId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(DataConnectMsg(sender_name, sender_step_id), auth)?
+    _encode(DataConnectMsg(sender_name, sender_step_id), auth)?
 
   fun ack_data_connect(last_id_seen: SeqId, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(AckDataConnectMsg(last_id_seen), auth)?
+    _encode(AckDataConnectMsg(last_id_seen), auth)?
 
   fun data_disconnect(auth: AmbientAuth): Array[ByteSeq] val ? =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(DataDisconnectMsg, auth)?
+    _encode(DataDisconnectMsg, auth)?
 
   fun start_normal_data_sending(last_id_seen: SeqId, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(StartNormalDataSendingMsg(last_id_seen), auth)?
+    _encode(StartNormalDataSendingMsg(last_id_seen), auth)?
 
   fun replay_complete(sender_name: String, boundary_id: U128,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ReplayCompleteMsg(sender_name, boundary_id), auth)?
+    _encode(ReplayCompleteMsg(sender_name, boundary_id), auth)?
 
   fun ack_watermark(sender_name: String, sender_step_id: StepId, seq_id: SeqId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("channel_messages: encode ack_watermark %ld\n".cstring(), seq_id)
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(AckWatermarkMsg(sender_name, sender_step_id, seq_id), auth)?
+    _encode(AckWatermarkMsg(sender_name, sender_step_id, seq_id), auth)?
 
   fun replay(delivery_bytes: Array[ByteSeq] val, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ReplayMsg(delivery_bytes), auth)?
+    _encode(ReplayMsg(delivery_bytes), auth)?
 
   fun join_cluster(worker_name: String, worker_count: USize,
     auth: AmbientAuth): Array[ByteSeq] val ?
@@ -216,7 +215,7 @@ primitive ChannelMsgEncoder
     This message is sent from a worker requesting to join a running cluster to
     any existing worker in the cluster.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(JoinClusterMsg(worker_name, worker_count), auth)?
+    _encode(JoinClusterMsg(worker_name, worker_count), auth)?
 
   // TODO: Update this once new workers become first class citizens
   fun inform_joining_worker(worker_name: String, metric_app_name: String,
@@ -234,7 +233,7 @@ primitive ChannelMsgEncoder
     This message is sent as a response to a JoinCluster message. Currently it
     only informs the new worker of metrics-related info
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(InformJoiningWorkerMsg(worker_name, metric_app_name, l_topology,
+    _encode(InformJoiningWorkerMsg(worker_name, metric_app_name, l_topology,
       metric_host, metric_service, control_addrs, data_addrs, worker_names,
       partition_blueprints, stateless_partition_blueprints,
       omni_router_blueprint), auth)?
@@ -245,7 +244,7 @@ primitive ChannelMsgEncoder
     This message is sent as a response to a JoinCluster message when there is
     a join error and the joiner should shut down.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(InformJoinErrorMsg(msg), auth)?
+    _encode(InformJoinErrorMsg(msg), auth)?
 
   fun inform_recover_not_join(auth: AmbientAuth): Array[ByteSeq] val ? =>
     """
@@ -253,7 +252,7 @@ primitive ChannelMsgEncoder
     already know the worker name (which indicates that it is recovering, not
     joining)
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(InformRecoverNotJoinMsg, auth)?
+    _encode(InformRecoverNotJoinMsg, auth)?
 
   fun joining_worker_initialized(worker_name: String, c_addr: (String, String),
     d_addr: (String, String), auth: AmbientAuth): Array[ByteSeq] val ?
@@ -263,7 +262,7 @@ primitive ChannelMsgEncoder
     other topology information to initialize its topology. It indicates that
     it is ready to receive migrated steps.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(JoiningWorkerInitializedMsg(worker_name, c_addr, d_addr), auth)?
+    _encode(JoiningWorkerInitializedMsg(worker_name, c_addr, d_addr), auth)?
 
   fun initiate_join_migration(new_workers: Array[String] val,
     auth: AmbientAuth): Array[ByteSeq] val ?
@@ -274,7 +273,7 @@ primitive ChannelMsgEncoder
     sends this message to every other current worker informing them to begin
     migration as well.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(InitiateJoinMigrationMsg(new_workers), auth)?
+    _encode(InitiateJoinMigrationMsg(new_workers), auth)?
 
   fun leaving_worker_done_migrating(worker_name: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
@@ -283,23 +282,23 @@ primitive ChannelMsgEncoder
     A leaving worker sends this to indicate it has migrated all steps back to
     remaining workers.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(LeavingWorkerDoneMigratingMsg(worker_name), auth)?
+    _encode(LeavingWorkerDoneMigratingMsg(worker_name), auth)?
 
   fun request_boundary_count(sender: String, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(RequestBoundaryCountMsg(sender), auth)?
+    _encode(RequestBoundaryCountMsg(sender), auth)?
 
   fun replay_boundary_count(sender: String, count: USize, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ReplayBoundaryCountMsg(sender, count), auth)?
+    _encode(ReplayBoundaryCountMsg(sender, count), auth)?
 
   fun announce_connections(control_addrs: Map[String, (String, String)] val,
     data_addrs: Map[String, (String, String)] val, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(AnnounceConnectionsMsg(control_addrs, data_addrs), auth)?
+    _encode(AnnounceConnectionsMsg(control_addrs, data_addrs), auth)?
 
   fun announce_new_stateful_step[K: (Hashable val & Equatable[K] val)](
     id: StepId, worker_name: String, key: K, state_name: String,
@@ -310,7 +309,7 @@ primitive ChannelMsgEncoder
     has been created on this worker and that partition routers should be
     updated.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(KeyedAnnounceNewStatefulStepMsg[K](id, worker_name, key,
+    _encode(KeyedAnnounceNewStatefulStepMsg[K](id, worker_name, key,
       state_name), auth)?
 
   fun announce_new_source(worker_name: String, id: StepId,
@@ -321,46 +320,46 @@ primitive ChannelMsgEncoder
     has been created on this worker and that routers should be
     updated.
     """
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(AnnounceNewSourceMsg(worker_name, id), auth)?
+    _encode(AnnounceNewSourceMsg(worker_name, id), auth)?
 
   fun rotate_log_files(auth: AmbientAuth): Array[ByteSeq] val ? =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(RotateLogFilesMsg, auth)?
+    _encode(RotateLogFilesMsg, auth)?
 
   fun clean_shutdown(auth: AmbientAuth, msg: String = ""): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(CleanShutdownMsg(msg), auth)?
+    _encode(CleanShutdownMsg(msg), auth)?
 
   fun report_status(code: ReportStatusCode, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ReportStatusMsg(code), auth)?
+    _encode(ReportStatusMsg(code), auth)?
 
   fun request_in_flight_ack(sender: String, request_id: RequestId,
     requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s) request_id 0x%lx\n".cstring(), __loc.method().cstring(), request_id); _encode(RequestInFlightAckMsg(sender, request_id, requester_id), auth)?
+    _encode(RequestInFlightAckMsg(sender, request_id, requester_id), auth)?
 
   fun request_in_flight_resume_ack(sender: String,
     in_flight_resume_ack_id: InFlightResumeAckId, request_id: RequestId,
     requester_id: StepId, leaving_workers: Array[String] val,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(RequestInFlightResumeAckMsg(sender, in_flight_resume_ack_id,
+    _encode(RequestInFlightResumeAckMsg(sender, in_flight_resume_ack_id,
       request_id, requester_id, leaving_workers), auth)?
 
   fun in_flight_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s) request_id 0x%lx\n".cstring(), __loc.method().cstring(), request_id); _encode(InFlightAckMsg(sender, request_id), auth)?
+    _encode(InFlightAckMsg(sender, request_id), auth)?
 
   fun in_flight_resume_ack(sender: String, request_id: RequestId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(FinishedCompleteAckMsg(sender, request_id), auth)?
+    _encode(FinishedCompleteAckMsg(sender, request_id), auth)?
 
   fun resume_the_world(sender: String, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    @printf[I32]("DBG: _encode(%s)\n".cstring(), __loc.method().cstring()); _encode(ResumeTheWorldMsg(sender), auth)?
+    _encode(ResumeTheWorldMsg(sender), auth)?
 
 primitive ChannelMsgDecoder
   fun apply(data: Array[U8] val, auth: AmbientAuth): ChannelMsg =>

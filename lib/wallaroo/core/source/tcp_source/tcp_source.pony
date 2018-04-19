@@ -221,7 +221,6 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
       if not _outgoing_boundaries.contains(target_worker_name) then
         let boundary = builder.build_and_initialize(_step_id_gen(),
           target_worker_name, _layout_initializer)
-@printf[I32]("#*#*# %s %d: call build_and_initialize -> px%lx\n".cstring(), __loc.file().cstring(), __loc.line(), boundary)
         _router_registry.register_disposable(boundary)
         _outgoing_boundaries(target_worker_name) = boundary
         let new_route = _route_builder(this, boundary, _metrics_reporter)

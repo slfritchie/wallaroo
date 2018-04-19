@@ -791,7 +791,6 @@ actor RouterRegistry is InFlightAckRequester
     _connections.stop_the_world(new_workers)
 
   fun ref _try_resume_the_world() =>
-    @printf[I32]("router_registry: _try_resume_the_world\n".cstring()) // SLF debug
     if _initiated_stop_the_world then
       // Since we don't need all steps to be up to date on the OmniRouter
       // during migrations, we wait on the worker that initiated stop the
@@ -926,7 +925,6 @@ actor RouterRegistry is InFlightAckRequester
     _unmute_request(originating_worker)
 
   fun ref _unmute_request(originating_worker: String) =>
-    @printf[I32]("router_registry: _unmute_request\n".cstring()) // SLF debug
     if _stopped_worker_waiting_list.size() > 0 then
       _stopped_worker_waiting_list.unset(originating_worker)
       if (_stopped_worker_waiting_list.size() == 0) then
@@ -1136,7 +1134,7 @@ actor RouterRegistry is InFlightAckRequester
 
   fun _resume_all_remote() =>
     ifdef debug then
-      @printf[I32]("RouterRegistry send_control_to_cluster(resume_the_world).\n".cstring()) // SLF debug
+      @printf[I32]("RouterRegistry send_control_to_cluster(resume_the_world).\n".cstring())
     end
     try
       let msg = ChannelMsgEncoder.resume_the_world(_worker_name, _auth)?

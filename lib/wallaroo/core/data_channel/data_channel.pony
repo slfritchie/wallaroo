@@ -149,8 +149,6 @@ actor DataChannel
     _queue_read()
     _pending_reads()
 
-  fun get_fd(): U32 => _fd
-
   be identify_data_receiver(dr: DataReceiver, sender_step_id: StepId) =>
     """
     Each abstract data channel (a connection from an OutgoingBoundary)
