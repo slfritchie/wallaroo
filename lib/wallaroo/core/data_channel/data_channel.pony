@@ -55,7 +55,6 @@ actor DataChannel
   var _writeable: Bool = false
   var _throttled: Bool = false
   var _closed: Bool = false
-  var _initialized: Bool = false // Manage init race w/identify_data_receiver
   var _shutdown: Bool = false
   var _shutdown_peer: Bool = false
   var _in_sent: Bool = false
@@ -159,10 +158,6 @@ actor DataChannel
     this DataChannel.
     """
     _notify.identify_data_receiver(dr, sender_step_id, this)
-    _initialized = true
-    @printf[I32]("DataChannel: identify_data_receiver: _initialized = true\n".cstring())
-    _queue_read()
-    _pending_reads()
 
   be write(data: ByteSeq) =>
     """
@@ -567,7 +562,7 @@ actor DataChannel
 
       _read_len = _read_len + len.usize()
 
-      if _initialized and (_read_len >= _expect) then
+      if (_read_len >= _expect) then
         let data = _read_buf = recover Array[U8] end
         data.truncate(_read_len)
         _read_len = 0
@@ -616,9 +611,6 @@ actor DataChannel
         var received_called: USize = 0
 
         while _readable and not _shutdown_peer do
-          if not _initialized then
-            return
-          end
           // Read as much data as possible.
           let len = @pony_os_recv[USize](
             _event,
