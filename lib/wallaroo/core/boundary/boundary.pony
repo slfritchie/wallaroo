@@ -756,6 +756,9 @@ actor OutgoingBoundary is Consumer
     _pending_writev_total = 0
     _readable = false
     _writeable = false
+    if _throttled then
+      _notify.unthrottled(this)
+    end
     _throttled = false
     _throttle_by_queue = false
     _throttle_by_socket = false
@@ -964,7 +967,6 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d this px%lx byt
   fun ref _add_to_upstream_backup(msg: Array[ByteSeq] val) =>
     _queue.push(msg)
     if (_queue.size() > _queue_max_size) and (not _throttle_by_queue) then
-      // TODO if debug wrapper
       ifdef debug or "debug_back_pressure" then
         @printf[I32]("OutgoingBoundary: apply _fd %d this px%lx _queue.size() %d by %s:%s\n".cstring(),
           _fd, this, _queue.size(), _host.cstring(), _service.cstring())
@@ -978,7 +980,6 @@ if _fd == 34 then @printf[I32]("boundary: _pending_writes: _fd %d this px%lx byt
       // socket is in a state that we'll get an ASIO
       // event for an ACK that arrives sometime
       // after now.  So force a read, asynchronously.
-@printf[I32]("SLF paranoia: are we here?\n".cstring())
       _read_again() // message to self
     end
 
@@ -1023,6 +1024,7 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
   let _service: String
   let _reconnect_closed_delay: U64
   let _reconnect_failed_delay: U64
+  let _fake_step_id: StepId = StepIdGenerator()
 
   new create(auth: AmbientAuth, outgoing_boundary: OutgoingBoundary tag,
     host: String, service: String,
@@ -1035,6 +1037,10 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     _service = service
     _reconnect_closed_delay = reconnect_closed_delay
     _reconnect_failed_delay = reconnect_failed_delay
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("OutgoingBoundary: stop_all_local(0x%llx".cstring(), _fake_step_id)
+    end
+    // SLF TODO: _router_registry.local_stop_all_local(_fake_step_id)
 
   fun ref received(conn: WallarooOutgoingNetworkActor ref, data: Array[U8] iso,
     times: USize): Bool
@@ -1103,15 +1109,19 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
 
   fun ref connected(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: connected\n\n".cstring())
-    _release_backpressure_in_runtime()
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("OutgoingBoundary: local_resume_all_local(0x%llx)\n".cstring(), _fake_step_id)
+    end
+    // SLF TODO: _router_registry.local_resume_all_local(_fake_step_id)
     conn.set_nodelay(true)
     conn.expect(4)
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: closed\n\n".cstring())
-    // SLF TODO: DOES CAUSE BAD HANGS?
-    // SLF TODO: Yes it does ... what's the workaround?
-    // _apply_backpressure_in_runtime()
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("OutgoingBoundary: local_stop_all_local(0x%llx)\n".cstring(), _fake_step_id)
+    end
+    // SLF TODO: _router_registry.local_stop_all_local(_fake_step_id)
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: connect_failed\n\n".cstring())

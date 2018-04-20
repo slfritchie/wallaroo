@@ -1103,6 +1103,10 @@ actor RouterRegistry is InFlightAckRequester
     if _local_stop_all_local_list.contains(who) then
       None
     else
+      ifdef debug or "debug_back_pressure" then
+        @printf[I32]("RouterRegistry: local_stop_all_local: old map size %d who 0x%llx".cstring(),
+          _local_stop_all_local_list.size(), who)
+      end
       if _local_stop_all_local_list.size() == 0 then
         _stop_all_local()
       end
@@ -1110,9 +1114,15 @@ actor RouterRegistry is InFlightAckRequester
     end
 
   be local_resume_all_local(who: U128 val) =>
-    try _local_stop_all_local_list.remove(who)? end
-    if _local_stop_all_local_list.size() == 0 then
-      _resume_all_local()
+    if _local_stop_all_local_list.contains(who) then
+      ifdef debug or "debug_back_pressure" then
+        @printf[I32]("RouterRegistry: local_stop_all_local: old map size %d who 0x%llx".cstring(),
+          _local_stop_all_local_list.size(), who)
+      end
+      try _local_stop_all_local_list.remove(who)? end
+      if _local_stop_all_local_list.size() == 0 then
+        _resume_all_local()
+      end
     end
 
   fun _stop_all_local() =>
