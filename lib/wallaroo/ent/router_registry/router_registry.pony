@@ -1106,7 +1106,7 @@ actor RouterRegistry is InFlightAckRequester
       if _local_stop_all_local_list.size() == 0 then
         _stop_all_local()
       end
-      _local_stop_all_local_list.(who) = who
+      _local_stop_all_local_list(who) = who
     end
 
   be local_resume_all_local(who: U128 val) =>
