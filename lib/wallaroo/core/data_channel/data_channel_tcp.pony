@@ -199,7 +199,7 @@ class DataChannelConnectNotifier is DataChannelNotify
         | (5, let request_id: RequestId, let requester_id: StepId,
            None,None,None,None) =>
           _receiver.request_in_flight_ack(request_id, requester_id)
-        | (8, let in_flight_resume_ack_id: InFlightResumeAckId,
+        | (6, let in_flight_resume_ack_id: InFlightResumeAckId,
            let request_id: RequestId, let requester_id: StepId,
            let leaving_workers: Array[String] val, _,_) =>
             _receiver.request_in_flight_resume_ack(in_flight_resume_ack_id,
