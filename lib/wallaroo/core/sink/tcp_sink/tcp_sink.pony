@@ -880,7 +880,9 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection closed\n".cstring())
-    _apply_backpressure_in_runtime()
+    // SLF TODO: DOES CAUSE BAD HANGS?
+    // SLF TODO: Yes it does ... what's the workaround?
+    // _apply_backpressure_in_runtime()
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection failed\n".cstring())
