@@ -194,16 +194,12 @@ class DataChannelConnectNotifier is DataChannelNotify
            let worker_ingress_ts: U64) =>
           _receiver.replay_received(r, pipeline_time_spent, seq_id, latest_ts,
              metrics_id, worker_ingress_ts)
-/****
-        | (4, _,_,_,_,_,_) =>
-          _receiver.upstream_replay_finished()
- ****/          
-        | (5, let code: ReportStatusCode, _,_,_,_,_) =>
+        | (4, let code: ReportStatusCode, _,_,_,_,_) =>
           _receiver.report_status(code)
-        | (6, let request_id: RequestId, let requester_id: StepId,
+        | (5, let request_id: RequestId, let requester_id: StepId,
            None,None,None,None) =>
           _receiver.request_in_flight_ack(request_id, requester_id)
-        | (7, let in_flight_resume_ack_id: InFlightResumeAckId,
+        | (8, let in_flight_resume_ack_id: InFlightResumeAckId,
            let request_id: RequestId, let requester_id: StepId,
            let leaving_workers: Array[String] val, _,_) =>
             _receiver.request_in_flight_resume_ack(in_flight_resume_ack_id,
@@ -390,13 +386,8 @@ class _InitDataReceiver is _DataReceiverWrapper
   =>
     delayed_queue.push((3, r, pipeline_time_spent, seq_id, latest_ts, metrics_id, worker_ingress_ts))
 
-/****
-  fun ref upstream_replay_finished() =>
-    delayed_queue.push((4, None,None,None,None,None,None))
- ****/
-
   fun ref report_status(code: ReportStatusCode) =>
-    delayed_queue.push((5, code, None,None,None,None,None))
+    delayed_queue.push((4, code, None,None,None,None,None))
 
   fun ref request_in_flight_ack(request_id: RequestId, requester_id: StepId) =>
     // Originally, this class did nothing.  With the removal of the
@@ -407,14 +398,14 @@ class _InitDataReceiver is _DataReceiverWrapper
     // We do not have an actor tag to send "ourself" a message, so
     // let's do this the old fashioned way: keep a queue.
     //delayed_queue.push((DelayedOp6, request_id, requester_id))
-    delayed_queue.push((6, request_id, requester_id,None,None,None,None))
+    delayed_queue.push((5, request_id, requester_id,None,None,None,None))
 
   fun ref request_in_flight_resume_ack(
     in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
     leaving_workers: Array[String] val)
   =>
-    delayed_queue.push((7, in_flight_resume_ack_id, request_id, requester_id,
+    delayed_queue.push((6, in_flight_resume_ack_id, request_id, requester_id,
       leaving_workers,None,None))
 
 class _DataReceiver is _DataReceiverWrapper
