@@ -179,10 +179,13 @@ class DataChannelConnectNotifier is DataChannelNotify
     _receiver.data_connect(sender_boundary_id, conn)
 
     try
-      //request_id: RequestId, requester_id: StepId
-      let delayed_goop = (old_receiver as _InitDataReceiver).request_in_flight_ack_queue
-      for (request_id, requester_id) in delayed_goop.values() do
-        _receiver.request_in_flight_ack(request_id, requester_id)
+      let delayed_queue = (old_receiver as _InitDataReceiver).delayed_queue
+      for d in delayed_queue.values() do
+        match d
+        //| (let op: DelayedOp6, let request_id: RequestId, let requester_id: StepId) =>
+        | (6, let request_id: RequestId, let requester_id: StepId) =>
+          _receiver.request_in_flight_ack(request_id, requester_id)
+        end
       end
     end
 
@@ -336,7 +339,7 @@ trait _DataReceiverWrapper
     leaving_workers: Array[String] val)
 
 class _InitDataReceiver is _DataReceiverWrapper
-  let request_in_flight_ack_queue: Array[(RequestId,StepId)] ref = []
+  let delayed_queue: Array[(U8 val,Any val,Any val)] ref = []
 
   fun data_connect(sender_step_id: StepId, conn: DataChannel) =>
     Fail()
@@ -365,7 +368,8 @@ class _InitDataReceiver is _DataReceiverWrapper
     // 
     // We do not have an actor tag to send "ourself" a message, so
     // let's do this the old fashioned way: keep a queue.
-    request_in_flight_ack_queue.push((request_id, requester_id))
+    //delayed_queue.push((DelayedOp6, request_id, requester_id))
+    delayed_queue.push((6, request_id, requester_id))
 
   fun request_in_flight_resume_ack(
     in_flight_resume_ack_id: InFlightResumeAckId,
