@@ -121,7 +121,7 @@ actor RouterRegistry is InFlightAckRequester
   let _dummy_consumer: DummyConsumer = DummyConsumer
 
   // Local boundaries & sinks that have requested local_stop_all_local()
-  let _local_stop_all_local_list: Set[U128 val] =
+  let _local_stop_all_local_list: Map[StepId,StepId] =
     _local_stop_all_local_list.create()
 
   var _stop_the_world_pause: U64
@@ -1106,15 +1106,13 @@ actor RouterRegistry is InFlightAckRequester
       if _local_stop_all_local_list.size() == 0 then
         _stop_all_local()
       end
-      _local_stop_all_local_list.add(who)
+      _local_stop_all_local_list.(who) = who
     end
 
   be local_resume_all_local(who: U128 val) =>
-    if _local_stop_all_local_list.contains(who) then
-      _local_stop_all_local_list.remove(who)
-      if _local_stop_all_local_list.size() == 0 then
-        _resume_all_local()
-      end
+    try _local_stop_all_local_list.remove(who)? end
+    if _local_stop_all_local_list.size() == 0 then
+      _resume_all_local()
     end
 
   fun _stop_all_local() =>
