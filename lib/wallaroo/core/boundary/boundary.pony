@@ -321,8 +321,10 @@ actor OutgoingBoundary is Consumer
     | None =>
 @printf[I32]("*#*#*# OutgoingBoundary bx%lx: register_step_id set _router_registry\n".cstring(), this)
       _router_registry = router_registry
+    /*********
     else
       Fail()
+     *********/
     end
     _in_flight_ack_waiter = InFlightAckWaiter(_step_id)
 
