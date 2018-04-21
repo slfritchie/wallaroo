@@ -37,6 +37,7 @@ use "wallaroo/core/common"
 use "wallaroo/ent/data_receiver"
 use "wallaroo/ent/network"
 use "wallaroo/ent/recovery"
+use "wallaroo/ent/router_registry"
 use "wallaroo/ent/watermarking"
 use "wallaroo_labs/mort"
 use "wallaroo/core/initialization"
@@ -138,6 +139,7 @@ actor TCPSink is Consumer
     recovering: Bool, env: Env, encoder_wrapper: TCPEncoderWrapper,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
     initial_msgs: Array[Array[ByteSeq] val] val,
+    router_registry: RouterRegistry,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
     reconnect_pause: U64 = 10_000_000_000)
   =>
@@ -155,7 +157,7 @@ actor TCPSink is Consumer
     _read_buf = recover Array[U8].>undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
-    _notify = TCPSinkNotify(env.root, host, service)
+    _notify = TCPSinkNotify(env.root, host, service, router_registry)
     _initial_msgs = initial_msgs
     _reconnect_pause = reconnect_pause
     _host = host
@@ -865,24 +867,33 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
   let _auth: (AmbientAuth | None)
   let _host: String
   let _service: String
+  let _router_registry: RouterRegistry
+  let _fake_step_id: StepId = StepIdGenerator()
 
-  new iso create(auth: (AmbientAuth | None), host: String, service: String) =>
+  new iso create(auth: (AmbientAuth | None), host: String, service: String,
+    router_registry: RouterRegistry) =>
     _auth = auth
     _host = host
     _service = service
+    _router_registry = router_registry
+    _router_registry.local_stop_all_local(_fake_step_id)
 
   fun ref connecting(conn: WallarooOutgoingNetworkActor ref, count: U32) =>
     None
 
   fun ref connected(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connected\n".cstring())
-    _release_backpressure_in_runtime()
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("TCPSink: local_resume_all_local(0x%llx)\n".cstring(), _fake_step_id)
+    end
+    _router_registry.local_resume_all_local(_fake_step_id)
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection closed\n".cstring())
-    // SLF TODO: DOES CAUSE BAD HANGS?
-    // SLF TODO: Yes it does ... what's the workaround?
-    // _apply_backpressure_in_runtime()
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("TCPSink: local_stop_all_local(0x%llx)\n".cstring(), _fake_step_id)
+    end
+    _router_registry.local_stop_all_local(_fake_step_id)
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection failed\n".cstring())

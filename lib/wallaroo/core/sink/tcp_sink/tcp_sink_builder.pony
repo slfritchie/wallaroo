@@ -23,6 +23,7 @@ use "wallaroo/core/messages"
 use "wallaroo/core/metrics"
 use "wallaroo/core/sink"
 use "wallaroo/ent/recovery"
+use "wallaroo/ent/router_registry"
 
 primitive TCPSinkConfigCLIParser
   fun apply(args: Array[String] val): Array[TCPSinkConfigOptions] val ? =>
@@ -88,9 +89,9 @@ class val TCPSinkConfig[Out: Any val] is SinkConfig[Out]
     _service = opts.service
 
 
-  fun apply(): SinkBuilder =>
+  fun apply(router_registry: RouterRegistry): SinkBuilder =>
     TCPSinkBuilder(TypedTCPEncoderWrapper[Out](_encoder), _host, _service,
-      _initial_msgs)
+      _initial_msgs, router_registry)
 
 class val TCPSinkBuilder
   let _encoder_wrapper: TCPEncoderWrapper
@@ -107,7 +108,8 @@ class val TCPSinkBuilder
     _initial_msgs = initial_msgs
 
   fun apply(sink_name: String, event_log: EventLog,
-    reporter: MetricsReporter iso, env: Env, recovering: Bool): Sink
+    reporter: MetricsReporter iso, env: Env, recovering: Bool,
+    router_registry: RouterRegistry): Sink
   =>
     @printf[I32](("Connecting to sink at " + _host + ":" + _service + "\n")
       .cstring())
@@ -115,4 +117,4 @@ class val TCPSinkBuilder
     let id: StepId = StepIdGenerator()
 
     TCPSink(id, sink_name, event_log, recovering, env, _encoder_wrapper,
-      consume reporter, _host, _service, _initial_msgs)
+      consume reporter, _host, _service, _initial_msgs, router_registry)
