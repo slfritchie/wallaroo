@@ -1668,7 +1668,7 @@ actor LocalTopologyInitializer is LayoutInitializer
         @printf[I32]("|~~ INIT PHASE II: Application is initialized! ~~|\n"
           .cstring())
         for i in _initializables.values() do
-          i.application_initialized(this)
+          i.application_initialized(this, _router_registry)
         end
       end
     else

@@ -19,6 +19,7 @@ Copyright 2017 The Wallaroo Authors.
 use "collections"
 use "wallaroo/core/boundary"
 use "wallaroo/ent/data_receiver"
+use "wallaroo/ent/router_registry"
 use "wallaroo/core/initialization"
 use "wallaroo/core/routing"
 use "wallaroo/core/topology"
@@ -76,7 +77,8 @@ actor DummyConsumer is Consumer
   =>
     None
 
-  be application_initialized(initializer: LocalTopologyInitializer) =>
+  be application_initialized(initializer: LocalTopologyInitializer,
+    router_registry: RouterRegistry) =>
     None
 
   be application_ready_to_work(initializer: LocalTopologyInitializer) =>

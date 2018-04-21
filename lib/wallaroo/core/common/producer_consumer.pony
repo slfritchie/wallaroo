@@ -19,6 +19,7 @@ Copyright 2017 The Wallaroo Authors.
 use "collections"
 use "wallaroo/core/boundary"
 use "wallaroo/ent/data_receiver"
+use "wallaroo/ent/router_registry"
 use "wallaroo/core/initialization"
 use "wallaroo/core/routing"
 use "wallaroo/core/topology"
@@ -85,5 +86,6 @@ trait tag Initializable
   be application_created(initializer: LocalTopologyInitializer,
     omni_router: OmniRouter)
 
-  be application_initialized(initializer: LocalTopologyInitializer)
+  be application_initialized(initializer: LocalTopologyInitializer,
+    router_registry: RouterRegistry)
   be application_ready_to_work(initializer: LocalTopologyInitializer)

@@ -219,7 +219,9 @@ actor OutgoingBoundary is Consumer
     @printf[I32](("Connecting OutgoingBoundary to " + _host + ":" + _service +
       "\n").cstring())
 
-  be application_initialized(initializer: LocalTopologyInitializer) =>
+  be application_initialized(initializer: LocalTopologyInitializer,
+    router_registry: RouterRegistry) =>
+    // SLF: TODO Remove router_registry arg from create()??
     try
       if _step_id == 0 then
         Fail()

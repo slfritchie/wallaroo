@@ -31,6 +31,7 @@ use "wallaroo/ent/data_receiver"
 use "wallaroo/ent/network"
 use "wallaroo/ent/rebalancing"
 use "wallaroo/ent/recovery"
+use "wallaroo/ent/router_registry"
 use "wallaroo/ent/watermarking"
 use "wallaroo_labs/mort"
 use "wallaroo/core/initialization"
@@ -159,7 +160,8 @@ actor Step is (Producer & Consumer)
     _initialized = true
     initializer.report_initialized(this)
 
-  be application_initialized(initializer: LocalTopologyInitializer) =>
+  be application_initialized(initializer: LocalTopologyInitializer,
+    router_registry: RouterRegistry) =>
     _initializer = initializer
     if _routes.size() > 0 then
       for r in _routes.values() do

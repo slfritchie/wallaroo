@@ -139,7 +139,6 @@ actor TCPSink is Consumer
     recovering: Bool, env: Env, encoder_wrapper: TCPEncoderWrapper,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
     initial_msgs: Array[Array[ByteSeq] val] val,
-    router_registry: RouterRegistry,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
     reconnect_pause: U64 = 10_000_000_000)
   =>
@@ -157,7 +156,7 @@ actor TCPSink is Consumer
     _read_buf = recover Array[U8].>undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
-    _notify = TCPSinkNotify(env.root, host, service, router_registry)
+    _notify = TCPSinkNotify(env.root, host, service)
     _initial_msgs = initial_msgs
     _reconnect_pause = reconnect_pause
     _host = host
@@ -178,15 +177,22 @@ actor TCPSink is Consumer
   =>
     initializer.report_initialized(this)
 
-  be application_initialized(initializer: LocalTopologyInitializer) =>
-    _initial_connect()
+  be application_initialized(initializer: LocalTopologyInitializer,
+    router_registry: RouterRegistry)
+   =>
+    _initial_connect(router_registry)
 
   be application_ready_to_work(initializer: LocalTopologyInitializer) =>
     None
 
-  fun ref _initial_connect() =>
+  fun ref _initial_connect(router_registry: RouterRegistry) =>
     @printf[I32]("TCPSink initializing connection to %s:%s\n".cstring(),
       _host.cstring(), _service.cstring())
+    try
+      (_notify as TCPSinkNotify).set_router_registry(router_registry)
+    else
+      Fail()
+    end
     _connect_count = @pony_os_connect_tcp[U32](this,
       _host.cstring(), _service.cstring(),
       _from.cstring())
@@ -867,16 +873,18 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
   let _auth: (AmbientAuth | None)
   let _host: String
   let _service: String
-  let _router_registry: RouterRegistry
+  var _router_registry: (RouterRegistry | None) = None
   let _fake_step_id: StepId = StepIdGenerator()
 
-  new iso create(auth: (AmbientAuth | None), host: String, service: String,
-    router_registry: RouterRegistry) =>
+  new iso create(auth: (AmbientAuth | None), host: String, service: String) =>
     _auth = auth
     _host = host
     _service = service
+    // We don't have a real value for _router_registry yet, must wait
+
+  fun ref set_router_registry(router_registry: RouterRegistry) =>
     _router_registry = router_registry
-    _router_registry.local_stop_all_local(_fake_step_id)
+    router_registry.local_stop_all_local(_fake_step_id)
 
   fun ref connecting(conn: WallarooOutgoingNetworkActor ref, count: U32) =>
     None
@@ -886,14 +894,22 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
     ifdef debug or "debug_back_pressure" then
       @printf[I32]("TCPSink: local_resume_all_local(0x%llx)\n".cstring(), _fake_step_id)
     end
-    _router_registry.local_resume_all_local(_fake_step_id)
+    try
+      (_router_registry as RouterRegistry).local_resume_all_local(_fake_step_id)
+    else
+      Fail()
+    end      
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection closed\n".cstring())
     ifdef debug or "debug_back_pressure" then
       @printf[I32]("TCPSink: local_stop_all_local(0x%llx)\n".cstring(), _fake_step_id)
     end
-    _router_registry.local_stop_all_local(_fake_step_id)
+    try
+      (_router_registry as RouterRegistry).local_stop_all_local(_fake_step_id)
+    else
+      Fail()
+    end
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection failed\n".cstring())
