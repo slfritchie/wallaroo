@@ -134,6 +134,7 @@ actor TCPSink is Consumer
   var _timers: Timers = Timers
 
   let _terminus_route: TerminusRoute = TerminusRoute
+  let _step_id: StepId = StepIdGenerator()
 
   new create(sink_id: StepId, sink_name: String, event_log: EventLog,
     recovering: Bool, env: Env, encoder_wrapper: TCPEncoderWrapper,
@@ -156,7 +157,7 @@ actor TCPSink is Consumer
     _read_buf = recover Array[U8].>undefined(init_size) end
     _next_size = init_size
     _max_size = max_size
-    _notify = TCPSinkNotify(env.root, host, service)
+    _notify = TCPSinkNotify(env.root, host, service, _step_id)
     _initial_msgs = initial_msgs
     _reconnect_pause = reconnect_pause
     _host = host
@@ -169,30 +170,39 @@ actor TCPSink is Consumer
   //
 
   be application_begin_reporting(initializer: LocalTopologyInitializer) =>
+@printf[I32]("*#*#*# TCPSink bx%lx: application_begin_reporting\n".cstring(), this)
     _initializer = initializer
     initializer.report_created(this)
 
   be application_created(initializer: LocalTopologyInitializer,
-    omni_router: OmniRouter)
+    omni_router: OmniRouter, router_registry: RouterRegistry)
   =>
+@printf[I32]("*#*#*# TCPSink bx%lx: application_created\n".cstring(), this)
     initializer.report_initialized(this)
-
-  be application_initialized(initializer: LocalTopologyInitializer,
-    router_registry: RouterRegistry)
-   =>
-    _initial_connect(router_registry)
-
-  be application_ready_to_work(initializer: LocalTopologyInitializer) =>
-    None
-
-  fun ref _initial_connect(router_registry: RouterRegistry) =>
-    @printf[I32]("TCPSink initializing connection to %s:%s\n".cstring(),
-      _host.cstring(), _service.cstring())
     try
       (_notify as TCPSinkNotify).set_router_registry(router_registry)
     else
       Fail()
     end
+
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("OutgoingBoundary: local_stop_all_local(0x%llx)\n".cstring(), _step_id)
+    end
+    router_registry.local_stop_all_local(_step_id)
+
+  be application_initialized(initializer: LocalTopologyInitializer)
+   =>
+@printf[I32]("*#*#*# TCPSink bx%lx: application_initialized\n".cstring(), this)
+    _initial_connect()
+
+  be application_ready_to_work(initializer: LocalTopologyInitializer) =>
+@printf[I32]("*#*#*# TCPSink bx%lx: application_ready_to_work\n".cstring(), this)
+    None
+
+  fun ref _initial_connect() =>
+    @printf[I32]("TCPSink initializing connection to %s:%s\n".cstring(),
+      _host.cstring(), _service.cstring())
+
     _connect_count = @pony_os_connect_tcp[U32](this,
       _host.cstring(), _service.cstring(),
       _from.cstring())
@@ -874,17 +884,19 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
   let _host: String
   let _service: String
   var _router_registry: (RouterRegistry | None) = None
-  let _fake_step_id: StepId = StepIdGenerator()
+  let _step_id: StepId
 
-  new iso create(auth: (AmbientAuth | None), host: String, service: String) =>
+  new iso create(auth: (AmbientAuth | None), host: String, service: String,
+    step_id: StepId)
+  =>
     _auth = auth
     _host = host
     _service = service
-    // We don't have a real value for _router_registry yet, must wait
+    _step_id = step_id
 
   fun ref set_router_registry(router_registry: RouterRegistry) =>
     _router_registry = router_registry
-    router_registry.local_stop_all_local(_fake_step_id)
+    router_registry.local_stop_all_local(_step_id)
 
   fun ref connecting(conn: WallarooOutgoingNetworkActor ref, count: U32) =>
     None
@@ -892,10 +904,10 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
   fun ref connected(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connected\n".cstring())
     ifdef debug or "debug_back_pressure" then
-      @printf[I32]("TCPSink: local_resume_all_local(0x%llx)\n".cstring(), _fake_step_id)
+      @printf[I32]("TCPSink: local_resume_all_local(0x%llx)\n".cstring(), _step_id)
     end
     try
-      (_router_registry as RouterRegistry).local_resume_all_local(_fake_step_id)
+      (_router_registry as RouterRegistry).local_resume_all_local(_step_id)
     else
       Fail()
     end      
@@ -903,10 +915,10 @@ class TCPSinkNotify is WallarooOutgoingNetworkActorNotify
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("TCPSink connection closed\n".cstring())
     ifdef debug or "debug_back_pressure" then
-      @printf[I32]("TCPSink: local_stop_all_local(0x%llx)\n".cstring(), _fake_step_id)
+      @printf[I32]("TCPSink: local_stop_all_local(0x%llx)\n".cstring(), _step_id)
     end
     try
-      (_router_registry as RouterRegistry).local_stop_all_local(_fake_step_id)
+      (_router_registry as RouterRegistry).local_stop_all_local(_step_id)
     else
       Fail()
     end

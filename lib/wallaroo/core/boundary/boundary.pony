@@ -78,9 +78,9 @@ class val OutgoingBoundaryBuilder
     router_registry: RouterRegistry): OutgoingBoundary
   =>
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host, _service, router_registry
+      _reporter.clone(), _host, _service
       where spike_config = _spike_config)
-    boundary.register_step_id(step_id)
+    boundary.register_step_id(step_id, router_registry)
     boundary
 
   fun build_and_initialize(step_id: StepId, target_worker: String,
@@ -91,9 +91,10 @@ class val OutgoingBoundaryBuilder
     Called when creating a boundary post cluster initialization
     """
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host,_service, router_registry
+      _reporter.clone(), _host,_service
       where spike_config = _spike_config)
-    boundary.register_step_id(step_id)
+    boundary.register_step_id(step_id, router_registry)
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: build_and_initialize\n".cstring(), boundary)
     boundary.quick_initialize(layout_initializer)
     boundary
 
@@ -164,11 +165,10 @@ actor OutgoingBoundary is Consumer
 
   var _reconnect_pause: U64 = 10_000_000_000
   var _timers: Timers = Timers
-  let _router_registry: RouterRegistry
+  var _router_registry: (RouterRegistry | None) = None
 
   new create(auth: AmbientAuth, worker_name: String, target_worker: String,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
-    router_registry: RouterRegistry,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
     spike_config:(SpikeConfig | None) = None)
   =>
@@ -177,17 +177,16 @@ actor OutgoingBoundary is Consumer
     will be made from the specified interface.
     """
     _auth = auth
-    _router_registry = router_registry
     ifdef "spike" then
       match spike_config
       | let sc: SpikeConfig =>
-        var notify = recover iso BoundaryNotify(_auth, this, host, service, _router_registry) end
+        var notify = recover iso BoundaryNotify(_auth, this, host, service) end
         _notify = SpikeWrapper(consume notify, sc)
       else
-        _notify = BoundaryNotify(_auth, this, host, service, _router_registry)
+        _notify = BoundaryNotify(_auth, this, host, service)
       end
     else
-      _notify = BoundaryNotify(_auth, this, host, service, _router_registry)
+      _notify = BoundaryNotify(_auth, this, host, service)
     end
 
     _worker_name = worker_name
@@ -205,12 +204,29 @@ actor OutgoingBoundary is Consumer
   //
 
   be application_begin_reporting(initializer: LocalTopologyInitializer) =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: application_begin_reporting\n".cstring(), this)
     _initializer = initializer
     initializer.report_created(this)
 
   be application_created(initializer: LocalTopologyInitializer,
-    omni_router: OmniRouter)
+    omni_router: OmniRouter, router_registry: RouterRegistry)
   =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: application_created\n".cstring(), this)
+    _router_registry = router_registry
+    if _step_id == 0 then
+      Fail()
+    end
+    try
+      (_notify as BoundaryNotify).set_router_registry(router_registry, _step_id)
+    else
+      Fail()
+    end
+
+    ifdef debug or "debug_back_pressure" then
+      @printf[I32]("OutgoingBoundary: local_stop_all_local(0x%llx)\n".cstring(), _step_id)
+    end
+    router_registry.local_stop_all_local(_step_id)
+
     _connect_count = @pony_os_connect_tcp[U32](this,
       _host.cstring(), _service.cstring(),
       _from.cstring())
@@ -219,9 +235,8 @@ actor OutgoingBoundary is Consumer
     @printf[I32](("Connecting OutgoingBoundary to " + _host + ":" + _service +
       "\n").cstring())
 
-  be application_initialized(initializer: LocalTopologyInitializer,
-    router_registry: RouterRegistry) =>
-    // SLF: TODO Remove router_registry arg from create()??
+  be application_initialized(initializer: LocalTopologyInitializer) =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: application_initialized\n".cstring(), this)
     try
       if _step_id == 0 then
         Fail()
@@ -235,12 +250,14 @@ actor OutgoingBoundary is Consumer
     end
 
   be application_ready_to_work(initializer: LocalTopologyInitializer) =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: application_ready_to_work\n".cstring(), this)
     None
 
   be quick_initialize(initializer: LayoutInitializer) =>
     """
     Called when initializing as part of a new worker joining a running cluster.
     """
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: quick_initialize\n".cstring(), this)
     if not _reported_initialized then
       try
         _initializer = initializer
@@ -267,6 +284,7 @@ actor OutgoingBoundary is Consumer
     end
 
   be reconnect() =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: reconnect\n".cstring(), this)
     if not _connected and not _no_more_reconnect then
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
@@ -297,8 +315,15 @@ actor OutgoingBoundary is Consumer
       Fail()
     end
 
-  be register_step_id(step_id: StepId) =>
+  be register_step_id(step_id: StepId, router_registry: RouterRegistry) =>
     _step_id = step_id
+    match _router_registry
+    | None =>
+@printf[I32]("*#*#*# OutgoingBoundary bx%lx: register_step_id set _router_registry\n".cstring(), this)
+      _router_registry = router_registry
+    else
+      Fail()
+    end
     _in_flight_ack_waiter = InFlightAckWaiter(_step_id)
 
   be run[D: Any val](metric_name: String, pipeline_time_spent: U64, data: D,
@@ -1033,13 +1058,13 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
   let _outgoing_boundary: OutgoingBoundary tag
   let _host: String
   let _service: String
-  let _router_registry: RouterRegistry
+  var _step_id: StepId = 0
   let _reconnect_closed_delay: U64
   let _reconnect_failed_delay: U64
-  let _fake_step_id: StepId = StepIdGenerator()
+  var _router_registry: (RouterRegistry | None) = None
 
   new create(auth: AmbientAuth, outgoing_boundary: OutgoingBoundary tag,
-    host: String, service: String, router_registry: RouterRegistry,
+    host: String, service: String,
     reconnect_closed_delay: U64 = 100_000_000,
     reconnect_failed_delay: U64 = 10_000_000_000)
     =>
@@ -1047,13 +1072,13 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     _outgoing_boundary = outgoing_boundary
     _host = host
     _service = service
-    _router_registry = router_registry
     _reconnect_closed_delay = reconnect_closed_delay
     _reconnect_failed_delay = reconnect_failed_delay
-    ifdef debug or "debug_back_pressure" then
-      @printf[I32]("OutgoingBoundary: stop_all_local(0x%llx".cstring(), _fake_step_id)
-    end
-    _router_registry.local_stop_all_local(_fake_step_id)
+
+  fun ref set_router_registry(router_registry: RouterRegistry,
+    step_id: StepId) =>
+    _router_registry = router_registry
+    _step_id = step_id
 
   fun ref received(conn: WallarooOutgoingNetworkActor ref, data: Array[U8] iso,
     times: USize): Bool
@@ -1123,18 +1148,26 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
   fun ref connected(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: connected\n\n".cstring())
     ifdef debug or "debug_back_pressure" then
-      @printf[I32]("OutgoingBoundary: local_resume_all_local(0x%llx)\n".cstring(), _fake_step_id)
+      @printf[I32]("OutgoingBoundary: local_resume_all_local(0x%llx)\n".cstring(), _step_id)
     end
-    _router_registry.local_resume_all_local(_fake_step_id)
+    try
+      (_router_registry as RouterRegistry).local_resume_all_local(_step_id)
+    else
+       @printf[I32]("#*#*#*#* HEY SHOULD HAVE FAILED HERE!!!!!!!!!!!\n".cstring())//////  Fail()
+    end
     conn.set_nodelay(true)
     conn.expect(4)
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: closed\n\n".cstring())
     ifdef debug or "debug_back_pressure" then
-      @printf[I32]("OutgoingBoundary: local_stop_all_local(0x%llx)\n".cstring(), _fake_step_id)
+      @printf[I32]("OutgoingBoundary: local_stop_all_local(0x%llx)\n".cstring(), _step_id)
     end
-    _router_registry.local_stop_all_local(_fake_step_id)
+    try
+      (_router_registry as RouterRegistry).local_stop_all_local(_step_id)
+    else
+      @printf[I32]("#*#*#*#* HEY SHOULD HAVE FAILED HERE!!!!!!!!!!!\n".cstring())//////   Fail()
+    end
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: connect_failed\n\n".cstring())

@@ -73,12 +73,11 @@ actor DummyConsumer is Consumer
     None
 
   be application_created(initializer: LocalTopologyInitializer,
-    omni_router: OmniRouter)
+    omni_router: OmniRouter, router_registry: RouterRegistry)
   =>
     None
 
-  be application_initialized(initializer: LocalTopologyInitializer,
-    router_registry: RouterRegistry) =>
+  be application_initialized(initializer: LocalTopologyInitializer) =>
     None
 
   be application_ready_to_work(initializer: LocalTopologyInitializer) =>

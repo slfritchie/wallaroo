@@ -132,7 +132,7 @@ actor Step is (Producer & Consumer)
     initializer.report_created(this)
 
   be application_created(initializer: LocalTopologyInitializer,
-    omni_router: OmniRouter)
+    omni_router: OmniRouter, router_registry: RouterRegistry)
   =>
     for consumer in _router.routes().values() do
       if not _routes.contains(consumer) then
@@ -160,8 +160,7 @@ actor Step is (Producer & Consumer)
     _initialized = true
     initializer.report_initialized(this)
 
-  be application_initialized(initializer: LocalTopologyInitializer,
-    router_registry: RouterRegistry) =>
+  be application_initialized(initializer: LocalTopologyInitializer) =>
     _initializer = initializer
     if _routes.size() > 0 then
       for r in _routes.values() do

@@ -286,9 +286,8 @@ primitive _BoundaryGenerator
   fun apply(env: Env, worker_name: String, auth: AmbientAuth):
     OutgoingBoundary
   =>
-    let router_registry = _RouterRegistryGenerator(env, auth)
     OutgoingBoundary(auth, worker_name, "",
-      MetricsReporter("", "", _NullMetricsSink), "", "", router_registry)
+      MetricsReporter("", "", _NullMetricsSink), "", "")
 
 primitive _RouterRegistryGenerator
   fun apply(env: Env, auth: AmbientAuth): RouterRegistry =>
