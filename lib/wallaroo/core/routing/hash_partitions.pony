@@ -4,6 +4,7 @@ use "wallaroo_labs/mort"
 
 class val HashPartitions
   let lower_bounds: Array[U128]
+  let sizes: Array[U128] = sizes.create()
   let nodes: Map[U128, String] = nodes.create()
 
   new val create(nodes': Array[String] val) =>
@@ -13,13 +14,23 @@ class val HashPartitions
     var next_lower_bound: U128 = 0
     for i in Range[U128](0, count) do
       lower_bounds.push(next_lower_bound)
+      sizes.push(part_size)
       try
         nodes(next_lower_bound) = nodes'(i.usize())?
       else
-        @printf[I32]("What went wrong?\n".cstring())
+        Fail()
       end
       next_lower_bound = next_lower_bound + part_size
-  end
+    end
+
+    var sum: U128 = 0
+    for s in sizes.values() do
+      sum = sum + s
+    end
+    let idx = lower_bounds.size() - 1
+    let adjust = (U128.max_value() - sum)
+    @printf[I32]("\tadjust = %s\n".cstring(), adjust.string().cstring())
+    try sizes(idx)? = sizes(idx)? + adjust end
 
 
   fun get_claimant(hash: U128): String ? =>
@@ -76,24 +87,30 @@ class val HashPartitions
       for i in Range[USize](0, lower_bounds.size()) do
         let node = nodes(lower_bounds(i)?)?
         let diff = try
-          @printf[I32]("\t** i=%d hb=0x%llx lb=0x%llx\n".cstring(), i, lower_bounds(i+1)?, lower_bounds(i)?)
+          let lb = lower_bounds(i)?    // inclusive
+          let ub = lower_bounds(i+1)?  // exclusive
+          @printf[I32]("\t** i=%d lb=%s ub=%s\n".cstring(), i, lb.string().cstring(), ub.string().cstring())
           lower_bounds(i+1)? - lower_bounds(i)?
         else
-          @printf[I32]("\t** i=%d lb=0x%llx\n".cstring(), i, lower_bounds(i)?)
+          @printf[I32]("\t** i=%d lb=%s\n".cstring(), i, lower_bounds(i)?.string().cstring())
           (U128.max_value() - lower_bounds(i)?) + 1
         end
         w(node) = w(node)? + diff
-        /****
-        let upper_bound = try     // inclusive upper bound
-          lower_bounds(i+1)?
-        else
-          U128.max_value()
-        end
-        let node = nodes(lower_bounds(i)?)?
-        w(node) = w(node)? + (upper_bound - lower_bounds(i)?)
-         ****/
       end
     else
       Fail()
     end
     w
+
+  fun pretty_print() =>
+    var min_size: U128 = U128.max_value()
+
+    try
+      for i in Range[USize](0, sizes.size()) do
+        min_size = min_size.min(sizes(i)?)
+      end
+
+      for i in Range[USize](0, sizes.size()) do
+        @printf[I32]("node %10s relative-size %.1f\n".cstring(), nodes(lower_bounds(i)?)?.cstring(), sizes(i)?.f64() / min_size.f64())
+      end
+    end

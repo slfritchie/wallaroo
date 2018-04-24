@@ -23,6 +23,9 @@ actor Main is TestList
   new make() =>
     None
 
+  new create(env: Env) =>
+    PonyTest(env, this)
+
   fun tag tests(test: PonyTest) =>
     test(_TestMakeHashPartitions)
     test(_TestGetWeights)
@@ -53,6 +56,7 @@ class iso _TestMakeHashPartitions is UnitTest
       h.assert_eq[Bool](n3.contains(c), true)
       h.assert_eq[Bool](res, true)
     end
+    hp.pretty_print()
 
 class iso _TestGetWeights is UnitTest
   """
@@ -67,6 +71,7 @@ class iso _TestGetWeights is UnitTest
 
     let x = hp.get_weights()
     for (node, w) in x.pairs() do
-      @printf[I32]("\tnode %s w %llx\n".cstring(), node.cstring(), w)
+      @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
     end
+    hp.pretty_print()
     x("kljasdfkljdsajkladsf")?
