@@ -28,7 +28,7 @@ actor Main is TestList
 
   fun tag tests(test: PonyTest) =>
     test(_TestMakeHashPartitions)
-    test(_TestGetWeights)
+    test(_TestMakeHashPartitions2)
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -58,7 +58,7 @@ class iso _TestMakeHashPartitions is UnitTest
     end
     hp.pretty_print()
 
-class iso _TestGetWeights is UnitTest
+class iso _TestMakeHashPartitions2 is UnitTest
   """
   Basic test of get_weights
   """
@@ -66,14 +66,31 @@ class iso _TestGetWeights is UnitTest
     "hash_partitions/line-" + __loc.line().string()
 
   fun ref apply(h: TestHelper) /**?**/ =>
-    let n: Array[String] val = recover ["n1"; "n2"; "n3"; "n4"] end
-    let hp = HashPartitions(n)
-
-    hp.twiddle("n1", "n3")
     @printf[I32]("\n".cstring())
-    let x = hp.get_weights()
-    for (node, w) in x.pairs() do
-      @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
+    let n1: Array[(String,U128)] val = recover
+      [("n1", 1*1); ("n2", 2*1); ("n3", 3*1); ("n4", 1*1)] end
+    let n2: Array[(String,U128)] val = recover
+      [("n1", 1*3); ("n2", 2*3); ("n3", 3*3); ("n4", 1*3)] end
+    let n3: Array[(String,U128)] val = recover
+     [("n1", 48611766702991206367701239421883908096)
+      ("n2", 97223533405982412735402478843767816192)
+      ("n3", 145835300108973619103103718265651724288)
+      ("n4", 48611766702991225257167170900464762879)] end
+    let n4: Array[(String,U128)] val = recover
+     [("n1", 48611766702991206367701239421883908096/15)
+      ("n2", 97223533405982412735402478843767816192/15)
+      ("n3", 145835300108973619103103718265651724288/15)
+      ("n4", 48611766702991225257167170900464762879/15)] end
+    let hp1 = HashPartitions.create_with_weights(n1)
+    let hp2 = HashPartitions.create_with_weights(n2)
+    let hp3 = HashPartitions.create_with_weights(n3)
+    let hp4 = HashPartitions.create_with_weights(n4)
+
+    for hp in [hp1; hp2; hp3; hp4].values() do
+      @printf[I32]("\n".cstring())
+      for (node, w) in hp.get_weights().pairs() do
+        @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
+      end
+      hp.pretty_print()
+      @printf[I32]("\n".cstring())
     end
-    hp.pretty_print()
-    //h.assert_eq[U8](1,2)
