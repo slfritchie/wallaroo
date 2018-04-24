@@ -65,13 +65,15 @@ class iso _TestGetWeights is UnitTest
   fun name(): String =>
     "hash_partitions/line-" + __loc.line().string()
 
-  fun ref apply(h: TestHelper) ? =>
-    let n3: Array[String] val = recover ["n1"; "n2"; "n3"; "n4"] end
-    let hp = HashPartitions(n3)
+  fun ref apply(h: TestHelper) /**?**/ =>
+    let n: Array[String] val = recover ["n1"; "n2"; "n3"; "n4"] end
+    let hp = HashPartitions(n)
 
+    hp.twiddle("n1", "n4")
+    @printf[I32]("\n".cstring())
     let x = hp.get_weights()
     for (node, w) in x.pairs() do
       @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
     end
     hp.pretty_print()
-    x("kljasdfkljdsajkladsf")?
+    //h.assert_eq[U8](1,2)

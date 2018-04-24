@@ -2,21 +2,21 @@ use "collections"
 use "crypto"
 use "wallaroo_labs/mort"
 
-class val HashPartitions
+class ref HashPartitions
   let lower_bounds: Array[U128]
   let sizes: Array[U128] = sizes.create()
   let nodes: Map[U128, String] = nodes.create()
 
-  new val create(nodes': Array[String] val) =>
+  new ref create(nodes': Array[String] val) =>
     lower_bounds = Array[U128]
-    let count = nodes'.size().u128()
-    let part_size = U128.max_value() / count
+    let count = nodes'.size()
+    let part_size = U128.max_value() / count.u128()
     var next_lower_bound: U128 = 0
-    for i in Range[U128](0, count) do
+    for i in Range[USize](0, count) do
       lower_bounds.push(next_lower_bound)
       sizes.push(part_size)
       try
-        nodes(next_lower_bound) = nodes'(i.usize())?
+        nodes(next_lower_bound) = nodes'(i)?
       else
         Fail()
       end
@@ -29,8 +29,7 @@ class val HashPartitions
     end
     let idx = lower_bounds.size() - 1
     let adjust = (U128.max_value() - sum)
-    @printf[I32]("\tadjust = %s\n".cstring(), adjust.string().cstring())
-    try sizes(idx)? = sizes(idx)? + adjust end
+    try sizes(idx)? = sizes(idx)? + adjust else Fail() end
 
 
   fun get_claimant(hash: U128): String ? =>
@@ -86,16 +85,7 @@ class val HashPartitions
 
       for i in Range[USize](0, lower_bounds.size()) do
         let node = nodes(lower_bounds(i)?)?
-        let diff = try
-          let lb = lower_bounds(i)?    // inclusive
-          let ub = lower_bounds(i+1)?  // exclusive
-          @printf[I32]("\t** i=%d lb=%s ub=%s\n".cstring(), i, lb.string().cstring(), ub.string().cstring())
-          lower_bounds(i+1)? - lower_bounds(i)?
-        else
-          @printf[I32]("\t** i=%d lb=%s\n".cstring(), i, lower_bounds(i)?.string().cstring())
-          (U128.max_value() - lower_bounds(i)?) + 1
-        end
-        w(node) = w(node)? + diff
+        w(node) = w(node)? + sizes(i)?
       end
     else
       Fail()
@@ -112,5 +102,13 @@ class val HashPartitions
 
       for i in Range[USize](0, sizes.size()) do
         @printf[I32]("node %10s relative-size %.1f\n".cstring(), nodes(lower_bounds(i)?)?.cstring(), sizes(i)?.f64() / min_size.f64())
+      end
+    end
+
+  fun ref twiddle(from: String, to: String) =>
+    for (lb, s) in nodes.pairs() do
+      if s == from then
+        nodes(lb) = to
+        return
       end
     end
