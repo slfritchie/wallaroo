@@ -69,7 +69,7 @@ class iso _TestGetWeights is UnitTest
     let n: Array[String] val = recover ["n1"; "n2"; "n3"; "n4"] end
     let hp = HashPartitions(n)
 
-    hp.twiddle("n1", "n4")
+    hp.twiddle("n1", "n3")
     @printf[I32]("\n".cstring())
     let x = hp.get_weights()
     for (node, w) in x.pairs() do

@@ -3,24 +3,36 @@ use "crypto"
 use "wallaroo_labs/mort"
 
 class ref HashPartitions
-  let lower_bounds: Array[U128]
+  let lower_bounds: Array[U128] = lower_bounds.create()
   let sizes: Array[U128] = sizes.create()
   let nodes: Map[U128, String] = nodes.create()
 
   new ref create(nodes': Array[String] val) =>
-    lower_bounds = Array[U128]
+    let ns: Array[(String, U128)] iso = recover ns.create() end
+    let size: U128 = U128.max_value() / nodes'.size().u128()
+
+    for n in nodes'.values() do
+      ns.push((n, size))
+    end
+    create2(consume ns)
+
+  // new ref create_with_weights()
+
+  fun ref create2(nodes': Array[(String, U128)] val) =>
     let count = nodes'.size()
-    let part_size = U128.max_value() / count.u128()
     var next_lower_bound: U128 = 0
-    for i in Range[USize](0, count) do
-      lower_bounds.push(next_lower_bound)
-      sizes.push(part_size)
-      try
-        nodes(next_lower_bound) = nodes'(i)?
-      else
-        Fail()
+
+    try
+      for i in Range[USize](0, count) do
+        let node = nodes'(i)?._1
+        let part_size = nodes'(i)?._2
+        lower_bounds.push(next_lower_bound)
+        sizes.push(part_size)
+        nodes(next_lower_bound) = node
+        next_lower_bound = next_lower_bound + part_size
       end
-      next_lower_bound = next_lower_bound + part_size
+    else
+      Fail()
     end
 
     var sum: U128 = 0
