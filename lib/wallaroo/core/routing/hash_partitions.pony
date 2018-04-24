@@ -2,7 +2,7 @@ use "collections"
 use "crypto"
 use "wallaroo_labs/mort"
 
-class ref HashPartitions
+class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   let lower_bounds: Array[U128] = lower_bounds.create()
   let sizes: Array[U128] = sizes.create()
   let nodes: Map[U128, String] = nodes.create()
@@ -27,7 +27,7 @@ class ref HashPartitions
       let fraction: F64 = w.f64() / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz')
-      @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), n.cstring(), w, sum, fraction)
+      // @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), n.cstring(), w, sum, fraction)
       ns.push((n, sz))
     end
     create2(consume ns)
@@ -57,6 +57,42 @@ class ref HashPartitions
     let adjust = (U128.max_value() - sum)
     try sizes(idx)? = sizes(idx)? + adjust else Fail() end
 
+  fun box eq(y: HashPartitions box): Bool =>
+    try
+      if (lower_bounds.size() == y.lower_bounds.size()) and
+         (sizes.size() == y.sizes.size()) and
+         (nodes.size() == y.nodes.size())
+      then
+        for i in lower_bounds.keys() do
+          if (lower_bounds(i)? != y.lower_bounds(i)?) or
+             (sizes(i)? != y.sizes(i)?) or
+             (nodes(lower_bounds(i)?)? != y.nodes(y.lower_bounds(i)?)?)
+          then
+            return false
+          end
+        end
+        return true
+      else
+        return false
+      end
+    else
+      false
+    end
+
+  fun box ne(y: HashPartitions box): Bool =>
+    not eq(y)
+
+  fun box string(): String iso^ =>
+    let s: String iso = "".clone()
+
+    try
+      for i in lower_bounds.keys() do
+        s.append(nodes(lower_bounds(i)?)? + "@" + sizes(i)?.string() + ",")
+      end
+    else
+      Fail()
+    end
+    consume s
 
   fun get_claimant(hash: U128): String ? =>
     var next_to_last_idx: USize = lower_bounds.size() - 1

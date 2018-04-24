@@ -86,11 +86,14 @@ class iso _TestMakeHashPartitions2 is UnitTest
     let hp3 = HashPartitions.create_with_weights(n3)
     let hp4 = HashPartitions.create_with_weights(n4)
 
-    for hp in [hp1; hp2; hp3; hp4].values() do
+/***    for hp in [hp1; hp2; hp3; hp4].values() do
       @printf[I32]("\n".cstring())
       for (node, w) in hp.get_weights().pairs() do
         @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
       end
       hp.pretty_print()
       @printf[I32]("\n".cstring())
-    end
+    end ***/
+    h.assert_eq[HashPartitions](hp1, hp2)
+    h.assert_eq[HashPartitions](hp1, hp3)
+    h.assert_eq[HashPartitions](hp1, hp4)
