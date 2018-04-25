@@ -82,6 +82,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     let idx = lower_bounds.size() - 1
     let i_adjust = (U128.max_value() - sum)
+                            @printf[I32]("\ti_adjust = %ld\n".cstring(), i_adjust.u64())
     try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust else Fail() end
 
   fun box eq(y: HashPartitions box): Bool =>
@@ -235,9 +236,10 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     ns
 
-  fun adjust_weights(weights: Array[(String, F64)] val,
+  fun adjust_weights(new_weights: Array[(String, F64)] val,
     decimal_digits: USize = 2): HashPartitions
    =>
+    let new_weights' = new_weights.clone()
     //// Figure out what claimants have been removed.
 
     let current_weights = get_weights_normalized(decimal_digits)
@@ -247,22 +249,30 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     for (c, w') in _orig_weights.values() do
       current_cs = current_cs.add(c)
     end
-    for (c, w') in weights.values() do
+    for (c, w') in new_weights.values() do
       new_cs = new_cs.add(c)
     end
-
     let removed_cs = current_cs.without(new_cs)
-    let added_cs = new_cs.without(current_cs)
-    @printf[I32]("Removed claimants: ".cstring())
+                        @printf[I32]("Removed claimants: ".cstring())
+                        for c in removed_cs.values() do
+                          @printf[I32]("%s, ".cstring(), c.cstring())
+                        end
+                        @printf[I32]("\n".cstring())
+
+    //// Assign weights of zero to claimants not in the new list
     for c in removed_cs.values() do
-      @printf[I32]("%s, ".cstring(), c.cstring())
+                          @printf[I32]("Add claimant %s with weight 0 to weights'\n".cstring(), c.cstring())
+      new_weights'.push((c, 0.0))
     end
-    @printf[I32]("\n".cstring())
-    @printf[I32]("Added claimants: ".cstring())
-    for c in added_cs.values() do
-      @printf[I32]("%s, ".cstring(), c.cstring())
-    end
-    @printf[I32]("\n".cstring())
+
+    let added_cs = new_cs.without(current_cs)
+                        @printf[I32]("Added claimants: ".cstring())
+                        for c in added_cs.values() do
+                          @printf[I32]("%s, ".cstring(), c.cstring())
+                        end
+                        @printf[I32]("\n".cstring())
+
+
 
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
