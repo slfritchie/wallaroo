@@ -30,6 +30,7 @@ actor Main is TestList
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
+    test(_TestAdjustHashPartitions)
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -61,23 +62,23 @@ class iso _TestMakeHashPartitions is UnitTest
 
 class iso _TestMakeHashPartitions2 is UnitTest
   """
-  Basic test of get_weights
+  Make several HashPartitions that should be equivalent
   """
   fun name(): String =>
     "hash_partitions/line-" + __loc.line().string()
 
   fun ref apply(h: TestHelper) /**?**/ =>
     @printf[I32]("\n".cstring())
-    let n1: Array[(String,U128)] val = recover
+    let n1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2*1); ("n3", 3*1); ("n4", 1*1)] end
-    let n2: Array[(String,U128)] val = recover
+    let n2: Array[(String,F64)] val = recover
       [("n1", 1*3); ("n2", 2*3); ("n3", 3*3); ("n4", 1*3)] end
-    let n3: Array[(String,U128)] val = recover
+    let n3: Array[(String,F64)] val = recover
      [("n1", 48611766702991206367701239421883908096)
       ("n2", 97223533405982412735402478843767816192)
       ("n3", 145835300108973619103103718265651724288)
       ("n4", 48611766702991225257167170900464762879)] end
-    let n4: Array[(String,U128)] val = recover
+    let n4: Array[(String,F64)] val = recover
      [("n1", 48611766702991206367701239421883908096/15)
       ("n2", 97223533405982412735402478843767816192/15)
       ("n3", 145835300108973619103103718265651724288/15)
@@ -95,7 +96,7 @@ class iso _TestMakeHashPartitions2 is UnitTest
 
 class iso _TestMakeHashPartitions3 is UnitTest
   """
-  Basic test of get_weights
+  Basic test of making HashPartitions with weights
   """
   fun name(): String =>
     "hash_partitions/line-" + __loc.line().string()
@@ -103,7 +104,7 @@ class iso _TestMakeHashPartitions3 is UnitTest
   fun ref apply(h: TestHelper) /**?**/ =>
     // This is an intentionally choppy way of making a map for 4 nodes
     // Total ratio should be 1 : 12 : 3 : 1.
-    let n1: Array[(String,U128)] val = recover
+    let n1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2*7); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*6); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*5); ("n3", 3*1); ("n4", 1*1)] end
@@ -120,4 +121,23 @@ class iso _TestMakeHashPartitions3 is UnitTest
       end
     end
 
+class iso _TestAdjustHashPartitions is UnitTest
+  """
+  Basic test of adjusting a HashPartitions with added & removed nodes
+  """
+  fun name(): String =>
+    "hash_partitions/line-" + __loc.line().string()
+
+  fun ref apply(h: TestHelper) /**?**/ =>
+    // This is an intentionally choppy way of making a map for 4 nodes
+    // Total ratio should be 1 : 12 : 3 : 1.
+    let n1: Array[(String,F64)] val = recover
+      [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
+
+    let hp1 = HashPartitions.create_with_weights(n1)
+
+    let n2: Array[(String,F64)] val = recover
+      [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
+
+    // error // left off here
 

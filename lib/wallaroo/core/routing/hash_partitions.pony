@@ -16,15 +16,15 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     create2(consume ns)
 
-  new ref create_with_weights(nodes': Array[(String, U128)] val) =>
+  new ref create_with_weights(nodes': Array[(String, F64)] val) =>
     var sum: F64 = 0.0
     let ns: Array[(String, U128)] iso = recover ns.create() end
 
     for (_, w) in nodes'.values() do
-      sum = sum + w.f64()
+      sum = sum + w
     end
     for (n, w) in nodes'.values() do
-      let fraction: F64 = w.f64() / sum
+      let fraction: F64 = w / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz')
       // @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), n.cstring(), w, sum, fraction)
@@ -197,6 +197,8 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       Fail()
     end
     ns
+
+  /////fun 
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
