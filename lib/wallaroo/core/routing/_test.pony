@@ -44,7 +44,7 @@ class iso _TestMakeHashPartitions is UnitTest
     let hp = HashPartitions(n3)
     // hp.pretty_print()
 
-    h.assert_eq[USize](n3.size(), hp.nodes.size())
+    h.assert_eq[USize](n3.size(), hp.lb_to_c.size())
 
     // There's no guarantee the following is true, but it probably is true.
 
@@ -69,24 +69,24 @@ class iso _TestMakeHashPartitions2 is UnitTest
 
   fun ref apply(h: TestHelper) /**?**/ =>
     @printf[I32]("\n".cstring())
-    let n1: Array[(String,F64)] val = recover
+    let weights1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2*1); ("n3", 3*1); ("n4", 1*1)] end
-    let n2: Array[(String,F64)] val = recover
+    let weights2: Array[(String,F64)] val = recover
       [("n1", 1*3); ("n2", 2*3); ("n3", 3*3); ("n4", 1*3)] end
-    let n3: Array[(String,F64)] val = recover
+    let weights3: Array[(String,F64)] val = recover
      [("n1", 48611766702991206367701239421883908096)
       ("n2", 97223533405982412735402478843767816192)
       ("n3", 145835300108973619103103718265651724288)
       ("n4", 48611766702991225257167170900464762879)] end
-    let n4: Array[(String,F64)] val = recover
+    let weights4: Array[(String,F64)] val = recover
      [("n1", 48611766702991206367701239421883908096/15)
       ("n2", 97223533405982412735402478843767816192/15)
       ("n3", 145835300108973619103103718265651724288/15)
       ("n4", 48611766702991225257167170900464762879/15)] end
-    let hp1 = HashPartitions.create_with_weights(n1)
-    let hp2 = HashPartitions.create_with_weights(n2)
-    let hp3 = HashPartitions.create_with_weights(n3)
-    let hp4 = HashPartitions.create_with_weights(n4)
+    let hp1 = HashPartitions.create_with_weights(weights1)
+    let hp2 = HashPartitions.create_with_weights(weights2)
+    let hp3 = HashPartitions.create_with_weights(weights3)
+    let hp4 = HashPartitions.create_with_weights(weights4)
 
     // hp1.pretty_print()
     // All 4 HashPartitions should be exactly equal
@@ -104,12 +104,12 @@ class iso _TestMakeHashPartitions3 is UnitTest
   fun ref apply(h: TestHelper) /**?**/ =>
     // This is an intentionally choppy way of making a map for 4 nodes
     // Total ratio should be 1 : 12 : 3 : 1.
-    let n1: Array[(String,F64)] val = recover
+    let weights1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2*7); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*6); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*5); ("n3", 3*1); ("n4", 1*1)] end
 
-    let hp1 = HashPartitions.create_with_weights(n1)
+    let hp1 = HashPartitions.create_with_weights(weights1)
     // hp1.pretty_print() ; @printf[I32]("\n".cstring())
 
     for (n, w) in hp1.get_weights_normalized().pairs() do
@@ -131,13 +131,13 @@ class iso _TestAdjustHashPartitions is UnitTest
   fun ref apply(h: TestHelper) /**?**/ =>
     // This is an intentionally choppy way of making a map for 4 nodes
     // Total ratio should be 1 : 12 : 3 : 1.
-    let n1: Array[(String,F64)] val = recover
+    let weights1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
-    let hp1 = HashPartitions.create_with_weights(n1)
+    let hp1 = HashPartitions.create_with_weights(weights1)
 
-    let n2: Array[(String,F64)] val = recover
-      [("n1", 1*1); ("n2", 2); ("n4", 4); ("n5", 1)] end
-    let hp2 = hp1.adjust_weights(n2)
+    let weights2: Array[(String,F64)] val = recover
+      [("n1", 1*1); ("n2", 2);            ("n4", 4)] end
+    let hp2 = hp1.adjust_weights(weights2)
 
     h.assert_ne[HashPartitions](hp1, hp2)
 
