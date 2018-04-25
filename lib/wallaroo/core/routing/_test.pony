@@ -103,7 +103,6 @@ class iso _TestMakeHashPartitions3 is UnitTest
   fun ref apply(h: TestHelper) /**?**/ =>
     // This is an intentionally choppy way of making a map for 4 nodes
     // Total ratio should be 1 : 12 : 3 : 1.
-    // The asserts below need to deal with floating point rounding error
     let n1: Array[(String,U128)] val = recover
       [("n1", 1*1); ("n2", 2*7); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*6); ("n3", 3*1); ("n4", 1*1)
@@ -114,10 +113,10 @@ class iso _TestMakeHashPartitions3 is UnitTest
 
     for (n, w) in hp1.get_weights_normalized().pairs() do
       match n
-      | "n1" => h.assert_eq[Bool](true, (w - 1.0).abs()  < 0.0000001)
-      | "n2" => h.assert_eq[Bool](true, (w - 12.0).abs() < 0.0000001)
-      | "n3" => h.assert_eq[Bool](true, (w - 3.0).abs()  < 0.0000001)
-      | "n4" => h.assert_eq[Bool](true, (w - 1.0).abs()  < 0.0000001)
+      | "n1" => h.assert_eq[F64](w, 1.0)
+      | "n2" => h.assert_eq[F64](w, 12.0)
+      | "n3" => h.assert_eq[F64](w, 3.0)
+      | "n4" => h.assert_eq[F64](w, 1.0)
       end
     end
 

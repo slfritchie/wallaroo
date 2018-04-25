@@ -162,8 +162,8 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     w
 
-  fun get_weights_normalized(): Map[String,F64] =>
-    let w: Map[String, F64] = w.create()
+  fun get_weights_normalized(decimal_digits: USize = 2): Map[String,F64] =>
+    let ws: Map[String, F64] = ws.create()
     var min_weight = F64.max_value()
     let weights = get_weights_unit_interval()
 
@@ -171,18 +171,18 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       min_weight = min_weight.min(weight)
     end
     for (node, weight) in weights.pairs() do
-      w(node) = weight.f64() / min_weight
+      ws(node) = RoundF64(weight.f64() / min_weight, decimal_digits)
     end
-    w
+    ws
 
   fun pretty_print() =>
     for (n, w) in normalize().values() do
       @printf[I32]("node %10s relative-size %.4f\n".cstring(), n.cstring(), w)
     end
 
-  fun normalize(): Array[(String, F64)] =>
+  fun normalize(decimal_digits: USize = 2): Array[(String, F64)] =>
     var min_size: U128 = U128.max_value()
-    let n: Array[(String, F64)] = n.create()
+    let ns: Array[(String, F64)] = ns.create()
 
     try
       for i in Range[USize](0, sizes.size()) do
@@ -190,12 +190,13 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       end
 
       for i in Range[USize](0, sizes.size()) do
-        n.push((nodes(lower_bounds(i)?)?, sizes(i)?.f64() / min_size.f64()))
+        let w = RoundF64(sizes(i)?.f64() / min_size.f64(), decimal_digits)
+        ns.push((nodes(lower_bounds(i)?)?, w))
       end
     else
       Fail()
     end
-    n
+    ns
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
@@ -205,3 +206,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
         return
       end
     end
+
+primitive RoundF64
+  fun apply(f: F64, decimal_digits: USize = 2): F64 =>
+    let factor = F64(10).pow(decimal_digits.f64())
+
+    ((f * factor) + 0.5).trunc() / factor
