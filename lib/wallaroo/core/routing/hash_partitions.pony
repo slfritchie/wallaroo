@@ -6,6 +6,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   let lower_bounds: Array[U128] = lower_bounds.create()
   let sizes: Array[U128] = sizes.create()
   let nodes: Map[U128, String] = nodes.create()
+  let _orig_weights: Array[(String,F64)] val
 
   new ref create(nodes': Array[String] val) =>
     let ns: Array[(String, U128)] iso = recover ns.create() end
@@ -14,22 +15,34 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     for n in nodes'.values() do
       ns.push((n, size))
     end
+    _orig_weights = recover [] end // TODO fix this despite testing-only use?
     create2(consume ns)
 
-  new ref create_with_weights(nodes': Array[(String, F64)] val) =>
+  new ref create_with_weights(nodes': Array[(String, F64)] val,
+    decimal_digits: USize = 2)
+  =>
+    let nodes'': Array[(String, F64)] trn = recover nodes''.create() end
     var sum: F64 = 0.0
     let ns: Array[(String, U128)] iso = recover ns.create() end
 
-    for (_, w) in nodes'.values() do
+    for (n, w) in nodes'.values() do
+      let w' = RoundF64(w, decimal_digits)
+      if w' > 0.0 then
+        nodes''.push((n, w'))
+      end
+    end
+
+    for (_, w) in nodes''.values() do
       sum = sum + w
     end
-    for (n, w) in nodes'.values() do
+    for (n, w) in nodes''.values() do
       let fraction: F64 = w / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz')
       // @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), n.cstring(), w, sum, fraction)
       ns.push((n, sz))
     end
+    _orig_weights = consume nodes''
     create2(consume ns)
 
   fun ref create2(nodes': Array[(String, U128)] val) =>
@@ -198,7 +211,37 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     ns
 
-  /////fun 
+  fun adjust_weights(nodes': Array[(String, F64)] val,
+    decimal_digits: USize = 2): HashPartitions
+   =>
+    //// Figure out what nodes have been removed from the current list
+
+    let current_weights = get_weights_normalized(decimal_digits)
+    var current_nodes: SetIs[String] = current_nodes.create()
+    var new_nodes: SetIs[String] = new_nodes.create()
+
+    for (n, w') in _orig_weights.values() do
+      current_nodes = current_nodes.add(n)
+    end
+    for (n, w') in nodes'.values() do
+      new_nodes = new_nodes.add(n)
+    end
+
+    let removed_nodes = current_nodes.without(new_nodes)
+    let added_nodes = new_nodes.without(current_nodes)
+    @printf[I32]("Removed nodes: ".cstring())
+    for n in removed_nodes.values() do
+      @printf[I32]("%s, ".cstring(), n.cstring())
+    end
+    @printf[I32]("\n".cstring())
+    @printf[I32]("Added nodes: ".cstring())
+    for n in added_nodes.values() do
+      @printf[I32]("%s, ".cstring(), n.cstring())
+    end
+    @printf[I32]("\n".cstring())
+
+    // TEST HACK: Create test failure: use _orig_weights to force test failure
+    HashPartitions.create_with_weights(_orig_weights)
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>

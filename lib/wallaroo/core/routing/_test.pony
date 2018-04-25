@@ -133,11 +133,11 @@ class iso _TestAdjustHashPartitions is UnitTest
     // Total ratio should be 1 : 12 : 3 : 1.
     let n1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
-
     let hp1 = HashPartitions.create_with_weights(n1)
 
     let n2: Array[(String,F64)] val = recover
-      [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
+      [("n1", 1*1); ("n2", 2); ("n4", 4); ("n5", 1)] end
+    let hp2 = hp1.adjust_weights(n2)
 
-    // error // left off here
+    h.assert_ne[HashPartitions](hp1, hp2)
 
