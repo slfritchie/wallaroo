@@ -46,6 +46,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     create2(consume ns)
 
   fun ref create2(nodes': Array[(String, U128)] val) =>
+    """
+    Create a HashPartitions using actual U128-sized intervals.
+    """
     let count = nodes'.size()
     var next_lower_bound: U128 = 0
 
