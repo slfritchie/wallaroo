@@ -29,6 +29,7 @@ actor Main is TestList
   fun tag tests(test: PonyTest) =>
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
+    test(_TestMakeHashPartitions3)
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -40,6 +41,7 @@ class iso _TestMakeHashPartitions is UnitTest
   fun ref apply(h: TestHelper) ? =>
     let n3: Array[String] val = recover ["n1"; "n2"; "n3"] end
     let hp = HashPartitions(n3)
+    // hp.pretty_print()
 
     h.assert_eq[USize](n3.size(), hp.nodes.size())
 
@@ -56,7 +58,6 @@ class iso _TestMakeHashPartitions is UnitTest
       h.assert_eq[Bool](n3.contains(c), true)
       h.assert_eq[Bool](res, true)
     end
-    hp.pretty_print()
 
 class iso _TestMakeHashPartitions2 is UnitTest
   """
@@ -86,14 +87,37 @@ class iso _TestMakeHashPartitions2 is UnitTest
     let hp3 = HashPartitions.create_with_weights(n3)
     let hp4 = HashPartitions.create_with_weights(n4)
 
-/***    for hp in [hp1; hp2; hp3; hp4].values() do
-      @printf[I32]("\n".cstring())
-      for (node, w) in hp.get_weights().pairs() do
-        @printf[I32]("\tnode %s w %s\n".cstring(), node.cstring(), w.string().cstring())
-      end
-      hp.pretty_print()
-      @printf[I32]("\n".cstring())
-    end ***/
     h.assert_eq[HashPartitions](hp1, hp2)
     h.assert_eq[HashPartitions](hp1, hp3)
     h.assert_eq[HashPartitions](hp1, hp4)
+    hp1.pretty_print()
+
+class iso _TestMakeHashPartitions3 is UnitTest
+  """
+  Basic test of get_weights
+  """
+  fun name(): String =>
+    "hash_partitions/line-" + __loc.line().string()
+
+  fun ref apply(h: TestHelper) /**?**/ =>
+    let n1: Array[(String,U128)] val = recover
+      [("n1", 1*1); ("n2", 2*7); ("n3", 3*1); ("n4", 1*1)
+       ("n1", 1*1); ("n2", 2*6); ("n3", 3*1); ("n4", 1*1)
+       ("n1", 1*1); ("n2", 2*5); ("n3", 3*1); ("n4", 1*1)] end
+
+    let hp1 = HashPartitions.create_with_weights(n1)
+    hp1.pretty_print()
+    @printf[I32]("\n".cstring())
+    for (n, w) in hp1.normalize().values() do
+      @printf[I32]("\tnode %s sum %f\n".cstring(), n.cstring(), w)
+    end
+    @printf[I32]("\n".cstring())
+    for (n, w) in hp1.get_weights_f64().pairs() do
+      @printf[I32]("\tnode %s weight% %06.3f%%\n".cstring(), n.cstring(), w * 100.0)
+    end
+    @printf[I32]("\n".cstring())
+    for (n, w) in hp1.get_weights_normalized().pairs() do
+      @printf[I32]("\tnode %s normalized_weight %.3f\n".cstring(), n.cstring(), w)
+    end
+
+

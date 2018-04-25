@@ -154,8 +154,35 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     w
 
+  fun get_weights_f64(): Map[String,F64] =>
+    let w: Map[String, F64] = w.create()
+
+    for (node, weight) in get_weights().pairs() do
+      w(node) = weight.f64() / U128.max_value().f64()
+    end
+    w
+
+  fun get_weights_normalized(): Map[String,F64] =>
+    let w: Map[String, F64] = w.create()
+    var min_weight = F64.max_value()
+    let weights = get_weights_f64()
+
+    for (_, weight) in weights.pairs() do
+      min_weight = min_weight.min(weight)
+    end
+    for (node, weight) in weights.pairs() do
+      w(node) = weight.f64() / min_weight
+    end
+    w
+
   fun pretty_print() =>
+    for (n, w) in normalize().values() do
+      @printf[I32]("node %10s relative-size %.4f\n".cstring(), n.cstring(), w)
+    end
+
+  fun normalize(): Array[(String, F64)] =>
     var min_size: U128 = U128.max_value()
+    let n: Array[(String, F64)] = n.create()
 
     try
       for i in Range[USize](0, sizes.size()) do
@@ -163,10 +190,14 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       end
 
       for i in Range[USize](0, sizes.size()) do
-        @printf[I32]("node %10s relative-size %.1f\n".cstring(), nodes(lower_bounds(i)?)?.cstring(), sizes(i)?.f64() / min_size.f64())
+        n.push((nodes(lower_bounds(i)?)?, sizes(i)?.f64() / min_size.f64()))
       end
+    else
+      Fail()
     end
+    n
 
+  // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
     for (lb, s) in nodes.pairs() do
       if s == from then
