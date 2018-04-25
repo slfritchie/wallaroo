@@ -154,7 +154,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     w
 
-  fun get_weights_f64(): Map[String,F64] =>
+  fun get_weights_unit_interval(): Map[String,F64] =>
     let w: Map[String, F64] = w.create()
 
     for (node, weight) in get_weights().pairs() do
@@ -165,7 +165,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   fun get_weights_normalized(): Map[String,F64] =>
     let w: Map[String, F64] = w.create()
     var min_weight = F64.max_value()
-    let weights = get_weights_f64()
+    let weights = get_weights_unit_interval()
 
     for (_, weight) in weights.pairs() do
       min_weight = min_weight.min(weight)

@@ -87,10 +87,11 @@ class iso _TestMakeHashPartitions2 is UnitTest
     let hp3 = HashPartitions.create_with_weights(n3)
     let hp4 = HashPartitions.create_with_weights(n4)
 
+    // hp1.pretty_print()
+    // All 4 HashPartitions should be exactly equal
     h.assert_eq[HashPartitions](hp1, hp2)
     h.assert_eq[HashPartitions](hp1, hp3)
     h.assert_eq[HashPartitions](hp1, hp4)
-    hp1.pretty_print()
 
 class iso _TestMakeHashPartitions3 is UnitTest
   """
@@ -100,24 +101,24 @@ class iso _TestMakeHashPartitions3 is UnitTest
     "hash_partitions/line-" + __loc.line().string()
 
   fun ref apply(h: TestHelper) /**?**/ =>
+    // This is an intentionally choppy way of making a map for 4 nodes
+    // Total ratio should be 1 : 12 : 3 : 1.
+    // The asserts below need to deal with floating point rounding error
     let n1: Array[(String,U128)] val = recover
       [("n1", 1*1); ("n2", 2*7); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*6); ("n3", 3*1); ("n4", 1*1)
        ("n1", 1*1); ("n2", 2*5); ("n3", 3*1); ("n4", 1*1)] end
 
     let hp1 = HashPartitions.create_with_weights(n1)
-    hp1.pretty_print()
-    @printf[I32]("\n".cstring())
-    for (n, w) in hp1.normalize().values() do
-      @printf[I32]("\tnode %s sum %f\n".cstring(), n.cstring(), w)
-    end
-    @printf[I32]("\n".cstring())
-    for (n, w) in hp1.get_weights_f64().pairs() do
-      @printf[I32]("\tnode %s weight% %06.3f%%\n".cstring(), n.cstring(), w * 100.0)
-    end
-    @printf[I32]("\n".cstring())
+    // hp1.pretty_print() ; @printf[I32]("\n".cstring())
+
     for (n, w) in hp1.get_weights_normalized().pairs() do
-      @printf[I32]("\tnode %s normalized_weight %.3f\n".cstring(), n.cstring(), w)
+      match n
+      | "n1" => h.assert_eq[Bool](true, (w - 1.0).abs()  < 0.0000001)
+      | "n2" => h.assert_eq[Bool](true, (w - 12.0).abs() < 0.0000001)
+      | "n3" => h.assert_eq[Bool](true, (w - 3.0).abs()  < 0.0000001)
+      | "n4" => h.assert_eq[Bool](true, (w - 1.0).abs()  < 0.0000001)
+      end
     end
 
 
