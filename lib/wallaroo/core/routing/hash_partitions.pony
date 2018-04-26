@@ -192,6 +192,19 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     interval_sums
 
+  fun get_sizes(): Array[(String, U128)] =>
+    let s: Array[(String, U128)] = s.create()
+
+    try 
+      for i in Range[USize](0, lower_bounds.size()) do
+        let c = lb_to_c(lower_bounds(i)?)?
+        s.push((c, interval_sizes(i)?))
+      end
+    else
+      Fail()
+    end
+    s
+
   fun get_weights_unit_interval(): Map[String,F64] =>
     let ws: Map[String, F64] = ws.create()
 
@@ -297,11 +310,131 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       Fail()
     end
 
+    //// Get the current map in Array[(Claimant,Size)] format, which
+    //// is what create2() requires.
+
+    let sizes1 = get_sizes()
+                          for (c, s) in sizes1.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
+
     //// Process subtractions first: use the claimant name ""
     //// for unclaimed intervals.
+    let sizes2 = _process_subtractions(sizes1, size_sub)
+                          for (c, s) in sizes2.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
+
+    //// Process additions next.
+    let sizes3 = _process_additions(sizes2, size_add)
+                          for (c, s) in sizes3.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
 
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
+
+  fun _process_subtractions(old_sizes: Array[(String, U128)],
+    size_sub: Map[String, U128]): Array[(String, U128)]
+  =>
+    let new_sizes: Array[(String, U128)] = new_sizes.create()
+
+    try
+      for (c, s) in old_sizes.values() do
+        if size_sub.contains(c) then
+          let to_sub = size_sub(c)?
+
+          if to_sub > 0 then
+            if to_sub >= s then
+              new_sizes.push(("", s))     // Unassign all of s
+              size_sub(c) = to_sub - s
+            else
+              let remainder = s - to_sub  // Unassign some of s, keep remainder
+              new_sizes.push((c, remainder))
+              new_sizes.push(("", to_sub))
+              size_sub(c) = 0
+            end
+          end
+        else
+          new_sizes.push((c, s)) // Assignment of s is unchanged
+        end
+      end
+    else
+      Fail()
+    end
+    new_sizes
+    
+  fun _process_additions(old_sizes: Array[(String, U128)],
+    size_add: Map[String, U128]): Array[(String, U128)]
+  =>
+    let new_sizes: Array[(String, U128)] = new_sizes.create()
+    let total_length = old_sizes.size()
+
+    try
+      for i in Range[USize](0, total_length) do
+        let (c, s) = old_sizes(i)?
+
+        if c != "" then
+          new_sizes.push((c, s)) // Assignment of s is unchanged
+        else
+          // Is there a neighbor on the left that needs extra?
+          if (i > 0) then
+            let (left_c, left_s) = old_sizes(i - 1)
+
+            if (left_c != "") and (size_add.contains(left_c))
+              and (size_add(left_c) > 0)
+            then
+              let to_add = size_add(left_c)
+
+              if to_add >= s then
+                // Assign all of s to left. 
+                new_sizes.push((left_c, left_s + s))
+                size_add(c) = to_add - s
+                                @printf[I32]("proc_add: left all assign at i=%d\n".cstring(), i)
+              else
+                // Assign some of s, keep remainder unassigned.
+                // Split s into 2, copy remaining old_sizes -> new_sizes,
+                // then recurse.
+                let remainder = s - to_add
+                new_sizes.push((left_c, to_add)) // Keep on left side
+                new_sizes.push(("", remainder))
+                new_sizes.reserve(total_length + 1)
+                old_sizes.copy_to(new_sizes, i + 1, i + 2,
+                  total_length - (i + 1)
+                                @printf[I32]("proc_add: left part assign at i=%d\n".cstring(), i)
+                                for (c, s) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+                return _process_additions(new_sizes, size_add)
+              end
+            end
+          // Is there a neighbor on the right that needs extra?
+          elseif (i < old_sizes.size() - 1) then
+            let (right_c, right_s) = old_sizes(i + 1)
+
+            if (right_c != "") and (size_add.contains(right_c))
+              and (size_add(right_c) > 0)
+            then
+              let to_add = size_add(right_c)
+
+              if to_add >= s then
+                // Assign all of s to right.
+                new_sizes.push((right_c, right_s + s))
+                size_add(c) = to_add - s
+                                @printf[I32]("proc_add: right all assign at i=%d\n".cstring(), i)
+              else
+                // Assign some of s, keep remainding unassigned.
+                // Split s into 2, copy remaining old_sizes -> new_sizes,
+                // then recurse.
+                let remainder = s - to_add
+                new_sizes.push(("", remainder))
+                new_sizes.push((right_c, to_add)) // Keep on right side
+                new_sizes.reserve(total_length + 1)
+                old_sizes.copy_to(new_sizes, i + 1, i + 2,
+                  total_length - (i + 1))
+                                @printf[I32]("proc_add: right part assign at i=%d\n".cstring(), i)
+                                for (c, s) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+            end
+
+          end
+
+
+    else
+      Fail()
+    end
+    new_sizes
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
