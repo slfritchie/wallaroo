@@ -497,8 +497,55 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   fun _coalesce_adjacent_intervals(old_sizes: Array[(String, U128)]):
     Array[(String, U128)]
   =>
-    @printf[I32]("TODO: LEFT OFF HERE!\n".cstring())
-    old_sizes
+    let new_sizes: Array[(String, U128)] = new_sizes.create()
+
+    try
+      (let first_c, let first_s) = old_sizes.shift()?
+      if first_c == "" then
+        Fail() // I'm pretty sure this shouldn't be possible, yell if it does
+      end
+      if old_sizes.size() == 0 then
+        new_sizes.push((first_c, first_s))
+        new_sizes
+      else
+        (let next_c, let next_s) = old_sizes.shift()?
+        _coalesce(first_c, first_s, next_c, next_s, old_sizes, new_sizes)
+      end
+    else
+      Fail()
+      new_sizes
+    end
+
+  fun _coalesce(last_c: String, last_s: U128, head_c: String, head_s: U128,
+    tail: Array[(String, U128)], new_sizes: Array[(String, U128)]):
+    Array[(String, U128)]
+  =>
+    if tail.size() == 0 then
+      if last_c == head_c then
+        new_sizes.push((last_c, last_s + head_s))
+                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0a: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
+      else
+        new_sizes.push((last_c, last_s))
+                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
+        new_sizes.push((head_c, head_s))
+                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
+      end
+      return new_sizes
+    end
+    try
+      (let next_c, let next_s) = tail.shift()?
+      if last_c == head_c then
+                      @printf[I32]("coalesce: 1a: SAME claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (head_s.f64()/U128.max_value().f64())*100.0)
+        _coalesce(head_c, last_s + head_s, next_c, next_s, tail, new_sizes)
+      else
+        new_sizes.push((last_c, last_s))
+                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 1b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
+        _coalesce(head_c, head_s, next_c, next_s, tail, new_sizes)
+      end
+    else
+      Fail()
+      new_sizes
+    end
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
