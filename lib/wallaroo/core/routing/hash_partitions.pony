@@ -34,7 +34,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     """
     let weights': Array[(String, F64)] trn = recover weights'.create() end
     var sum: F64 = 0.0
-    let sizes: Array[(String, U128)] iso = recover sizes.create() end
+    let sizes: Array[(String, U128)] trn = recover sizes.create() end
 
     for (c, w) in weights.values() do
       let w' = RoundF64(w, decimal_digits)
@@ -499,9 +499,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
 
   fun _coalesce_adjacent_intervals(old_sizes: Array[(String, U128)]):
-    Array[(String, U128)] iso
+    Array[(String, U128)] trn^
   =>
-    let new_sizes: Array[(String, U128)] iso = recover new_sizes.create() end
+    let new_sizes: Array[(String, U128)] trn = recover new_sizes.create() end
 
     try
       (let first_c, let first_s) = old_sizes.shift()?
@@ -521,8 +521,8 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
 
   fun _coalesce(last_c: String, last_s: U128, head_c: String, head_s: U128,
-    tail: Array[(String, U128)], new_sizes: Array[(String, U128)] iso):
-    Array[(String, U128)] iso
+    tail: Array[(String, U128)], new_sizes: Array[(String, U128)] trn):
+    Array[(String, U128)] trn^
   =>
     if tail.size() == 0 then
       if last_c == head_c then
