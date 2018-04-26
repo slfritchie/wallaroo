@@ -297,6 +297,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       Fail()
     end
 
+    //// Process subtractions first: use the claimant name ""
+    //// for unclaimed intervals.
+
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
 
