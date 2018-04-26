@@ -129,14 +129,12 @@ class iso _TestAdjustHashPartitions is UnitTest
     "hash_partitions/line-" + __loc.line().string()
 
   fun ref apply(h: TestHelper) /**?**/ =>
-    // This is an intentionally choppy way of making a map for 4 nodes
-    // Total ratio should be 1 : 12 : 3 : 1.
     let weights1: Array[(String,F64)] val = recover
-      [("n1", 1*1); ("n2", 2); ("n3", 3); ("n4", 4)] end
+      [("n1", 1); ("n2", 2); ("n3", 3); ("n4", 4)] end
     let hp1 = HashPartitions.create_with_weights(weights1)
 
     let weights2: Array[(String,F64)] val = recover
-      [("n1", 1*1); ("n2", 2);            ("n4", 4)] end
+      [("n1", 1); ("n2", 2);            ("n4", 4)] end
     let hp2a = HashPartitions.create_with_weights(weights1)
     let hp2b = hp1.adjust_weights(weights2)
 
