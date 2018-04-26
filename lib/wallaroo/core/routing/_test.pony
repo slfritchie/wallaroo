@@ -135,7 +135,7 @@ class iso _TestAdjustHashPartitions is UnitTest
 
     let weights2: Array[(String,F64)] val = recover
       [("n1", 1); ("n2", 2);            ("n4", 4)] end
-    let hp2a = HashPartitions.create_with_weights(weights1)
+    let hp2a = HashPartitions.create_with_weights(weights2)
     let hp2b = hp1.adjust_weights(weights2)
 
     // TODO: What we ought to test for here:
