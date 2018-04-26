@@ -366,71 +366,82 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
     try
       for i in Range[USize](0, total_length) do
-        let (c, s) = old_sizes(i)?
+        (let c, let s) = old_sizes(i)?
 
         if c != "" then
           new_sizes.push((c, s)) // Assignment of s is unchanged
+                              @printf[I32]("proc_add: unchanged at i=%d to %s\n".cstring(), i, c.cstring())
         else
-          // Is there a neighbor on the left that needs extra?
-          if (i > 0) then
-            let (left_c, left_s) = old_sizes(i - 1)
-
-            if (left_c != "") and (size_add.contains(left_c))
-              and (size_add(left_c) > 0)
-            then
-              let to_add = size_add(left_c)
-
-              if to_add >= s then
-                // Assign all of s to left. 
-                new_sizes.push((left_c, left_s + s))
-                size_add(c) = to_add - s
-                                @printf[I32]("proc_add: left all assign at i=%d\n".cstring(), i)
-              else
-                // Assign some of s, keep remainder unassigned.
-                // Split s into 2, copy remaining old_sizes -> new_sizes,
-                // then recurse.
-                let remainder = s - to_add
-                new_sizes.push((left_c, to_add)) // Keep on left side
-                new_sizes.push(("", remainder))
-                new_sizes.reserve(total_length + 1)
-                old_sizes.copy_to(new_sizes, i + 1, i + 2,
-                  total_length - (i + 1)
-                                @printf[I32]("proc_add: left part assign at i=%d\n".cstring(), i)
-                                for (c, s) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
-                return _process_additions(new_sizes, size_add)
-              end
-            end
-          // Is there a neighbor on the right that needs extra?
-          elseif (i < old_sizes.size() - 1) then
-            let (right_c, right_s) = old_sizes(i + 1)
-
-            if (right_c != "") and (size_add.contains(right_c))
-              and (size_add(right_c) > 0)
-            then
-              let to_add = size_add(right_c)
-
-              if to_add >= s then
-                // Assign all of s to right.
-                new_sizes.push((right_c, right_s + s))
-                size_add(c) = to_add - s
-                                @printf[I32]("proc_add: right all assign at i=%d\n".cstring(), i)
-              else
-                // Assign some of s, keep remainding unassigned.
-                // Split s into 2, copy remaining old_sizes -> new_sizes,
-                // then recurse.
-                let remainder = s - to_add
-                new_sizes.push(("", remainder))
-                new_sizes.push((right_c, to_add)) // Keep on right side
-                new_sizes.reserve(total_length + 1)
-                old_sizes.copy_to(new_sizes, i + 1, i + 2,
-                  total_length - (i + 1))
-                                @printf[I32]("proc_add: right part assign at i=%d\n".cstring(), i)
-                                for (c, s) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
-            end
-
+          // Bind neighbors (or dummy values) on the left & right.
+          (let left_c, let left_s) = if i > 0 then
+            old_sizes(i - 1)?
+          else
+            ("", 0)
+          end
+          (let right_c, let right_s) = if i > (total_length - 1) then
+            old_sizes(i + 1)?
+          else
+            ("", 0)
           end
 
+          // Is there a neighbor on the left that needs extra?
+          if (i > 0)
+            and (left_c != "") and (size_add.contains(left_c))
+            and (size_add(left_c)? > 0)
+          then
+            let to_add = size_add(left_c)?
 
+            if to_add >= s then
+              // Assign all of s to left. 
+              new_sizes.push((left_c, left_s + s))
+              size_add(c) = to_add - s
+                              @printf[I32]("proc_add: left all assign at i=%d to %s\n".cstring(), i, left_c.cstring())
+            else
+              // Assign some of s, keep remainder unassigned.
+              // Split s into 2, copy remaining old_sizes -> new_sizes,
+              // then recurse.
+              let remainder = s - to_add
+              new_sizes.push((left_c, to_add)) // Keep on left side
+              new_sizes.push(("", remainder))
+              new_sizes.reserve(total_length + 1)
+              old_sizes.copy_to(new_sizes, i + 1, i + 2,
+                total_length - (i + 1))
+              size_add(left_c) = 0
+                              @printf[I32]("proc_add: left part assign at i=%d to %s\n".cstring(), i, left_c.cstring())
+                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), cc.cstring(), ss.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+              return _process_additions(new_sizes, size_add)
+            end
+          // Is there a neighbor on the right that needs extra?
+          elseif (i < (total_length - 1))
+            and(right_c != "") and (size_add.contains(right_c))
+            and (size_add(right_c)? > 0)
+          then
+            let to_add = size_add(right_c)?
+
+            if to_add >= s then
+              // Assign all of s to right.
+              new_sizes.push((right_c, right_s + s))
+              size_add(c) = to_add - s
+                              @printf[I32]("proc_add: right all assign at i=%d to %s\n".cstring(), i, right_c.cstring())
+            else
+              // Assign some of s, keep remainding unassigned.
+              // Split s into 2, copy remaining old_sizes -> new_sizes,
+              // then recurse.
+              let remainder = s - to_add
+              new_sizes.push(("", remainder))
+              new_sizes.push((right_c, to_add)) // Keep on right side
+              new_sizes.reserve(total_length + 1)
+              old_sizes.copy_to(new_sizes, i + 1, i + 2,
+                total_length - (i + 1))
+              size_add(right_c) = 0
+                              @printf[I32]("proc_add: right part assign at i=%d to %s\n".cstring(), i, right_c.cstring())
+                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), cc.cstring(), ss.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+            end
+          else
+            None // Neither neighbor
+          end
+        end // if c != ...
+      end //for i ...
     else
       Fail()
     end
