@@ -239,18 +239,27 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   fun adjust_weights(new_weights: Array[(String, F64)] val,
     decimal_digits: USize = 2): HashPartitions
    =>
-    let new_weights' = new_weights.clone()
     //// Figure out what claimants have been removed.
 
     let current_weights = get_weights_normalized(decimal_digits)
     var current_cs: SetIs[String] = current_cs.create()
+    let current_sizes_m = _get_interval_size_sums()
     var new_cs: SetIs[String] = new_cs.create()
+    let new_weights_m: Map[String, F64] = new_weights_m.create()
+    let new_sizes_m: Map[String, U128] = new_sizes_m.create()
+    var sum_new_weights: F64 = 0.0
 
-    for (c, w') in _orig_weights.values() do
+    for (c, w) in _orig_weights.values() do
       current_cs = current_cs.add(c)
     end
-    for (c, w') in new_weights.values() do
+    for (c, w) in new_weights.values() do
       new_cs = new_cs.add(c)
+      let w' = RoundF64(w, decimal_digits)
+      sum_new_weights = sum_new_weights + w'
+      new_weights_m(c) = w'
+      if not current_sizes_m.contains(c) then
+        current_sizes_m(c) = 0
+      end
     end
     let removed_cs = current_cs.without(new_cs)
                         @printf[I32]("Removed claimants: ".cstring())
@@ -261,18 +270,32 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
     //// Assign weights of zero to claimants not in the new list
     for c in removed_cs.values() do
-                          @printf[I32]("Add claimant %s with weight 0 to weights'\n".cstring(), c.cstring())
-      new_weights'.push((c, 0.0))
+                          @printf[I32]("Add claimant %s with weight 0 to new_weights_m\n".cstring(), c.cstring())
+      new_weights_m(c) = 0.0
     end
+                        @printf[I32]("new_weights_m.size() = %d\n".cstring(), new_weights_m.size())
 
-    let added_cs = new_cs.without(current_cs)
-                        @printf[I32]("Added claimants: ".cstring())
-                        for c in added_cs.values() do
-                          @printf[I32]("%s, ".cstring(), c.cstring())
-                        end
-                        @printf[I32]("\n".cstring())
+    //// Calculate the interval slices that need to be redistributed
+    let size_add: Map[String,U128] = size_add.create()
+    let size_sub: Map[String,U128] = size_sub.create()
 
-
+    try
+      for (c, w) in new_weights_m.pairs() do
+        let new_size = U128.from[F64]((w / sum_new_weights) * U128.max_value().f64())
+        if new_size > current_sizes_m(c)? then
+          size_add(c) = (new_size - current_sizes_m(c)?)
+                          @printf[I32]("size_add: c %s add %5.2f%%\n".cstring(), c.cstring(), (size_add(c)?.f64()/U128.max_value().f64())*100.0)
+        elseif new_size < current_sizes_m(c)? then
+          size_sub(c) = (current_sizes_m(c)? - new_size)
+                          @printf[I32]("size_sub: c %s sub %5.2f%%\n".cstring(), c.cstring(), (size_sub(c)?.f64()/U128.max_value().f64())*100.0)
+        else
+                          @printf[I32]("interval_***: c %s\n".cstring(), c.cstring())
+          None
+        end
+      end
+    else
+      Fail()
+    end
 
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
