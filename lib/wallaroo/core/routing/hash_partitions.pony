@@ -314,16 +314,16 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     //// is what create2() requires.
 
     let sizes1 = get_sizes()
-                          for (c, s) in sizes1.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
+                          for (c, s) in sizes1.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     //// Process subtractions first: use the claimant name ""
     //// for unclaimed intervals.
     let sizes2 = _process_subtractions(sizes1, size_sub)
-                          for (c, s) in sizes2.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
+                          for (c, s) in sizes2.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     //// Process additions next.
     let sizes3 = _process_additions(sizes2, size_add)
-                          for (c, s) in sizes3.values() do @printf[I32]("    claimant %s size %s\n".cstring(), c.cstring(), s.string().cstring()) end ; @printf[I32]("\n".cstring())
+                          for (c, s) in sizes3.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
@@ -378,7 +378,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
           else
             ("", 0)
           end
-          (let right_c, let right_s) = if i > (total_length - 1) then
+          (let right_c, let right_s) = if i < (total_length - 1) then
             old_sizes(i + 1)?
           else
             ("", 0)
@@ -408,7 +408,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
                 total_length - (i + 1))
               size_add(left_c) = 0
                               @printf[I32]("proc_add: left part assign at i=%d to %s\n".cstring(), i, left_c.cstring())
-                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), cc.cstring(), ss.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add)
             end
           // Is there a neighbor on the right that needs extra?
@@ -434,11 +434,23 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(right_c) = 0
-                              @printf[I32]("proc_add: right part assign at i=%d to %s\n".cstring(), i, right_c.cstring())
-                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %s\n".cstring(), cc.cstring(), ss.string().cstring()) end ; @printf[I32]("Recurse!\n".cstring())
+                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder size=%s\n".cstring(), i, right_c.cstring(), remainder.string().cstring())
+                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
+              return _process_additions(new_sizes, size_add)
             end
           else
-            None // Neither neighbor
+                              @printf[I32]("proc_add: NEITHER at i=%d, left=%s, left-size_add=%s, right=%s, right-size_add=%s\n".cstring(), i, left_c.cstring(), try size_add(left_c)?.string().cstring() else "n/a".cstring() end, right_c.cstring(), try size_add(right_c)?.string().cstring() else "n/a".cstring() end)
+            let smallest_c = _find_smallest_nonzero_size_to_add(size_add)
+                              @printf[I32]("proc_add: NEITHER at i=%d, insert zero size for %s\n".cstring(), i, smallest_c.cstring())
+            new_sizes.push((c, s)) // This is the unassigned size
+            // Zero size is illegal in the final result, but it will be
+            // removed when we recurse.
+            new_sizes.push((smallest_c, 0))
+            new_sizes.reserve(total_length + 1)
+            old_sizes.copy_to(new_sizes, i + 1, i + 2,
+              total_length - (i + 1))
+                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
+            return _process_additions(new_sizes, size_add)
           end
         end // if c != ...
       end //for i ...
@@ -446,6 +458,23 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       Fail()
     end
     new_sizes
+
+  fun _find_smallest_nonzero_size_to_add(size_add: Map[String,U128]):
+    String
+  =>
+    var smallest_c = ""
+    var smallest_s = U128.max_value()
+
+    for (c, s) in size_add.pairs() do
+      if (s > 0) and (s < smallest_s) then
+        smallest_c = c
+        smallest_s = s
+      end
+    end
+    if smallest_c == "" then
+      Fail()
+    end
+    smallest_c
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>
