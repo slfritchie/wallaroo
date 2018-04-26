@@ -128,7 +128,7 @@ class iso _TestAdjustHashPartitions is UnitTest
   fun name(): String =>
     "hash_partitions/line-" + __loc.line().string()
 
-  fun ref apply(h: TestHelper) /**?**/ =>
+  fun ref apply(h: TestHelper) ? =>
     let weights1: Array[(String,F64)] val = recover
       [("n1", 1); ("n2", 2); ("n3", 3); ("n4", 4)] end
     let hp1 = HashPartitions.create_with_weights(weights1)
@@ -142,4 +142,27 @@ class iso _TestAdjustHashPartitions is UnitTest
     // The normalized weights of hp2a are the same as
     // the normalized weights of hp2b!
 
+    let norm_w_hp2a = hp2a.get_weights_normalized()
+    let norm_w_hp2b = hp2b.get_weights_normalized()
+    CompareWeights(norm_w_hp2a, norm_w_hp2b, __loc.line())?
+
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
+
+  primitive CompareWeights
+    fun apply(a: Map[String, F64], b: Map[String, F64], test_line: USize) ? =>
+      if a.size() != b.size() then
+        @printf[I32]("Map size error: %d != %d at test_line %d\n".cstring(),
+         a.size(), b.size(), test_line)
+        error
+      end
+      for (c, s) in a.pairs() do
+        try
+          if s != b(c)? then
+            @printf[I32]("Map error: claimant %s, a interval size %.20f b interval size %.20f test_line %d\n".cstring(), c.cstring(), s, b(c)?, test_line)
+            error
+          end
+        else
+            @printf[I32]("Map error: claimant %s does not exist in map b test_line %d\n".cstring(), c.cstring(), test_line)
+            error
+        end
+      end
