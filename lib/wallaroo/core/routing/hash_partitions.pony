@@ -314,16 +314,19 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     //// is what create2() requires.
 
     let sizes1 = get_sizes()
-                          for (c, s) in sizes1.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+                          for (c, s) in sizes1.values() do @printf[I32]("    sizes1 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     //// Process subtractions first: use the claimant name ""
     //// for unclaimed intervals.
     let sizes2 = _process_subtractions(sizes1, size_sub)
-                          for (c, s) in sizes2.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+                          for (c, s) in sizes2.values() do @printf[I32]("    sizes2 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     //// Process additions next.
-    let sizes3 = _process_additions(sizes2, size_add)
-                          for (c, s) in sizes3.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+    let sizes3 = _process_additions(sizes2, size_add, decimal_digits)
+                          for (c, s) in sizes3.values() do @printf[I32]("    sizes3 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+
+    let sizes4 = _coalesce_adjacent_intervals(sizes3)
+                          for (c, s) in sizes4.values() do @printf[I32]("    sizes4 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     // TEST HACK: Create test failure: use _orig_weights to force test failure
     HashPartitions.create_with_weights(_orig_weights)
@@ -359,7 +362,8 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     new_sizes
     
   fun _process_additions(old_sizes: Array[(String, U128)],
-    size_add: Map[String, U128]): Array[(String, U128)]
+    size_add: Map[String, U128], decimal_digits: USize):
+    Array[(String, U128)]
   =>
     let new_sizes: Array[(String, U128)] = new_sizes.create()
     let total_length = old_sizes.size()
@@ -409,7 +413,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               size_add(left_c) = 0
                               @printf[I32]("proc_add: left part assign at i=%d to %s\n".cstring(), i, left_c.cstring())
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
-              return _process_additions(new_sizes, size_add)
+              return _process_additions(new_sizes, size_add, decimal_digits)
             end
           // Is there a neighbor on the right that needs extra?
           elseif (i < (total_length - 1))
@@ -436,21 +440,28 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               size_add(right_c) = 0
                               @printf[I32]("proc_add: right part assign at i=%d to %s remainder size=%s\n".cstring(), i, right_c.cstring(), remainder.string().cstring())
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
-              return _process_additions(new_sizes, size_add)
+              return _process_additions(new_sizes, size_add, decimal_digits)
             end
           else
                               @printf[I32]("proc_add: NEITHER at i=%d, left=%s, left-size_add=%s, right=%s, right-size_add=%s\n".cstring(), i, left_c.cstring(), try size_add(left_c)?.string().cstring() else "n/a".cstring() end, right_c.cstring(), try size_add(right_c)?.string().cstring() else "n/a".cstring() end)
-            let smallest_c = _find_smallest_nonzero_size_to_add(size_add)
-                              @printf[I32]("proc_add: NEITHER at i=%d, insert zero size for %s\n".cstring(), i, smallest_c.cstring())
-            new_sizes.push((c, s)) // This is the unassigned size
-            // Zero size is illegal in the final result, but it will be
-            // removed when we recurse.
-            new_sizes.push((smallest_c, 0))
-            new_sizes.reserve(total_length + 1)
-            old_sizes.copy_to(new_sizes, i + 1, i + 2,
-              total_length - (i + 1))
+            let smallest_c = _find_smallest_nonzero_size_to_add(size_add,
+              decimal_digits, s)
+            if (smallest_c == "") then
+                              @printf[I32]("proc_add: NEITHER at i=%d, leave rounding error for final fixup in create2()\n".cstring(), i)
+              None // Don't add anything to new_sizes
+            else
+                              @printf[I32]("proc_add: NEITHER at i=%d, insert zero size for %s.\n".cstring(), i, smallest_c.cstring())
+              new_sizes.push((c, s)) // This is the unassigned size
+              // Zero size is illegal in the final result, but it will be
+              // removed when we recurse, or it will be removed by final
+              // neighbor coalescing.
+              new_sizes.push((smallest_c, 0))
+              new_sizes.reserve(total_length + 1)
+              old_sizes.copy_to(new_sizes, i + 1, i + 2,
+                total_length - (i + 1))
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
-            return _process_additions(new_sizes, size_add)
+              return _process_additions(new_sizes, size_add, decimal_digits)
+            end
           end
         end // if c != ...
       end //for i ...
@@ -459,8 +470,8 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     new_sizes
 
-  fun _find_smallest_nonzero_size_to_add(size_add: Map[String,U128]):
-    String
+  fun _find_smallest_nonzero_size_to_add(size_add: Map[String,U128],
+    decimal_digits: USize, vestige_size: U128): String
   =>
     var smallest_c = ""
     var smallest_s = U128.max_value()
@@ -471,10 +482,23 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
         smallest_s = s
       end
     end
-    if smallest_c == "" then
-      Fail()
+    if smallest_c != "" then
+      smallest_c
+    else
+      let vestige_fraction = vestige_size.f64() / U128.max_value().f64()
+      let vestige_rounded = RoundF64(vestige_fraction, decimal_digits + 2)
+      if vestige_rounded != 0.0 then
+        @printf[I32]("OUCH, vestige_rounded = %.50f\n".cstring(), vestige_rounded)
+        Fail()
+      end
+      ""
     end
-    smallest_c
+
+  fun _coalesce_adjacent_intervals(old_sizes: Array[(String, U128)]):
+    Array[(String, U128)]
+  =>
+    @printf[I32]("TODO: LEFT OFF HERE!\n".cstring())
+    old_sizes
 
   // Hmm, do I want this mutating thingie in here at all?
   fun ref twiddle(from: String, to: String) =>

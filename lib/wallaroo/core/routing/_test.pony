@@ -140,5 +140,8 @@ class iso _TestAdjustHashPartitions is UnitTest
     let hp2a = HashPartitions.create_with_weights(weights1)
     let hp2b = hp1.adjust_weights(weights2)
 
-    h.assert_ne[HashPartitions](hp1, hp2b)
+    // TODO: What we ought to test for here:
+    // The normalized weights of hp2a are the same as
+    // the normalized weights of hp2b!
 
+    // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
