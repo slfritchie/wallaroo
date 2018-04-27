@@ -409,7 +409,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
             if to_add >= s then
               // Assign all of s to left. 
               new_sizes.push((left_c, left_s + s))
-              size_add(c) = to_add - s
+              size_add(left_c) = to_add - s
                               @printf[I32]("proc_add: left all assign at i=%d to %s size %.2f%%\n".cstring(), i, left_c.cstring(), ((left_s+s).f64()/U128.max_value().f64())*100.0)
             else
               // Assign some of s, keep remainder unassigned.
