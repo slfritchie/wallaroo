@@ -6,7 +6,6 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   let lower_bounds: Array[U128] = lower_bounds.create()
   let interval_sizes: Array[U128] = interval_sizes.create()
   let lb_to_c: Map[U128, String] = lb_to_c.create()  // lower bound -> claimant
-  let _orig_weights: Array[(String,F64)] val
 
   new ref create(cs: Array[String] val) =>
     """
@@ -21,7 +20,6 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
         sizes.push((c, interval))
       end
     end
-    _orig_weights = recover [] end // TODO fix this despite testing-only use?
     create2(consume sizes)
 
   new ref create_with_weights(weights: Array[(String, F64)] val,
@@ -53,11 +51,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
       // @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), c.cstring(), w, sum, fraction)
       sizes.push((c, sz))
     end
-    _orig_weights = consume weights'
     create2(consume sizes)
 
   new ref create_with_sizes(sizes: Array[(String, U128)] val) =>
-    _orig_weights = recover [] end // TODO fix this despite testing-only use?
     create2(sizes)
 
   fun ref create2(sizes: Array[(String, U128)] val) =>
@@ -266,8 +262,9 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     let new_sizes_m: Map[String, U128] = new_sizes_m.create()
     var sum_new_weights: F64 = 0.0
 
-    for (c, w) in _orig_weights.values() do
+    for (c, w) in get_weights_normalized().pairs() do
       current_cs = current_cs.add(c)
+    @printf[I32]("Hmmm, newcurrent_cs.size = %d after c = %s\n".cstring(), current_cs.size(), new_cs.size(), c.cstring())
     end
     for (c, w) in new_weights.values() do
       new_cs = new_cs.add(c)
@@ -278,6 +275,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
         current_sizes_m(c) = 0
       end
     end
+    @printf[I32]("Hmmm, current_cs.size = %d new_cs.size = %d\n".cstring(), current_cs.size(), new_cs.size())
     let removed_cs = current_cs.without(new_cs)
                         @printf[I32]("Removed claimants: ".cstring())
                         for c in removed_cs.values() do
@@ -319,17 +317,50 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
     let sizes1 = get_sizes()
                           for (c, s) in sizes1.values() do @printf[I32]("    sizes1 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
-
     //// Process subtractions first: use the claimant name ""
     //// for unclaimed intervals.
     let sizes2 = _process_subtractions(sizes1, size_sub)
                           for (c, s) in sizes2.values() do @printf[I32]("    sizes2 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+try
+    let wws: Map[String, F64] = wws.create()
+
+    for (ccc, sum) in sizes1.values() do
+      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
+    end
+    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval ONE@@@: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    error
+else
+  None
+end
+try
+    let wws: Map[String, F64] = wws.create()
+
+    for (ccc, sum) in sizes2.values() do
+      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
+    end
+    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval TWO@@@: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    error
+else
+  None
+end
+
     let sizes2b = _coalesce_adjacent_intervals(sizes2)
                           for (c, s) in sizes2b.values() do @printf[I32]("    sizes2b claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
-
     //// Process additions next.
     let sizes3 = _process_additions(consume sizes2b, size_add, decimal_digits)
                           for (c, s) in sizes3.values() do @printf[I32]("    sizes3 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+try
+    let wws: Map[String, F64] = wws.create()
+
+    for (ccc, sum) in sizes3.values() do
+      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
+    end
+    for (cc, ii) in wws.pairs() do @printf[I32]("qqq weights unit interval THREE: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    error
+else
+  None
+end
+
 
     let sizes4 = _coalesce_adjacent_intervals(sizes3)
 /*                          for (c, s) in sizes4.values() do @printf[I32]("    sizes4 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())*/
@@ -451,7 +482,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(right_c) = 0
-                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder %.2f%% size %.2f\n".cstring(), i, right_c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0, (to_add.f64()/U128.max_value().f64())*100.0)
+                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder %.2f%% size %.2f%%\n".cstring(), i, right_c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0, (to_add.f64()/U128.max_value().f64())*100.0)
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end

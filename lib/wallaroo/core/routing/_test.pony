@@ -139,34 +139,27 @@ class iso _TestAdjustHashPartitions is UnitTest
     let hp2a = HashPartitions.create_with_weights(weights2)
     let hp2b = hp1.adjust_weights(weights2)
 
-    // TODO: What we ought to test for here:
-    // The normalized weights of hp2a are the same as
-    // the normalized weights of hp2b!
-
+    // 4 -> 3: weights of direct path = weights of adjusted HashPartitions
     let norm_w_hp2a = hp2a.get_weights_normalized()
     let norm_w_hp2b = hp2b.get_weights_normalized()
     CompareWeights(norm_w_hp2a, norm_w_hp2b, "", __loc.line())?
 
-@printf[I32]("**************************************\n\n".cstring())
+    // n -> n+1: weights of direct path = weights of adjusted HashPartitions
     let weights = weights2.clone()
-    let more: Array[String] val = recover ["n5"; "n6"; "n7"; "n8"] end
+    var more: Array[String] val = recover ["n5"; "n6"; "n7"; "n8"] end
     var hpb = hp2b
     for c in more.values() do
       weights.push((c, 1))
       let ws: Array[(String, F64)] val = copyit(weights)
       let hpa = HashPartitions.create_with_weights(ws)
-@printf[I32]("***** %s *********************************\n".cstring(), c.cstring())
-for (cc, ww) in ws.values() do @printf[I32]("\tws: c %s weight %.2f\n".cstring(), cc.cstring(), ww) end ; @printf[I32]("\n".cstring())
-for (cc, ss) in hpb.get_sizes().values() do @printf[I32]("*before adjust*: c %s size %.10f\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
       hpb = hpb.adjust_weights(ws)
-for (cc, ss) in hpb.get_sizes().values() do @printf[I32]("*after adjust*: c %s size %.10f\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
-for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weights unit interval*: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
 
       let norm_w_hpa = hpa.get_weights_normalized()
       let norm_w_hpb = hpb.get_weights_normalized()
       CompareWeights(norm_w_hpa, norm_w_hpb, c, __loc.line())?
     end
 
+    // n -> n+8: weights of direct path = weights of adjusted HashPartitions
     for c in ["n9"; "n10"; "n11"; "n12"; "n13"; "n14"; "n15"; "n16"].values() do
       weights.push((c,1))
     end
@@ -177,6 +170,39 @@ for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weight
     let norm_w_hpb16 = hpb.get_weights_normalized()
     CompareWeights(norm_w_hpa16, norm_w_hpb16, "up to n16", __loc.line())?
 for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weights unit interval*: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+
+    // n -> n+1: weights of direct path = weights of adjusted HashPartitions
+    more = recover 
+      ["n17"; "n18"; "n19"; "n20"; "n21"; "n22"; "n24"; "n25"; "n26"; "n27"]end
+    for c in more.values() do
+      weights.push((c, 1))
+      let ws: Array[(String, F64)] val = copyit(weights)
+      let hpa = HashPartitions.create_with_weights(ws)
+      hpb = hpb.adjust_weights(ws)
+
+      let norm_w_hpa = hpa.get_weights_normalized()
+      let norm_w_hpb = hpb.get_weights_normalized()
+      CompareWeights(norm_w_hpa, norm_w_hpb, c, __loc.line())?
+    end
+
+for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+for (cc, ii) in hpb.get_weights_normalized().pairs() do @printf[I32]("**weights unit interval**: c %s norm-weight %.10f\n".cstring(), cc.cstring(), ii) end ; @printf[I32]("\n".cstring())
+    // n -> n-2: weights of direct path = weights of adjusted HashPartitions
+    while weights.size() > 3 do
+@printf[I32]("********** size=%d ****************************\n\n".cstring(), weights.size())
+      weights.remove(weights.size()-2, 1)
+      weights.remove(1, 1)
+      let ws: Array[(String, F64)] val = copyit(weights)
+      let hpa = HashPartitions.create_with_weights(ws)
+      hpb = hpb.adjust_weights(ws)
+
+      let norm_w_hpa = hpa.get_weights_normalized()
+      let norm_w_hpb = hpb.get_weights_normalized()
+for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+      CompareWeights(norm_w_hpa, norm_w_hpb, "foo", __loc.line())?
+    end
+for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+for (cc, ii) in hpb.get_weights_normalized().pairs() do @printf[I32]("**weights unit interval**: c %s norm-weight %.10f\n".cstring(), cc.cstring(), ii) end ; @printf[I32]("\n".cstring())
 
 
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
@@ -196,6 +222,17 @@ primitive CompareWeights
     if a.size() != b.size() then
       @printf[I32]("Map size error: %d != %d at test_line %d extra %s\n".cstring(),
        a.size(), b.size(), test_line, extra.cstring())
+      @printf[I32]("Map a\n".cstring())
+      // LOL nope: let a_ks = a.keys().collect(Array[String]).sort()
+      // LOL nope: for k in Sort[Array[String],String](a_ks).values() do
+      for k in a.keys() do
+        try @printf[I32]("-> c %s weight %.2f\n".cstring(), k.cstring(), a(k)?) end
+      end
+      @printf[I32]("Map b\n".cstring())
+      for k in b.keys() do
+        try @printf[I32]("-> c %s weight %.2f\n".cstring(), k.cstring(), b(k)?) end
+      end
+
       error
     end
     for (c, s) in a.pairs() do
