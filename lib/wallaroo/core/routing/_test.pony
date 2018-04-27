@@ -147,12 +147,13 @@ class iso _TestAdjustHashPartitions is UnitTest
     let norm_w_hp2b = hp2b.get_weights_normalized()
     CompareWeights(norm_w_hp2a, norm_w_hp2b, __loc.line())?
 
-    var weights: Array[(String, F64)] iso = recover weights2.clone() end
-    var hpb = hp2b
+    @printf[I32]("**************************************\n\n".cstring())
+    let weights = weights2.clone()
     let more: Array[String] val = recover ["n5"; "n6"; "n7"; "n8"] end
-    for i in Range[USize](0, more.size()) do
-      try weights.push((more(i)?, 1)) else Fail() end
-      let ws = recover val weights.clone() end
+    var hpb = hp2b
+    for c in more.values() do
+      weights.push((c, 1))
+      let ws: Array[(String, F64)] val = copyit(weights)
       let hpa = HashPartitions.create_with_weights(ws)
       hpb = hpb.adjust_weights(ws)
 
@@ -161,6 +162,14 @@ class iso _TestAdjustHashPartitions is UnitTest
       CompareWeights(norm_w_hpa, norm_w_hpb, __loc.line())?
     end
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
+
+    fun copyit(src: Array[(String, F64)]): Array[(String, F64)] iso^ =>
+      let dst: Array[(String, F64)] iso = recover dst.create() end
+
+      for x in src.values() do
+        dst.push(x)
+      end
+      consume dst
 
   primitive CompareWeights
     fun apply(a: Map[String, F64], b: Map[String, F64], test_line: USize) ? =>
