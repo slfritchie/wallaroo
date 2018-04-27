@@ -145,9 +145,9 @@ class iso _TestAdjustHashPartitions is UnitTest
 
     let norm_w_hp2a = hp2a.get_weights_normalized()
     let norm_w_hp2b = hp2b.get_weights_normalized()
-    CompareWeights(norm_w_hp2a, norm_w_hp2b, __loc.line())?
+    CompareWeights(norm_w_hp2a, norm_w_hp2b, "", __loc.line())?
 
-    @printf[I32]("**************************************\n\n".cstring())
+@printf[I32]("**************************************\n\n".cstring())
     let weights = weights2.clone()
     let more: Array[String] val = recover ["n5"; "n6"; "n7"; "n8"] end
     var hpb = hp2b
@@ -155,11 +155,16 @@ class iso _TestAdjustHashPartitions is UnitTest
       weights.push((c, 1))
       let ws: Array[(String, F64)] val = copyit(weights)
       let hpa = HashPartitions.create_with_weights(ws)
+@printf[I32]("***** %s *********************************\n".cstring(), c.cstring())
+for (cc, ww) in ws.values() do @printf[I32]("\tws: c %s weight %.2f\n".cstring(), cc.cstring(), ww) end ; @printf[I32]("\n".cstring())
+for (cc, ss) in hpb.get_sizes().values() do @printf[I32]("*before adjust*: c %s size %.10f\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
       hpb = hpb.adjust_weights(ws)
+for (cc, ss) in hpb.get_sizes().values() do @printf[I32]("*after adjust*: c %s size %.10f\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weights unit interval*: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
 
       let norm_w_hpa = hpa.get_weights_normalized()
       let norm_w_hpb = hpb.get_weights_normalized()
-      CompareWeights(norm_w_hpa, norm_w_hpb, __loc.line())?
+      CompareWeights(norm_w_hpa, norm_w_hpb, c, __loc.line())?
     end
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
 
@@ -172,20 +177,22 @@ class iso _TestAdjustHashPartitions is UnitTest
       consume dst
 
   primitive CompareWeights
-    fun apply(a: Map[String, F64], b: Map[String, F64], test_line: USize) ? =>
+    fun apply(a: Map[String, F64], b: Map[String, F64],
+      extra: String, test_line: USize) ?
+     =>
       if a.size() != b.size() then
-        @printf[I32]("Map size error: %d != %d at test_line %d\n".cstring(),
-         a.size(), b.size(), test_line)
+        @printf[I32]("Map size error: %d != %d at test_line %d extra %s\n".cstring(),
+         a.size(), b.size(), test_line, extra.cstring())
         error
       end
       for (c, s) in a.pairs() do
         try
           if s != b(c)? then
-            @printf[I32]("Map error: claimant %s, a interval size %.20f b interval size %.20f test_line %d\n".cstring(), c.cstring(), s, b(c)?, test_line)
+            @printf[I32]("Map error: claimant %s, a interval size %.20f b interval size %.20f test_line %d extra %s\n".cstring(), c.cstring(), s, b(c)?, test_line, extra.cstring())
             error
           end
         else
-            @printf[I32]("Map error: claimant %s does not exist in map b test_line %d\n".cstring(), c.cstring(), test_line)
+            @printf[I32]("Map error: claimant %s does not exist in map b test_line %d extra %s\n".cstring(), c.cstring(), test_line, extra.cstring())
             error
         end
       end

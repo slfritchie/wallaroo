@@ -377,7 +377,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
         if c != "" then
           new_sizes.push((c, s)) // Assignment of s is unchanged
-                              @printf[I32]("proc_add: unchanged at i=%d to %s\n".cstring(), i, c.cstring())
+                              @printf[I32]("proc_add: unchanged at i=%d to %s size %.2f%%\n".cstring(), i, c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         else
           // Bind neighbors (or dummy values) on the left & right.
           (let left_c, let left_s) = if i > 0 then
@@ -402,7 +402,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               // Assign all of s to left. 
               new_sizes.push((left_c, left_s + s))
               size_add(c) = to_add - s
-                              @printf[I32]("proc_add: left all assign at i=%d to %s\n".cstring(), i, left_c.cstring())
+                              @printf[I32]("proc_add: left all assign at i=%d to %s size %.2f%%\n".cstring(), i, left_c.cstring(), ((left_s+s).f64()/U128.max_value().f64())*100.0)
             else
               // Assign some of s, keep remainder unassigned.
               // Split s into 2, copy remaining old_sizes -> new_sizes,
@@ -414,7 +414,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(left_c) = 0
-                              @printf[I32]("proc_add: left part assign at i=%d to %s\n".cstring(), i, left_c.cstring())
+                              @printf[I32]("proc_add: left part assign at i=%d to %s size %.2f%% remainder %.2f%%\n".cstring(), i, left_c.cstring(), (to_add.f64()/U128.max_value().f64())*100.0, (remainder.f64()/U128.max_value().f64())*100.0)
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
@@ -429,7 +429,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               // Assign all of s to right.
               new_sizes.push((right_c, right_s + s))
               size_add(right_c) = to_add - s
-                              @printf[I32]("proc_add: right all assign at i=%d to %s\n".cstring(), i, right_c.cstring())
+                              @printf[I32]("proc_add: right all assign at i=%d to %s size %.2f%%\n".cstring(), i, right_c.cstring(), ((right_s+s).f64()/U128.max_value().f64())*100.0)
             else
               // Assign some of s, keep remainding unassigned.
               // Split s into 2, copy remaining old_sizes -> new_sizes,
@@ -441,7 +441,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(right_c) = 0
-                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder size=%s\n".cstring(), i, right_c.cstring(), remainder.string().cstring())
+                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder %.2f%% size %.2f\n".cstring(), i, right_c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0, (to_add.f64()/U128.max_value().f64())*100.0)
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
