@@ -18,6 +18,7 @@ Copyright 2017 The Wallaroo Authors.
 
 use "collections"
 use "ponytest"
+use "wallaroo_labs/mort"
 
 actor Main is TestList
   new make() =>
@@ -146,6 +147,19 @@ class iso _TestAdjustHashPartitions is UnitTest
     let norm_w_hp2b = hp2b.get_weights_normalized()
     CompareWeights(norm_w_hp2a, norm_w_hp2b, __loc.line())?
 
+    var weights: Array[(String, F64)] iso = recover weights2.clone() end
+    var hpb = hp2b
+    let more: Array[String] val = recover ["n5"; "n6"; "n7"; "n8"] end
+    for i in Range[USize](0, more.size()) do
+      try weights.push((more(i)?, 1)) else Fail() end
+      let ws = recover val weights.clone() end
+      let hpa = HashPartitions.create_with_weights(ws)
+      hpb = hpb.adjust_weights(ws)
+
+      let norm_w_hpa = hpa.get_weights_normalized()
+      let norm_w_hpb = hpb.get_weights_normalized()
+      CompareWeights(norm_w_hpa, norm_w_hpb, __loc.line())?
+    end
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
 
   primitive CompareWeights
