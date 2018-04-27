@@ -341,6 +341,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
     try
       for (c, s) in old_sizes.values() do
+                          @printf[I32]("_proc_sub: old: c %s size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         if size_sub.contains(c) then
           let to_sub = size_sub(c)?
 
@@ -348,15 +349,22 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
             if to_sub >= s then
               new_sizes.push(("", s))     // Unassign all of s
               size_sub(c) = to_sub - s
+                          @printf[I32]("_proc_sub: c %s unassign all size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
             else
               let remainder = s - to_sub  // Unassign some of s, keep remainder
               new_sizes.push((c, remainder))
               new_sizes.push(("", to_sub))
               size_sub(c) = 0
+                          @printf[I32]("_proc_sub: c %s unassign some, remainder keep size %.2f%%\n".cstring(), c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0)
+                          @printf[I32]("_proc_sub: c %s unassign some, unassigned size %.2f%%\n".cstring(), c.cstring(), (to_sub.f64()/U128.max_value().f64())*100.0)
             end
+          else
+            // c has had enough subtracted from its overall total, keep this
+            new_sizes.push((c, s)) // Assignment of s is unchanged
           end
         else
           new_sizes.push((c, s)) // Assignment of s is unchanged
+                          @printf[I32]("_proc_sub: c %s unchanged size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         end
       end
     else
