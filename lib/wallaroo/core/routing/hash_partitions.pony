@@ -517,9 +517,6 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
 
     try
       (let first_c, let first_s) = old_sizes.shift()?
-      if first_c == "" then
-        Fail() // I'm pretty sure this shouldn't be possible, yell if it does
-      end
       if old_sizes.size() == 0 then
         new_sizes.push((first_c, first_s))
         consume new_sizes
