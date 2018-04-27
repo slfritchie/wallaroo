@@ -445,6 +445,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
                               for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
+          // Neither neighbor is suitable, so choose another claimant
           else
                               @printf[I32]("proc_add: NEITHER at i=%d, left=%s, left-size_add=%s, right=%s, right-size_add=%s\n".cstring(), i, left_c.cstring(), try size_add(left_c)?.string().cstring() else "n/a".cstring() end, right_c.cstring(), try size_add(right_c)?.string().cstring() else "n/a".cstring() end)
             let smallest_c = _find_smallest_nonzero_size_to_add(size_add,
@@ -480,6 +481,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     var smallest_s = U128.max_value()
 
     for (c, s) in size_add.pairs() do
+      let qq = (s.f64() / U128.max_value().f64()) * 100.0; @printf[I32]("\tsize_add dump: %s size %.50f%%\n".cstring(), c.cstring(), qq)
       if (s > 0) and (s < smallest_s) then
         smallest_c = c
         smallest_s = s
@@ -488,10 +490,10 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     if smallest_c != "" then
       smallest_c
     else
-      let vestige_fraction = vestige_size.f64() / U128.max_value().f64()
-      let vestige_rounded = RoundF64(vestige_fraction, decimal_digits + 2)
+      let vestige_perc = (vestige_size.f64() / U128.max_value().f64()) * 100.0
+      let vestige_rounded = RoundF64(vestige_perc, decimal_digits + 2)
       if vestige_rounded != 0.0 then
-        @printf[I32]("OUCH, vestige_rounded = %.50f\n".cstring(), vestige_rounded)
+        @printf[I32]("OUCH, vestige_rounded = %.50f%%\n".cstring(), vestige_rounded)
         Fail()
       end
       ""
