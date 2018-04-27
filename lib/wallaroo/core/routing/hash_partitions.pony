@@ -441,7 +441,7 @@ end
 
             if to_add >= s then
               // Assign all of s to left. 
-              new_sizes.push((left_c, left_s + s))
+              new_sizes.push((left_c, s))
               size_add(left_c) = to_add - s
                               @printf[I32]("proc_add: left all assign at i=%d to %s size %.2f%%\n".cstring(), i, left_c.cstring(), ((left_s+s).f64()/U128.max_value().f64())*100.0)
             else
@@ -468,7 +468,7 @@ end
 
             if to_add >= s then
               // Assign all of s to right.
-              new_sizes.push((right_c, right_s + s))
+              new_sizes.push((right_c, s))
               size_add(right_c) = to_add - s
                               @printf[I32]("proc_add: right all assign at i=%d to %s size %.2f%%\n".cstring(), i, right_c.cstring(), ((right_s+s).f64()/U128.max_value().f64())*100.0)
             else
