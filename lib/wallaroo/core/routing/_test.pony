@@ -166,6 +166,19 @@ for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weight
       let norm_w_hpb = hpb.get_weights_normalized()
       CompareWeights(norm_w_hpa, norm_w_hpb, c, __loc.line())?
     end
+
+    for c in ["n9"; "n10"; "n11"; "n12"; "n13"; "n14"; "n15"; "n16"].values() do
+      weights.push((c,1))
+    end
+    let ws16: Array[(String, F64)] val = copyit(weights)
+    let hpa16 = HashPartitions.create_with_weights(ws16)
+    hpb = hpb.adjust_weights(ws16)
+    let norm_w_hpa16 = hpa16.get_weights_normalized()
+    let norm_w_hpb16 = hpb.get_weights_normalized()
+    CompareWeights(norm_w_hpa16, norm_w_hpb16, "up to n16", __loc.line())?
+for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weights unit interval*: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+
+
     // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
 
     fun copyit(src: Array[(String, F64)]): Array[(String, F64)] iso^ =>

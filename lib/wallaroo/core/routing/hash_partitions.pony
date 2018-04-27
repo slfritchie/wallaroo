@@ -324,9 +324,11 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     //// for unclaimed intervals.
     let sizes2 = _process_subtractions(sizes1, size_sub)
                           for (c, s) in sizes2.values() do @printf[I32]("    sizes2 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+    let sizes2b = _coalesce_adjacent_intervals(sizes2)
+                          for (c, s) in sizes2b.values() do @printf[I32]("    sizes2b claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     //// Process additions next.
-    let sizes3 = _process_additions(sizes2, size_add, decimal_digits)
+    let sizes3 = _process_additions(consume sizes2b, size_add, decimal_digits)
                           for (c, s) in sizes3.values() do @printf[I32]("    sizes3 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
 
     let sizes4 = _coalesce_adjacent_intervals(sizes3)
