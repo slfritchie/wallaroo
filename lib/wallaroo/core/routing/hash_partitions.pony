@@ -428,7 +428,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
             if to_add >= s then
               // Assign all of s to right.
               new_sizes.push((right_c, right_s + s))
-              size_add(c) = to_add - s
+              size_add(right_c) = to_add - s
                               @printf[I32]("proc_add: right all assign at i=%d to %s\n".cstring(), i, right_c.cstring())
             else
               // Assign some of s, keep remainding unassigned.
