@@ -189,23 +189,23 @@ for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weight
       end
       consume dst
 
-  primitive CompareWeights
-    fun apply(a: Map[String, F64], b: Map[String, F64],
-      extra: String, test_line: USize) ?
-     =>
-      if a.size() != b.size() then
-        @printf[I32]("Map size error: %d != %d at test_line %d extra %s\n".cstring(),
-         a.size(), b.size(), test_line, extra.cstring())
-        error
-      end
-      for (c, s) in a.pairs() do
-        try
-          if s != b(c)? then
-            @printf[I32]("Map error: claimant %s, a interval size %.20f b interval size %.20f test_line %d extra %s\n".cstring(), c.cstring(), s, b(c)?, test_line, extra.cstring())
-            error
-          end
-        else
-            @printf[I32]("Map error: claimant %s does not exist in map b test_line %d extra %s\n".cstring(), c.cstring(), test_line, extra.cstring())
-            error
+primitive CompareWeights
+  fun apply(a: Map[String, F64], b: Map[String, F64],
+    extra: String, test_line: USize) ?
+   =>
+    if a.size() != b.size() then
+      @printf[I32]("Map size error: %d != %d at test_line %d extra %s\n".cstring(),
+       a.size(), b.size(), test_line, extra.cstring())
+      error
+    end
+    for (c, s) in a.pairs() do
+      try
+        if s != b(c)? then
+          @printf[I32]("Map error: claimant %s, a interval size %.20f b interval size %.20f test_line %d extra %s\n".cstring(), c.cstring(), s, b(c)?, test_line, extra.cstring())
+          error
         end
+      else
+          @printf[I32]("Map error: claimant %s does not exist in map b test_line %d extra %s\n".cstring(), c.cstring(), test_line, extra.cstring())
+          error
       end
+    end
