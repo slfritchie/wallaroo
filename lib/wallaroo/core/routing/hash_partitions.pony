@@ -56,7 +56,83 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
   new ref create_with_sizes(sizes: Array[(String, U128)] val) =>
     create2(sizes)
 
-  fun ref create2(sizes: Array[(String, U128)] val) =>
+  fun adjust_weights(new_weights: Array[(String, F64)] val,
+    decimal_digits: USize = 2): HashPartitions
+   =>
+    """
+    Given a previously-built HashPartitions object, make some adjustments
+    simultaneously to any/all of the following dimensions for one or more
+    claimants and return a new HashPartitions object:
+
+    1. Change weight of the existing claimant.
+    2. Add a new claimant by dividing all existing interval assignments
+       proportionally by weight.
+    3. Remove an existing claimant by reassigning all interval assignments
+       for that client to remaining clients proportionally by weight.
+
+    It is possible to use weight assignment less than 1.0 but is not
+    recommended.  Future use of adjust_weights() and related functions
+    will re-normalize total weight assignments based on the smallest
+    claim interval sum and will assign a weight of 1.0 to that sum.
+    """
+    _adjust_weights(new_weights, decimal_digits)
+
+fun add_claimants(cs: Array[String] val, decimal_digits: USize = 2):
+  HashPartitions ?
+=>
+  """
+  A wrapper around adjust_weights() where we wish only to add new
+  claimants with weight 1.0 to this HashPartitions and return a new
+  HashPartitions object.
+
+  This function is partial: it is an error if we try to add a claimant
+  name that already exists in this HashPartitions.
+  """
+  let current_weights = get_weights_normalized(decimal_digits)
+  let new_weights: Array[(String, F64)] trn = recover new_weights.create() end
+
+  for c in cs.values() do
+    if current_weights.contains(c) then
+      error
+    end
+  end
+  for (c, w) in current_weights.pairs() do
+    new_weights.push((c, w))
+  end
+  for c in cs.values() do
+    new_weights.push((c, 1.0))
+  end
+  adjust_weights(consume new_weights, decimal_digits)
+
+fun remove_claimants(cs: Array[String] val, decimal_digits: USize = 2):
+  HashPartitions ?
+=>
+  """
+  A wrapper around adjust_weights() where we wish only to remove
+  existing claimants from this HashPartitions and return a new
+  HashPartitions object.
+
+  This function is partial: it is an error if we try to remove a claimant
+  name that does not exist in this HashPartitions.
+  """
+  let current_weights = get_weights_normalized(decimal_digits)
+  let new_weights: Array[(String, F64)] trn = recover new_weights.create() end
+  var rs: SetIs[String] = rs.create()
+
+  for c in cs.values() do
+    if not current_weights.contains(c) then
+      error
+    end
+    rs = rs.add(c)
+  end
+  for (c, w) in current_weights.pairs() do
+    if not rs.contains(c) then
+      new_weights.push((c, w))
+    end
+  end
+  adjust_weights(consume new_weights, decimal_digits)
+
+fun ref create2(sizes: Array[(String, U128)] val) =>
     """
     Create a HashPartitions using U128-sized intervals.
     """
@@ -249,7 +325,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     ns
 
-  fun adjust_weights(new_weights: Array[(String, F64)] val,
+  fun _adjust_weights(new_weights: Array[(String, F64)] val,
     decimal_digits: USize = 2): HashPartitions
    =>
     //// Figure out what claimants have been removed.

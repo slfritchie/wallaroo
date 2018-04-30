@@ -138,11 +138,15 @@ class iso _TestAdjustHashPartitions is UnitTest
       [("n1", 1); ("n2", 2);            ("n4", 4)] end
     let hp2a = HashPartitions.create_with_weights(weights2)
     let hp2b = hp1.adjust_weights(weights2)
+    let hp2c = try hp1.remove_claimants(recover ["n3"] end)?
+      else /* super-bogus value */ HashPartitions.create([]) end
 
     // 4 -> 3: weights of direct path = weights of adjusted HashPartitions
     let norm_w_hp2a = hp2a.get_weights_normalized()
     let norm_w_hp2b = hp2b.get_weights_normalized()
+    let norm_w_hp2c = hp2c.get_weights_normalized()
     CompareWeights(norm_w_hp2a, norm_w_hp2b, "", __loc.line())?
+    CompareWeights(norm_w_hp2a, norm_w_hp2c, "", __loc.line())?
 
     // n -> n+1: weights of direct path = weights of adjusted HashPartitions
     let weights = weights2.clone()
