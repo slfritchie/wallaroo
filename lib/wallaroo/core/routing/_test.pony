@@ -17,6 +17,7 @@ Copyright 2017 The Wallaroo Authors.
 */
 
 use "collections"
+use "ponycheck"
 use "ponytest"
 use "wallaroo_labs/mort"
 
@@ -32,6 +33,8 @@ actor Main is TestList
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
+    test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
+
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -261,3 +264,83 @@ primitive CompareWeights
           error
       end
     end
+
+/*
+** Let's try to make a stateful Ponycheck test case.  Unfortunately,
+** Ponycheck doesn't support stateful properties.  So we need to fake it.
+**
+** 1. Our generator will create a sequence of TestOp objects, one TestOp
+**    for each state change we wish to make to the system.  ("system" is
+**    the HashPartitions class.)
+**    With Erlang QuickCheck or PropEr, each op would be a 2-tuple like
+**    {'add', Names::List(String)} or {'remove', Names::List(String)}
+**
+** 2. We "apply" the TestOp's method to the SUT (system under test) and to
+**    our model.
+**    With Erlang QuickCheck or PropEr, there's framework support for
+**    doing this in a 1-step-at-a-time manner.  Ponycheck has no such
+**    framework yet, so we have to implement it ourselves.
+**
+** 3. After each apply, check that the SUT and our model are equivalent.
+**    We also check for other desirable properties, e.g., the sum of all
+**    intervals is equal to 2^128.
+*/
+
+primitive HashOpAdd is Stringable
+  fun string(): String iso^ => "add_claimants".clone()
+
+primitive HashOpRemove is Stringable
+  fun string(): String iso^ => "remove_claimants".clone()
+
+type HashOp is (HashOpAdd | HashOpRemove)
+
+class TestOp is Stringable
+  let op: HashOp
+  let cs: Array[String] = cs.create()
+
+  new create(op': HashOp, n_seq: Array[USize]) =>
+    op = op'
+    for n in n_seq.values() do
+      cs.push("n" + n.string())
+    end
+    // @printf[I32]("CREATE: %s\n".cstring(), this.string().cstring())
+
+  fun string(): String iso^ =>
+    let s: String ref = recover s.create() end
+
+    s.append("TestOp: op=" + op.string() + ",cs=[")
+    for c in cs.values() do
+      s.append(c + ",")
+    end
+    s.append("]")
+    s.clone()
+
+
+class _TestPonycheckStateful is Property1[(Array[TestOp])]
+  fun name(): String => "hash_partitions/ponycheck"
+
+  fun gen(): Generator[Array[TestOp]] =>
+    // Bah, one_of() is partial, which is a PITA, so let's frequency()
+    let gen_hash_op = Generators.frequency[HashOp]([
+      (1, HashOpAdd); (2, HashOpRemove)])
+
+    // We are going to generate Array[USize] and rely on TestOp.create()
+    // to convert the integers into claimant name strings.
+    let gen_ns = Generators.seq_of[USize, Array[USize]](
+      Generators.usize(where min=0, max=12))
+
+    let gen_testop = Generators.map2[HashOp, Array[USize], TestOp](
+      gen_hash_op, gen_ns,
+      {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
+    )
+    gen_testop
+
+
+  fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
+    @printf[I32]("PROP:\n".cstring())
+    for to in arg1.values() do
+      @printf[I32]("    %s\n".cstring(), to.string())
+    end
+    @printf[I32]("\n".cstring())
+
+    true
