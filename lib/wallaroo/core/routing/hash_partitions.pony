@@ -139,6 +139,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     let count = sizes.size()
     var next_lower_bound: U128 = 0
 
+    if sizes.size() == 0 then
+      Fail()
+    end
     try
       for i in Range[USize](0, count) do
         let c = sizes(i)?._1
@@ -159,7 +162,8 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     let idx = lower_bounds.size() - 1
     let i_adjust = (U128.max_value() - sum)
                             @printf[I32]("\ti_adjust = %ld\n".cstring(), i_adjust.u64())
-    try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust else Fail() end
+    try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust
+      else Fail() end
 
   fun box eq(y: HashPartitions box): Bool =>
     """

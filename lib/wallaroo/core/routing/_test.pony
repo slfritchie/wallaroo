@@ -294,7 +294,7 @@ primitive HashOpAdd is Stringable
 primitive HashOpRemove is Stringable
   fun string(): String iso^ => "remove_claimants".clone()
 
-type HashOp is (HashOpAdd box | HashOpRemove box)
+type HashOp is (HashOpAdd | HashOpRemove)
 
 class TestOp is Stringable
   let op: HashOp
@@ -347,9 +347,24 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
-    @printf[I32]("PROP:\n".cstring())
+    /**** @printf[I32]("PROP:\n".cstring())
     for to in arg1.values() do
       @printf[I32]("    %s\n".cstring(), to.string().cstring())
+    end
+    @printf[I32]("\n".cstring()) ****/
+
+    // Create our initial state-keeping vars
+    var hp = HashPartitions.create([])
+    var who: SetIs[String] = who.create()
+
+    // Apply each TestOp to state, check for sanity, etc.
+    for op in arg1.values() do
+      match op.op
+      | let o: HashOpAdd =>
+        @printf[I32]("add,".cstring())
+      | let o: HashOpRemove =>
+        @printf[I32]("remove,".cstring())
+      end
     end
     @printf[I32]("\n".cstring())
 
