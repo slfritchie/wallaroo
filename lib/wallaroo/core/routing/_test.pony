@@ -29,10 +29,12 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
+/****
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
+ ****/
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
 
@@ -292,7 +294,7 @@ primitive HashOpAdd is Stringable
 primitive HashOpRemove is Stringable
   fun string(): String iso^ => "remove_claimants".clone()
 
-type HashOp is (HashOpAdd | HashOpRemove)
+type HashOp is (HashOpAdd box | HashOpRemove box)
 
 class TestOp is Stringable
   let op: HashOp
@@ -320,10 +322,12 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    // Bah, one_of() is partial, which is a PITA, so let's frequency()
-    let gen_hash_op = Generators.frequency[HashOp]([
-      (1, Generators.unit[HashOp](HashOpAdd))
-      (1, Generators.unit[HashOp](HashOpRemove)) ])
+    let gen_hash_op = try Generators.one_of[HashOp]([
+        HashOpAdd ; HashOpRemove ])?
+      else
+        Fail()
+        Generators.unit[HashOp](HashOpAdd)
+      end
 
     // We are going to generate Array[USize] and rely on TestOp.create()
     // to convert the integers into claimant name strings.
@@ -334,13 +338,13 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       gen_hash_op, gen_ns,
       {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
     )
-    Generators.seq_of[TestOp, Array[TestOp]](gen_testop)
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=0, max=3)
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
     @printf[I32]("PROP:\n".cstring())
     for to in arg1.values() do
-      @printf[I32]("    %s\n".cstring(), to.string())
+      @printf[I32]("    %s\n".cstring(), to.string().cstring())
     end
     @printf[I32]("\n".cstring())
 
