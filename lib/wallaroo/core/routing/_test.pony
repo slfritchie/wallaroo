@@ -322,7 +322,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun gen(): Generator[Array[TestOp]] =>
     // Bah, one_of() is partial, which is a PITA, so let's frequency()
     let gen_hash_op = Generators.frequency[HashOp]([
-      (1, HashOpAdd); (2, HashOpRemove)])
+      (1, Generators.unit[HashOp](HashOpAdd))
+      (1, Generators.unit[HashOp](HashOpRemove)) ])
 
     // We are going to generate Array[USize] and rely on TestOp.create()
     // to convert the integers into claimant name strings.
@@ -333,7 +334,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       gen_hash_op, gen_ns,
       {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
     )
-    gen_testop
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop)
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
