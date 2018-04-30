@@ -300,12 +300,11 @@ class TestOp is Stringable
   let op: HashOp
   let cs: Array[String] = cs.create()
 
-  new create(op': HashOp, n_seq: Array[USize]) =>
+  new create(op': HashOp, n_set: Set[USize]) =>
     op = op'
-    for n in n_seq.values() do
+    for n in n_set.values() do
       cs.push("n" + n.string())
     end
-    // @printf[I32]("CREATE: %s\n".cstring(), this.string().cstring())
 
   fun string(): String iso^ =>
     let s: String ref = recover s.create() end
@@ -314,6 +313,7 @@ class TestOp is Stringable
     for c in cs.values() do
       s.append(c + ",")
     end
+    if cs.size() > 0 then try s.pop()? /* remove trailing comma */ end end
     s.append("]")
     s.clone()
 
@@ -322,6 +322,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
+    let max_claimant_name: USize = 12
+
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd ; HashOpRemove ])?
       else
@@ -331,14 +333,17 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
     // We are going to generate Array[USize] and rely on TestOp.create()
     // to convert the integers into claimant name strings.
-    let gen_ns = Generators.seq_of[USize, Array[USize]](
-      Generators.usize(where min=0, max=12))
+    // create() will also remove any duplicate integers that this
+    // generator creates.
+    let gen_ns = Generators.set_of[USize](
+      Generators.usize(where min=0, max=max_claimant_name)
+      where max=(max_claimant_name*3))
 
-    let gen_testop = Generators.map2[HashOp, Array[USize], TestOp](
+    let gen_testop = Generators.map2[HashOp, Set[USize], TestOp](
       gen_hash_op, gen_ns,
       {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
     )
-    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=0, max=3)
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
