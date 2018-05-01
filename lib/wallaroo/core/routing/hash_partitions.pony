@@ -385,7 +385,11 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
 
     try
       for (c, w) in new_weights_m.pairs() do
-        let new_size = U128.from[F64]((w / sum_new_weights) * U128.max_value().f64())
+        let new_size = if (sum_new_weights == 1.0) and (w == sum_new_weights) then
+            U128.max_value() // Avoid overflow to 0!
+          else
+            U128.from[F64]((w / sum_new_weights) * U128.max_value().f64())
+          end
                           @printf[I32]("size_add: c %s w %.2f sum_new_weights = %.2f, new_size %s current_sizes_m %s\n".cstring(), c.cstring(), w, sum_new_weights, new_size.string().cstring(), current_sizes_m(c)?.string().cstring())
         if new_size > current_sizes_m(c)? then
           size_add(c) = (new_size - current_sizes_m(c)?)
@@ -459,14 +463,23 @@ end
       Fail(); consume sizes4
     elseif sizes4.size() == 1 then
       try
-        (let c, let w) = sizes4(0)?
-        if not ((c == "") and (w == U128.max_value())) then
+        (let c, let s) = sizes4(0)?
+        let frac = (s.f64()/U128.max_value().f64())
+        if RoundF64(frac, decimal_digits) != 1.0 then
           Fail()
         end
+        if c == "" then
+          // Entire interval is unclaimed, so return empty list instead.
+          let empty: Array[(String, U128)] trn = recover empty.create() end
+          consume empty
+        else
+          // Entire interval claimed by s, so leave it alone
+          consume sizes4
+        end
+      else
+        Fail()
         let empty: Array[(String, U128)] trn = recover empty.create() end
         consume empty
-      else
-        Fail() ; consume sizes4
       end
     else
       consume sizes4
