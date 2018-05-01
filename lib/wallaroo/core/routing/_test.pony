@@ -326,7 +326,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     let max_claimant_name: USize = 12
 
     let gen_hash_op = try Generators.one_of[HashOp]([
-        HashOpAdd ; HashOpRemove ])?
+        HashOpAdd /**** SLF FIXME ; HashOpRemove ****/ ])?
       else
         Fail()
         Generators.unit[HashOp](HashOpAdd)
@@ -364,21 +364,29 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       match op.op
       | let o: HashOpAdd =>
         let to_add: Array[String] iso = recover to_add.create() end
+                              @printf[I32]("\tbefore to_add pushing: who.size() = %d, ".cstring(), who.size())
+                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         for c in op.cs.values() do
+                              @printf[I32]("%s in who = %s,".cstring(), c.cstring(), who.contains(c).string().cstring())
           if not who.contains(c) then
             to_add.push(c)
           end
         end
+                              @printf[I32]("\n".cstring())
         let to_add' = recover val consume to_add end
 @printf[I32]("PROP ADD: ".cstring())
 for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
 
         // update model
-        for c in to_add'.values() do if not who.contains(c) then  who = who.add(c) end end
-@printf[I32]("\twho.size()    = %d, ".cstring(), who.size())
-for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-@printf[I32]("\tto_add' = %d, ".cstring(), to_add'.size())
-for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+                              @printf[I32]("\twho.size() = %d, ".cstring(), who.size())
+                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+        for c in to_add'.values() do
+          if not who.contains(c) then who = who.add(c) end
+        end
+                              @printf[I32]("\twho.size() = %d, ".cstring(), who.size())
+                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+                              @printf[I32]("\tto_add' = %d, ".cstring(), to_add'.size())
+                              for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
 
         // update SUT
         hp = match hp
