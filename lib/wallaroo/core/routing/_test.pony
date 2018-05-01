@@ -310,7 +310,7 @@ class TestOp is Stringable
   fun string(): String iso^ =>
     let s: String ref = recover s.create() end
 
-    s.append("TestOp: op=" + op.string() + ",cs=[")
+    s.append("op=" + op.string() + ",cs=[")
     for c in cs.values() do
       s.append(c + ",")
     end
@@ -323,7 +323,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 12
+    let max_claimant_name: USize = 3
 
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd; HashOpRemove ])?
@@ -344,7 +344,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       gen_hash_op, gen_ns,
       {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
     )
-    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1, max=4/**TODO**/)
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
@@ -355,7 +355,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     @printf[I32]("\n".cstring())
 
     // Create our initial state-keeping vars
-    var sut: (HashPartitions | None) = None
+    var sut = HashPartitions.create([])
+    let bogus = HashPartitions.create(recover ["error-case-bogus"] end)
     var who: Set[String] = who.create()
 
     // Apply each TestOp to state, check for sanity, etc.
@@ -375,17 +376,11 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         for c in to_add'.values() do
           if not who.contains(c) then who = who.add(c) end
         end
+                                      @printf[I32]("    who now: ".cstring())
+                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
-        sut = match sut
-             | None =>
-               if to_add'.size() == 0 then
-                 None
-               else
-                 HashPartitions.create(to_add')
-               end
-             | let hp: HashPartitions =>
-               try hp.add_claimants(to_add')? else Fail(); None end
-             end
+        sut = try sut.add_claimants(to_add')? else bogus end
+
       | let o: HashOpRemove =>
         let to_remove: Array[String] iso = recover to_remove.create() end
         for c in op.cs.values() do
@@ -398,21 +393,28 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
                                       for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
+                                      @printf[I32]("    who now: ".cstring())
+                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
-        sut = match sut
-             | None =>
-               None
-             | let hp: HashPartitions =>
-               try hp.remove_claimants(to_remove')? else Fail(); None end
-             end
+        sut = try sut.remove_claimants(to_remove')? else bogus end
       end
     end
 
     // Sanity checks & model properties
-    match sut
-      | None => if who.size() != 0 then ph.assert_eq[U8](1,2) end
-      else      if who.size() == 0 then ph.assert_eq[U8](3,4) end
+                                      @printf[I32]("!@#$!@#$    who now, size=%d: ".cstring(), who.size())
+                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+    var expected_size: USize = 0
+    for (c, w) in sut.get_weights_normalized().pairs() do
+      if c == "" then
+        // If "" unclaimed is in the weights list, then it should be
+        // everything and it should be the only thing.
+        ph.assert_eq[F64](w, 1.0)
+        ph.assert_eq[USize](sut.get_weights_normalized().size(), 1)
+      else
+        expected_size = expected_size + 1
+      end
     end
-    @printf[I32]("\n".cstring())
+                                      @printf[I32]("!@#$!@# who.size() = %d expected_size = %d\n".cstring(), who.size(), expected_size)
+    ph.assert_eq[USize](who.size(), expected_size)
 
     true

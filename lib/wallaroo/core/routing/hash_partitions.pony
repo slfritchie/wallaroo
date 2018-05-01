@@ -89,7 +89,7 @@ fun add_claimants(cs: Array[String] val, decimal_digits: USize = 2):
   name that already exists in this HashPartitions.
   """
   let current_weights = get_weights_normalized(decimal_digits)
-  let new_weights: Array[(String, F64)] trn = recover new_weights.create() end
+  let new_weights: Array[(String, F64)] iso = recover new_weights.create() end
 
   for c in cs.values() do
     if current_weights.contains(c) then
@@ -102,7 +102,12 @@ fun add_claimants(cs: Array[String] val, decimal_digits: USize = 2):
   for c in cs.values() do
     new_weights.push((c, 1.0))
   end
-  adjust_weights(consume new_weights, decimal_digits)
+  let new_weights' = recover val consume new_weights end
+  if get_weights_normalized().size() == 0 then
+    create_with_weights(new_weights', decimal_digits)
+  else
+    adjust_weights(new_weights', decimal_digits)
+  end
 
 fun remove_claimants(cs: Array[String] val, decimal_digits: USize = 2):
   HashPartitions ?
@@ -140,7 +145,7 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     var next_lower_bound: U128 = 0
 
     if sizes.size() == 0 then
-      Fail()
+      return
     end
     try
       for i in Range[USize](0, count) do
@@ -344,7 +349,7 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
 
     for (c, w) in get_weights_normalized().pairs() do
       current_cs = current_cs.add(c)
-    @printf[I32]("Hmmm, newcurrent_cs.size = %d after c = %s\n".cstring(), current_cs.size(), new_cs.size(), c.cstring())
+                        @printf[I32]("Hmmm, new current_cs.size = %d after c = %s w = %s\n".cstring(), current_cs.size(), c.cstring(), w.string().cstring())
     end
     for (c, w) in new_weights.values() do
       new_cs = new_cs.add(c)
@@ -368,7 +373,11 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
                           @printf[I32]("Add claimant %s with weight 0 to new_weights_m\n".cstring(), c.cstring())
       new_weights_m(c) = 0.0
     end
-                        @printf[I32]("new_weights_m.size() = %d\n".cstring(), new_weights_m.size())
+                        @printf[I32]("new_weights_m.size() = %d: ".cstring(), new_weights_m.size())
+                        for (c, w) in new_weights_m.pairs() do
+                          @printf[I32]("(%s, %.2f), ".cstring(), c.cstring(), w)
+                        end
+                        @printf[I32]("\n".cstring())
 
     //// Calculate the interval slices that need to be redistributed
     let size_add: Map[String,U128] = size_add.create()
@@ -435,7 +444,7 @@ try
     for (ccc, sum) in sizes3.values() do
       wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
     end
-    for (cc, ii) in wws.pairs() do @printf[I32]("qqq weights unit interval THREE: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    for (cc, ii) in wws.pairs() do @printf[I32]("qqq weights unit interval THREE: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
     error
 else
   None
@@ -443,9 +452,25 @@ end
 
 
     let sizes4 = _coalesce_adjacent_intervals(sizes3)
-/*                          for (c, s) in sizes4.values() do @printf[I32]("    sizes4 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())*/
-
-    HashPartitions.create_with_sizes(consume sizes4)
+    let sizes4x = _coalesce_adjacent_intervals(sizes3)
+                          for (c, s) in sizes4x.values() do @printf[I32]("    sizes4x claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+    let sizes5 = if sizes4.size() == 0 then
+      Fail(); consume sizes4
+    elseif sizes4.size() == 1 then
+      try
+        (let c, let w) = sizes4(0)?
+        if not ((c == "") and (w == U128.max_value())) then
+          Fail()
+        end
+        let empty: Array[(String, U128)] trn = recover empty.create() end
+        consume empty
+      else
+        Fail() ; consume sizes4
+      end
+    else
+      consume sizes4
+    end
+    HashPartitions.create_with_sizes(consume sizes5)
 
   fun _process_subtractions(old_sizes: Array[(String, U128)],
     size_sub: Map[String, U128]): Array[(String, U128)]
@@ -613,8 +638,7 @@ end
     else
       let vestige_perc = (vestige_size.f64() / U128.max_value().f64()) * 100.0
       let vestige_rounded = RoundF64(vestige_perc, decimal_digits + 2)
-      if vestige_rounded != 0.0 then
-//////      if not ((vestige_rounded == 0.0) or (vestige_rounded == 100.0)) then
+      if not ((vestige_rounded == 0.0) or (vestige_rounded == 100.0)) then
         @printf[I32]("OUCH, vestige_rounded = %.50f%%\n".cstring(), vestige_rounded)
         Fail()
       end
@@ -627,6 +651,9 @@ end
   =>
     let new_sizes: Array[(String, U128)] trn = recover new_sizes.create() end
 
+    if old_sizes.size() == 0 then
+      return recover [("", U128.max_value())] end
+    end
     try
       (let first_c, let first_s) = old_sizes.shift()?
       if old_sizes.size() == 0 then
@@ -637,7 +664,7 @@ end
         _coalesce(first_c, first_s, next_c, next_s, old_sizes, consume new_sizes)
       end
     else
-      Fail()
+      @printf[I32]("old_sizes.size() = %d\n".cstring(), old_sizes.size()); Fail()
       recover Array[(String, U128)]() end
     end
 
