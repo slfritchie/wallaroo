@@ -117,7 +117,7 @@ fun remove_claimants(cs: Array[String] val, decimal_digits: USize = 2):
   """
   let current_weights = get_weights_normalized(decimal_digits)
   let new_weights: Array[(String, F64)] trn = recover new_weights.create() end
-  var rs: SetIs[String] = rs.create()
+  var rs: Set[String] = rs.create()
 
   for c in cs.values() do
     if not current_weights.contains(c) then
@@ -335,9 +335,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     //// Figure out what claimants have been removed.
 
     let current_weights = get_weights_normalized(decimal_digits)
-    var current_cs: SetIs[String] = current_cs.create()
+    var current_cs: Set[String] = current_cs.create()
     let current_sizes_m = _get_interval_size_sums()
-    var new_cs: SetIs[String] = new_cs.create()
+    var new_cs: Set[String] = new_cs.create()
     let new_weights_m: Map[String, F64] = new_weights_m.create()
     let new_sizes_m: Map[String, U128] = new_sizes_m.create()
     var sum_new_weights: F64 = 0.0

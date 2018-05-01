@@ -357,7 +357,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     // Create our initial state-keeping vars
     // Let's abuse initial state of entire interval unclaimed
     var hp: (HashPartitions | None) = None
-    var who: SetIs[String] = who.create()
+    var who: Set[String] = who.create()
 
     // Apply each TestOp to state, check for sanity, etc.
     for op in arg1.values() do
