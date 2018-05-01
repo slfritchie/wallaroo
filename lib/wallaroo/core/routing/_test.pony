@@ -73,7 +73,6 @@ class iso _TestMakeHashPartitions2 is UnitTest
     "hash_partitions/line-" + __loc.line().string()
 
   fun ref apply(h: TestHelper) /**?**/ =>
-    @printf[I32]("\n".cstring())
     let weights1: Array[(String,F64)] val = recover
       [("n1", 1*1); ("n2", 2*1); ("n3", 3*1); ("n4", 1*1)] end
     let weights2: Array[(String,F64)] val = recover
@@ -202,7 +201,6 @@ class iso _TestAdjustHashPartitions is UnitTest
     let norm_w_hpa16 = hpa16.get_weights_normalized()
     let norm_w_hpb16 = hpb.get_weights_normalized()
     CompareWeights(norm_w_hpa16, norm_w_hpb16, "up to n16", __loc.line())?
-for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weights unit interval*: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
 
     // n -> n+1: weights of direct path = weights of adjusted HashPartitions
     more = recover 
@@ -218,11 +216,8 @@ for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("*weight
       CompareWeights(norm_w_hpa, norm_w_hpb, c, __loc.line())?
     end
 
-for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
-for (cc, ii) in hpb.get_weights_normalized().pairs() do @printf[I32]("**weights unit interval**: c %s norm-weight %.10f\n".cstring(), cc.cstring(), ii) end ; @printf[I32]("\n".cstring())
     // n -> n-2: weights of direct path = weights of adjusted HashPartitions
     while weights.size() > 3 do
-@printf[I32]("********** size=%d ****************************\n\n".cstring(), weights.size())
       try
         (let c_r1, _) = weights(weights.size()-2)?
         (let c_r2, _) = weights(1)?
@@ -239,17 +234,11 @@ for (cc, ii) in hpb.get_weights_normalized().pairs() do @printf[I32]("**weights 
 
         let norm_w_hpa = hpa.get_weights_normalized()
         let norm_w_hpb = hpb.get_weights_normalized()
-for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
         CompareWeights(norm_w_hpa, norm_w_hpb, "foo", __loc.line())?
       end
     else
       Fail()
     end
-for (cc, ii) in hpb.get_weights_unit_interval().pairs() do @printf[I32]("**weights unit interval**: c %s weight%% %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
-for (cc, ii) in hpb.get_weights_normalized().pairs() do @printf[I32]("**weights unit interval**: c %s norm-weight %.10f\n".cstring(), cc.cstring(), ii) end ; @printf[I32]("\n".cstring())
-
-
-    // TODO: then we ought to have a boatload of PonyCheck tests!  ^_^
 
     fun copyit(src: Array[(String, F64)]): Array[(String, F64)] iso^ =>
       let dst: Array[(String, F64)] iso = recover dst.create() end
@@ -267,8 +256,6 @@ primitive CompareWeights
       @printf[I32]("Map size error: %d != %d at test_line %d extra %s\n".cstring(),
        a.size(), b.size(), test_line, extra.cstring())
       @printf[I32]("Map a\n".cstring())
-      // LOL nope: let a_ks = a.keys().collect(Array[String]).sort()
-      // LOL nope: for k in Sort[Array[String],String](a_ks).values() do
       for k in a.keys() do
         try @printf[I32]("-> c %s weight %.2f\n".cstring(), k.cstring(), a(k)?) end
       end
@@ -349,7 +336,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 12
+    let max_claimant_name: USize = 50
 
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd; HashOpRemove ])?
@@ -374,11 +361,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
-    @printf[I32]("PROP:\n".cstring())
-    for to in arg1.values() do
-      @printf[I32]("    %s\n".cstring(), to.string().cstring())
-    end
-    @printf[I32]("\n".cstring())
+    @printf[I32](".".cstring())
 
     // Create our initial state-keeping vars
     var sut = HashPartitions.create([])
@@ -396,14 +379,11 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_add' = recover val consume to_add end
-                                      @printf[I32]("PROP ADD: ".cstring())
-                                      for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+
         // update model
         for c in to_add'.values() do
           if not who.contains(c) then who = who.add(c) end
         end
-                                      @printf[I32]("    who now: ".cstring())
-                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
         sut = try sut.add_claimants(to_add')?
           else
@@ -419,12 +399,9 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_remove' = recover val consume to_remove end
-                                      @printf[I32]("PROP REMOVE: ".cstring())
-                                      for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
-                                      @printf[I32]("    who now: ".cstring())
-                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
         sut = try sut.remove_claimants(to_remove')?
           else
@@ -434,21 +411,18 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       end
 
       // Step-wise sanity checks & model properties
-                                        @printf[I32]("!@#$!@#$    who now, size=%d: ".cstring(), who.size())
-                                        for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
       var sut_size: USize = 0
       for (c, w) in sut.get_weights_normalized().pairs() do
+        ph.assert_eq[Bool](who.contains(c), true)
         ph.assert_eq[F64](w, 1.0)
         if c == "" then
           // If "" unclaimed is in the weights list, then it should be
           // everything and it should be the only thing.
           ph.assert_eq[USize](sut.get_weights_normalized().size(), 1)
         else
-                                        @printf[I32]("expected_size calc: c %s w %.2f\n".cstring(), c.cstring(), w)
           sut_size = sut_size + 1
         end
       end
-                                        @printf[I32]("!@#$!@# bbbb who.size() = %d sut_size = %d\n".cstring(), who.size(), sut_size)
       ph.assert_eq[USize](who.size(), sut_size)
     end
     

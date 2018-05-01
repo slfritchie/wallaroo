@@ -48,7 +48,6 @@ class val HashPartitions is (Equatable[HashPartitions] & Stringable)
       let fraction: F64 = w / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz')
-      // @printf[I32]("node %s weight %d sum %.2f fraction %.1f\n".cstring(), c.cstring(), w, sum, fraction)
       sizes.push((c, sz))
     end
     create2(consume sizes)
@@ -166,7 +165,6 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     end
     let idx = lower_bounds.size() - 1
     let i_adjust = (U128.max_value() - sum)
-                            @printf[I32]("\ti_adjust = %ld\n".cstring(), i_adjust.u64())
     try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust
       else Fail() end
 
@@ -349,7 +347,6 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
 
     for (c, w) in get_weights_normalized().pairs() do
       current_cs = current_cs.add(c)
-                        @printf[I32]("Hmmm, new current_cs.size = %d after c = %s w = %s\n".cstring(), current_cs.size(), c.cstring(), w.string().cstring())
     end
     for (c, w) in new_weights.values() do
       new_cs = new_cs.add(c)
@@ -360,24 +357,12 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
         current_sizes_m(c) = 0
       end
     end
-    @printf[I32]("Hmmm, current_cs.size = %d new_cs.size = %d\n".cstring(), current_cs.size(), new_cs.size())
     let removed_cs = current_cs.without(new_cs)
-                        @printf[I32]("Removed claimants: ".cstring())
-                        for c in removed_cs.values() do
-                          @printf[I32]("%s, ".cstring(), c.cstring())
-                        end
-                        @printf[I32]("\n".cstring())
 
     //// Assign weights of zero to claimants not in the new list
     for c in removed_cs.values() do
-                          @printf[I32]("Add claimant %s with weight 0 to new_weights_m\n".cstring(), c.cstring())
       new_weights_m(c) = 0.0
     end
-                        @printf[I32]("new_weights_m.size() = %d: ".cstring(), new_weights_m.size())
-                        for (c, w) in new_weights_m.pairs() do
-                          @printf[I32]("(%s, %.2f), ".cstring(), c.cstring(), w)
-                        end
-                        @printf[I32]("\n".cstring())
 
     //// Calculate the interval slices that need to be redistributed
     let size_add: Map[String,U128] = size_add.create()
@@ -390,15 +375,11 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
           else
             U128.from[F64]((w / sum_new_weights) * U128.max_value().f64())
           end
-                          @printf[I32]("size_add: c %s w %.2f sum_new_weights = %.2f, new_size %s current_sizes_m %s\n".cstring(), c.cstring(), w, sum_new_weights, new_size.string().cstring(), current_sizes_m(c)?.string().cstring())
         if new_size > current_sizes_m(c)? then
           size_add(c) = (new_size - current_sizes_m(c)?)
-                          @printf[I32]("size_add: c %s add %5.2f%%\n".cstring(), c.cstring(), (size_add(c)?.f64()/U128.max_value().f64())*100.0)
         elseif new_size < current_sizes_m(c)? then
           size_sub(c) = (current_sizes_m(c)? - new_size)
-                          @printf[I32]("size_sub: c %s new_size %5.2f%% current_sizes_m %5.2f%% size_sub %5.2f%%\n".cstring(), c.cstring(), (new_size.f64()/U128.max_value().f64())*100.0, (current_sizes_m(c)?.f64()/U128.max_value().f64())*100.0, (size_sub(c)?.f64()/U128.max_value().f64())*100.0)
         else
-                          @printf[I32]("interval_***: c %s\n".cstring(), c.cstring())
           None
         end
       end
@@ -410,60 +391,22 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     //// is what create2() requires.
 
     let sizes1 = get_sizes()
-                          for (c, s) in sizes1.values() do @printf[I32]("    sizes1 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
     //// Process subtractions first: use the claimant name ""
     //// for unclaimed intervals.
     let sizes2 = _process_subtractions(sizes1, size_sub)
-                          for (c, s) in sizes2.values() do @printf[I32]("    sizes2 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
-try
-    let wws: Map[String, F64] = wws.create()
-
-    for (ccc, sum) in sizes1.values() do
-      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
-    end
-    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval ONE@@@: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
-    error
-else
-  None
-end
-try
-    let wws: Map[String, F64] = wws.create()
-
-    for (ccc, sum) in sizes2.values() do
-      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
-    end
-    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval TWO@@@: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
-    error
-else
-  None
-end
 
     let sizes2b = _coalesce_adjacent_intervals(sizes2)
-                          for (c, s) in sizes2b.values() do @printf[I32]("    sizes2b claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
     //// Process additions next.
     let sizes3 = _process_additions(consume sizes2b, size_add, decimal_digits)
-                          for (c, s) in sizes3.values() do @printf[I32]("    sizes3 claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
-try
-    let wws: Map[String, F64] = wws.create()
 
-    for (ccc, sum) in sizes3.values() do
-      wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
-    end
-    for (cc, ii) in wws.pairs() do @printf[I32]("qqq weights unit interval THREE: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
-    error
-else
-  None
-end
-
-
+    //// Coalesce adjacent intervals to reduce the size of the map
     let sizes4 = _coalesce_adjacent_intervals(sizes3)
-/****
-    let sizes4x = _coalesce_adjacent_intervals(sizes3)
-                          for (c, s) in sizes4x.values() do @printf[I32]("    sizes4x claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
- ****/
+
+    //// Deal with a couple of edge cases
     let sizes5 = if sizes4.size() == 0 then
       Fail(); consume sizes4
     elseif sizes4.size() == 1 then
+      // Either it's all unclaimed or all claimed or we have an error
       try
         (let c, let s) = sizes4(0)?
         let frac = (s.f64()/U128.max_value().f64())
@@ -486,6 +429,8 @@ end
     else
       consume sizes4
     end
+
+    //// Done!
     HashPartitions.create_with_sizes(consume sizes5)
 
   fun _process_subtractions(old_sizes: Array[(String, U128)],
@@ -495,7 +440,6 @@ end
 
     try
       for (c, s) in old_sizes.values() do
-                          @printf[I32]("_proc_sub: old: c %s size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         if size_sub.contains(c) then
           let to_sub = size_sub(c)?
 
@@ -503,14 +447,11 @@ end
             if to_sub >= s then
               new_sizes.push(("", s))     // Unassign all of s
               size_sub(c) = to_sub - s
-                          @printf[I32]("_proc_sub: c %s unassign all size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
             else
               let remainder = s - to_sub  // Unassign some of s, keep remainder
               new_sizes.push((c, remainder))
               new_sizes.push(("", to_sub))
               size_sub(c) = 0
-                          @printf[I32]("_proc_sub: c %s unassign some, remainder keep size %.2f%%\n".cstring(), c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0)
-                          @printf[I32]("_proc_sub: c %s unassign some, unassigned size %.2f%%\n".cstring(), c.cstring(), (to_sub.f64()/U128.max_value().f64())*100.0)
             end
           else
             // c has had enough subtracted from its overall total, keep this
@@ -518,7 +459,6 @@ end
           end
         else
           new_sizes.push((c, s)) // Assignment of s is unchanged
-                          @printf[I32]("_proc_sub: c %s unchanged size %.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         end
       end
     else
@@ -539,7 +479,6 @@ end
 
         if c != "" then
           new_sizes.push((c, s)) // Assignment of s is unchanged
-                              @printf[I32]("proc_add: unchanged at i=%d to %s size %.2f%%\n".cstring(), i, c.cstring(), (s.f64()/U128.max_value().f64())*100.0)
         else
           // Bind neighbors (or dummy values) on the left & right.
           (let left_c, let left_s) = if i > 0 then
@@ -564,7 +503,6 @@ end
               // Assign all of s to left. 
               new_sizes.push((left_c, s))
               size_add(left_c) = to_add - s
-                              @printf[I32]("proc_add: left all assign at i=%d to %s size %.2f%%\n".cstring(), i, left_c.cstring(), ((left_s+s).f64()/U128.max_value().f64())*100.0)
             else
               // Assign some of s, keep remainder unassigned.
               // Split s into 2, copy remaining old_sizes -> new_sizes,
@@ -576,8 +514,6 @@ end
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(left_c) = 0
-                              @printf[I32]("proc_add: left part assign at i=%d to %s size %.2f%% remainder %.2f%%\n".cstring(), i, left_c.cstring(), (to_add.f64()/U128.max_value().f64())*100.0, (remainder.f64()/U128.max_value().f64())*100.0)
-                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
           // Is there a neighbor on the right that needs extra?
@@ -591,7 +527,6 @@ end
               // Assign all of s to right.
               new_sizes.push((right_c, s))
               size_add(right_c) = to_add - s
-                              @printf[I32]("proc_add: right all assign at i=%d to %s size %.2f%%\n".cstring(), i, right_c.cstring(), ((right_s+s).f64()/U128.max_value().f64())*100.0)
             else
               // Assign some of s, keep remainding unassigned.
               // Split s into 2, copy remaining old_sizes -> new_sizes,
@@ -603,20 +538,15 @@ end
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
               size_add(right_c) = 0
-                              @printf[I32]("proc_add: right part assign at i=%d to %s remainder %.2f%% size %.2f%%\n".cstring(), i, right_c.cstring(), (remainder.f64()/U128.max_value().f64())*100.0, (to_add.f64()/U128.max_value().f64())*100.0)
-                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
           // Neither neighbor is suitable, so choose another claimant
           else
-                              @printf[I32]("proc_add: NEITHER at i=%d, left=%s, left-size_add=%s, right=%s, right-size_add=%s\n".cstring(), i, left_c.cstring(), try size_add(left_c)?.string().cstring() else "n/a".cstring() end, right_c.cstring(), try size_add(right_c)?.string().cstring() else "n/a".cstring() end)
             let smallest_c = _find_smallest_nonzero_size_to_add(size_add,
               decimal_digits, s)
             if (smallest_c == "") then
-                              @printf[I32]("proc_add: NEITHER at i=%d, leave rounding error for final fixup in create2()\n".cstring(), i)
               None // Don't add anything to new_sizes
             else
-                              @printf[I32]("proc_add: NEITHER at i=%d, insert zero size for %s.\n".cstring(), i, smallest_c.cstring())
               new_sizes.push((c, s)) // This is the unassigned size
               // Zero size is illegal in the final result, but it will be
               // removed when we recurse, or it will be removed by final
@@ -625,7 +555,6 @@ end
               new_sizes.reserve(total_length + 1)
               old_sizes.copy_to(new_sizes, i + 1, i + 2,
                 total_length - (i + 1))
-                              for (cc, ss) in new_sizes.values() do @printf[I32]("    claimant %s size %5.2f%%\n".cstring(), cc.cstring(), (ss.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("Recurse!\n".cstring())
               return _process_additions(new_sizes, size_add, decimal_digits)
             end
           end
@@ -643,7 +572,6 @@ end
     var smallest_s = U128.max_value()
 
     for (c, s) in size_add.pairs() do
-      let qq = (s.f64() / U128.max_value().f64()) * 100.0; @printf[I32]("\tsize_add dump: %s size %.50f%%\n".cstring(), c.cstring(), qq)
       if (s > 0) and (s < smallest_s) then
         smallest_c = c
         smallest_s = s
@@ -655,7 +583,6 @@ end
       let vestige_perc = (vestige_size.f64() / U128.max_value().f64()) * 100.0
       let vestige_rounded = RoundF64(vestige_perc, decimal_digits + 2)
       if not ((vestige_rounded == 0.0) or (vestige_rounded == 100.0)) then
-        @printf[I32]("OUCH, vestige_rounded = %.50f%%\n".cstring(), vestige_rounded)
         Fail()
       end
       ""
@@ -680,7 +607,6 @@ end
         _coalesce(first_c, first_s, next_c, next_s, old_sizes, consume new_sizes)
       end
     else
-      @printf[I32]("old_sizes.size() = %d\n".cstring(), old_sizes.size()); Fail()
       recover Array[(String, U128)]() end
     end
 
@@ -691,23 +617,18 @@ end
     if tail.size() == 0 then
       if last_c == head_c then
         new_sizes.push((last_c, last_s + head_s))
-                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0a: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
       else
         new_sizes.push((last_c, last_s))
-                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
         new_sizes.push((head_c, head_s))
-                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 0b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
       end
       return consume new_sizes
     end
     try
       (let next_c, let next_s) = tail.shift()?
       if last_c == head_c then
-                      @printf[I32]("coalesce: 1a: SAME claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (head_s.f64()/U128.max_value().f64())*100.0)
         _coalesce(head_c, last_s + head_s, next_c, next_s, tail, consume new_sizes)
       else
         new_sizes.push((last_c, last_s))
-                      try let last = new_sizes(new_sizes.size()-1)?._2.f64() ; @printf[I32]("coalesce: 1b: push claimant %s size %5.2f%%\n".cstring(), last_c.cstring(), (last/U128.max_value().f64())*100.0) else Fail() end
         _coalesce(head_c, head_s, next_c, next_s, tail, consume new_sizes)
       end
     else
