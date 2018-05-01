@@ -379,7 +379,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
                                       @printf[I32]("    who now: ".cstring())
                                       for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
-        sut = try sut.add_claimants(to_add')? else bogus end
+        sut = try sut.add_claimants(to_add')? else Fail(); bogus end
 
       | let o: HashOpRemove =>
         let to_remove: Array[String] iso = recover to_remove.create() end
@@ -396,7 +396,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
                                       @printf[I32]("    who now: ".cstring())
                                       for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update SUT
-        sut = try sut.remove_claimants(to_remove')? else bogus end
+        sut = try sut.remove_claimants(to_remove')? else Fail(); bogus end
       end
     end
 
@@ -414,7 +414,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         expected_size = expected_size + 1
       end
     end
-                                      @printf[I32]("!@#$!@# who.size() = %d expected_size = %d\n".cstring(), who.size(), expected_size)
+                                      @printf[I32]("!@#$!@# aaaa who.size() = %d expected_size = %d\n".cstring(), who.size(), expected_size)
+    if who.size() != expected_size then Fail() end
     ph.assert_eq[USize](who.size(), expected_size)
 
     true
