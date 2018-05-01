@@ -34,7 +34,7 @@ actor Main is TestList
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
     test(_TestAdjustHashPartitions2to1)
-    //TODO RESTORE: test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
+    test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
 
 class iso _TestMakeHashPartitions is UnitTest
@@ -117,12 +117,14 @@ class iso _TestMakeHashPartitions3 is UnitTest
     let hp1 = HashPartitions.create_with_weights(weights1)
     // hp1.pretty_print() ; @printf[I32]("\n".cstring())
 
-    for (n, w) in hp1.get_weights_normalized().pairs() do
-      match n
+    for (c, w) in hp1.get_weights_normalized().pairs() do
+      match c
       | "n1" => h.assert_eq[F64](w, 1.0)
       | "n2" => h.assert_eq[F64](w, 12.0)
       | "n3" => h.assert_eq[F64](w, 3.0)
       | "n4" => h.assert_eq[F64](w, 1.0)
+      else
+        h.assert_eq[String](c, "no other claimant is possible")
       end
     end
 
@@ -138,9 +140,7 @@ class iso _TestAdjustHashPartitions2to1 is UnitTest
     let weights1: Array[(String,F64)] val = recover
       [("n1", 1.0); ("n2", 1.0)] end
     let hp1 = HashPartitions.create_with_weights(weights1)
-                              @printf[I32]("YOYOYOYO\n".cstring()); hp1.pretty_print() ; @printf[I32]("\n".cstring())
     let hp2 = hp1.remove_claimants(recover ["n1"] end)?
-                              @printf[I32]("YOYOYOYO\n".cstring()); hp2.pretty_print() ; @printf[I32]("\n".cstring())
 
     h.assert_eq[USize](hp2.get_weights_normalized().size(), 1)
     for (c, w) in hp2.get_weights_normalized().pairs() do
@@ -349,7 +349,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 3
+    let max_claimant_name: USize = 12
 
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd; HashOpRemove ])?
@@ -370,7 +370,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       gen_hash_op, gen_ns,
       {(hash_op, n_seq) => TestOp(hash_op, n_seq)}
     )
-    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1, max=4/**TODO**/)
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
@@ -432,24 +432,27 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
             bogus
           end
       end
-    end
 
-    // Sanity checks & model properties
-                                      @printf[I32]("!@#$!@#$    who now, size=%d: ".cstring(), who.size())
-                                      for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-    var expected_size: USize = 0
-    for (c, w) in sut.get_weights_normalized().pairs() do
-      if c == "" then
-        // If "" unclaimed is in the weights list, then it should be
-        // everything and it should be the only thing.
+      // Step-wise sanity checks & model properties
+                                        @printf[I32]("!@#$!@#$    who now, size=%d: ".cstring(), who.size())
+                                        for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+      var sut_size: USize = 0
+      for (c, w) in sut.get_weights_normalized().pairs() do
         ph.assert_eq[F64](w, 1.0)
-        ph.assert_eq[USize](sut.get_weights_normalized().size(), 1)
-      else
-        expected_size = expected_size + 1
+        if c == "" then
+          // If "" unclaimed is in the weights list, then it should be
+          // everything and it should be the only thing.
+          ph.assert_eq[USize](sut.get_weights_normalized().size(), 1)
+        else
+                                        @printf[I32]("expected_size calc: c %s w %.2f\n".cstring(), c.cstring(), w)
+          sut_size = sut_size + 1
+        end
       end
+                                        @printf[I32]("!@#$!@# bbbb who.size() = %d sut_size = %d\n".cstring(), who.size(), sut_size)
+      ph.assert_eq[USize](who.size(), sut_size)
     end
-                                      @printf[I32]("!@#$!@# aaaa who.size() = %d expected_size = %d\n".cstring(), who.size(), expected_size)
-    // if who.size() != expected_size then Fail() end
-    ph.assert_eq[USize](who.size(), expected_size)
+    
+    // Final sanity checks & model properties
+    None // for now
 
     true

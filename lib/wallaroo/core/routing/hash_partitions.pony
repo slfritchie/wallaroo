@@ -421,7 +421,7 @@ try
     for (ccc, sum) in sizes1.values() do
       wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
     end
-    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval ONE@@@: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval ONE@@@: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
     error
 else
   None
@@ -432,7 +432,7 @@ try
     for (ccc, sum) in sizes2.values() do
       wws(ccc) = (sum.f64() / U128.max_value().f64()) + try wws(ccc)? else 0 end
     end
-    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval TWO@@@: c %s size %.10f\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
+    for (cc, ii) in wws.pairs() do @printf[I32]("@@@weights unit interval TWO@@@: c %s size %.10f%%\n".cstring(), cc.cstring(), ii*100.0) end ; @printf[I32]("\n".cstring())
     error
 else
   None
@@ -457,8 +457,10 @@ end
 
 
     let sizes4 = _coalesce_adjacent_intervals(sizes3)
+/****
     let sizes4x = _coalesce_adjacent_intervals(sizes3)
                           for (c, s) in sizes4x.values() do @printf[I32]("    sizes4x claimant %s size %5.2f%%\n".cstring(), c.cstring(), (s.f64()/U128.max_value().f64())*100.0) end ; @printf[I32]("\n".cstring())
+ ****/
     let sizes5 = if sizes4.size() == 0 then
       Fail(); consume sizes4
     elseif sizes4.size() == 1 then
