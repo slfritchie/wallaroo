@@ -614,6 +614,7 @@ end
       let vestige_perc = (vestige_size.f64() / U128.max_value().f64()) * 100.0
       let vestige_rounded = RoundF64(vestige_perc, decimal_digits + 2)
       if vestige_rounded != 0.0 then
+//////      if not ((vestige_rounded == 0.0) or (vestige_rounded == 100.0)) then
         @printf[I32]("OUCH, vestige_rounded = %.50f%%\n".cstring(), vestige_rounded)
         Fail()
       end

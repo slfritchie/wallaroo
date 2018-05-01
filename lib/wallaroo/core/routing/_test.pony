@@ -326,7 +326,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     let max_claimant_name: USize = 12
 
     let gen_hash_op = try Generators.one_of[HashOp]([
-        HashOpAdd /**** SLF FIXME ; HashOpRemove ****/ ])?
+        HashOpAdd; HashOpRemove ])?
       else
         Fail()
         Generators.unit[HashOp](HashOpAdd)
@@ -347,7 +347,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
 
 
-  fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
+  fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
     @printf[I32]("PROP:\n".cstring())
     for to in arg1.values() do
       @printf[I32]("    %s\n".cstring(), to.string().cstring())
@@ -355,8 +355,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     @printf[I32]("\n".cstring())
 
     // Create our initial state-keeping vars
-    // Let's abuse initial state of entire interval unclaimed
-    var hp: (HashPartitions | None) = None
+    var sut: (HashPartitions | None) = None
     var who: Set[String] = who.create()
 
     // Apply each TestOp to state, check for sanity, etc.
@@ -364,40 +363,28 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       match op.op
       | let o: HashOpAdd =>
         let to_add: Array[String] iso = recover to_add.create() end
-                              @printf[I32]("\tbefore to_add pushing: who.size() = %d, ".cstring(), who.size())
-                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         for c in op.cs.values() do
-                              @printf[I32]("%s in who = %s,".cstring(), c.cstring(), who.contains(c).string().cstring())
           if not who.contains(c) then
             to_add.push(c)
           end
         end
-                              @printf[I32]("\n".cstring())
         let to_add' = recover val consume to_add end
-@printf[I32]("PROP ADD: ".cstring())
-for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-
+                                      @printf[I32]("PROP ADD: ".cstring())
+                                      for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update model
-                              @printf[I32]("\twho.size() = %d, ".cstring(), who.size())
-                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         for c in to_add'.values() do
           if not who.contains(c) then who = who.add(c) end
         end
-                              @printf[I32]("\twho.size() = %d, ".cstring(), who.size())
-                              for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-                              @printf[I32]("\tto_add' = %d, ".cstring(), to_add'.size())
-                              for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-
         // update SUT
-        hp = match hp
+        sut = match sut
              | None =>
                if to_add'.size() == 0 then
                  None
                else
                  HashPartitions.create(to_add')
                end
-             | let hp': HashPartitions =>
-               try hp'.add_claimants(to_add')? else Fail(); None end
+             | let hp: HashPartitions =>
+               try hp.add_claimants(to_add')? else Fail(); None end
              end
       | let o: HashOpRemove =>
         let to_remove: Array[String] iso = recover to_remove.create() end
@@ -407,26 +394,24 @@ for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @pr
           end
         end
         let to_remove' = recover val consume to_remove end
-@printf[I32]("PROP REMOVE: ".cstring())
-for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-
+                                      @printf[I32]("PROP REMOVE: ".cstring())
+                                      for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
-@printf[I32]("\twho.size()    = %d, ".cstring(), who.size())
-for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-@printf[I32]("\tto_remove' = %d, ".cstring(), to_remove'.size())
-for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
-
         // update SUT
-        hp = match hp
+        sut = match sut
              | None =>
                None
-             | let hp': HashPartitions =>
-               try hp'.remove_claimants(to_remove')? else Fail(); None end
+             | let hp: HashPartitions =>
+               try hp.remove_claimants(to_remove')? else Fail(); None end
              end
       end
+    end
 
-      @printf[I32]("TODO: check sanity,".cstring())
+    // Sanity checks & model properties
+    match sut
+      | None => if who.size() != 0 then ph.assert_eq[U8](1,2) end
+      else      if who.size() == 0 then ph.assert_eq[U8](3,4) end
     end
     @printf[I32]("\n".cstring())
 
