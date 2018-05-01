@@ -386,12 +386,13 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     try
       for (c, w) in new_weights_m.pairs() do
         let new_size = U128.from[F64]((w / sum_new_weights) * U128.max_value().f64())
+                          @printf[I32]("size_add: c %s w %.2f sum_new_weights = %.2f, new_size %s current_sizes_m %s\n".cstring(), c.cstring(), w, sum_new_weights, new_size.string().cstring(), current_sizes_m(c)?.string().cstring())
         if new_size > current_sizes_m(c)? then
           size_add(c) = (new_size - current_sizes_m(c)?)
                           @printf[I32]("size_add: c %s add %5.2f%%\n".cstring(), c.cstring(), (size_add(c)?.f64()/U128.max_value().f64())*100.0)
         elseif new_size < current_sizes_m(c)? then
           size_sub(c) = (current_sizes_m(c)? - new_size)
-                          @printf[I32]("size_sub: c %s sub %5.2f%%\n".cstring(), c.cstring(), (size_sub(c)?.f64()/U128.max_value().f64())*100.0)
+                          @printf[I32]("size_sub: c %s new_size %5.2f%% current_sizes_m %5.2f%% size_sub %5.2f%%\n".cstring(), c.cstring(), (new_size.f64()/U128.max_value().f64())*100.0, (current_sizes_m(c)?.f64()/U128.max_value().f64())*100.0, (size_sub(c)?.f64()/U128.max_value().f64())*100.0)
         else
                           @printf[I32]("interval_***: c %s\n".cstring(), c.cstring())
           None
