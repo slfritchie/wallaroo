@@ -29,12 +29,10 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
-/****
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
- ****/
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
 
@@ -298,13 +296,16 @@ type HashOp is (HashOpAdd | HashOpRemove)
 
 class TestOp is Stringable
   let op: HashOp
-  let cs: Array[String] = cs.create()
+  let cs: Array[String] val
 
   new create(op': HashOp, n_set: Set[USize]) =>
+    let cs': Array[String] trn = recover cs.create() end
+
     op = op'
     for n in n_set.values() do
-      cs.push("n" + n.string())
+      cs'.push("n" + n.string())
     end
+    cs = consume cs'
 
   fun string(): String iso^ =>
     let s: String ref = recover s.create() end
@@ -347,24 +348,71 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) =>
-    /**** @printf[I32]("PROP:\n".cstring())
+    @printf[I32]("PROP:\n".cstring())
     for to in arg1.values() do
       @printf[I32]("    %s\n".cstring(), to.string().cstring())
     end
-    @printf[I32]("\n".cstring()) ****/
+    @printf[I32]("\n".cstring())
 
     // Create our initial state-keeping vars
-    var hp = HashPartitions.create([])
+    // Let's abuse initial state of entire interval unclaimed
+    var hp: (HashPartitions | None) = None
     var who: SetIs[String] = who.create()
 
     // Apply each TestOp to state, check for sanity, etc.
     for op in arg1.values() do
       match op.op
       | let o: HashOpAdd =>
-        @printf[I32]("add,".cstring())
+        let to_add: Array[String] iso = recover to_add.create() end
+        for c in op.cs.values() do
+          if not who.contains(c) then
+            to_add.push(c)
+          end
+        end
+        let to_add' = recover val consume to_add end
+@printf[I32]("PROP ADD: ".cstring())
+for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+
+        // update model
+        for c in to_add'.values() do if not who.contains(c) then  who = who.add(c) end end
+@printf[I32]("\twho.size()    = %d\n".cstring(), who.size())
+
+        // update SUT
+        hp = match hp
+             | None =>
+               if to_add'.size() == 0 then
+                 None
+               else
+                 HashPartitions.create(to_add')
+               end
+             | let hp': HashPartitions =>
+               try hp'.add_claimants(to_add')? else Fail(); None end
+             end
       | let o: HashOpRemove =>
-        @printf[I32]("remove,".cstring())
+        let to_remove: Array[String] iso = recover to_remove.create() end
+        for c in op.cs.values() do
+          if who.contains(c) then
+            to_remove.push(c)
+          end
+        end
+        let to_remove' = recover val consume to_remove end
+@printf[I32]("PROP REMOVE: ".cstring())
+for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+
+        // update model
+        for c in to_remove'.values() do who = who.sub(c) end
+@printf[I32]("\twho.size() = %d\n".cstring(), who.size())
+
+        // update SUT
+        hp = match hp
+             | None =>
+               None
+             | let hp': HashPartitions =>
+               try hp'.remove_claimants(to_remove')? else Fail(); None end
+             end
       end
+
+      @printf[I32]("TODO: check sanity,".cstring())
     end
     @printf[I32]("\n".cstring())
 
