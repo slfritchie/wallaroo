@@ -2,12 +2,12 @@ use "collections"
 use "crypto"
 use "wallaroo_labs/mort"
 
-class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
+class val HashPartitions is (Equatable[HashPartitions] & Stringable)
   let lower_bounds: Array[U128] = lower_bounds.create()
   let interval_sizes: Array[U128] = interval_sizes.create()
   let lb_to_c: Map[U128, String] = lb_to_c.create()  // lower bound -> claimant
 
-  new ref create(cs: Array[String] val) =>
+  new val create(cs: Array[String] val) =>
     """
     Given an array of claimant name strings that are non-zero length,
     create a HashPartitions that assigns equal weight to all claimants.
@@ -22,7 +22,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     create2(consume sizes)
 
-  new ref create_with_weights(weights: Array[(String, F64)] val,
+  new val create_with_weights(weights: Array[(String, F64)] val,
     decimal_digits: USize = 2)
   =>
     """
@@ -53,7 +53,7 @@ class ref HashPartitions is (Equatable[HashPartitions] & Stringable)
     end
     create2(consume sizes)
 
-  new ref create_with_sizes(sizes: Array[(String, U128)] val) =>
+  new val create_with_sizes(sizes: Array[(String, U128)] val) =>
     create2(sizes)
 
   fun adjust_weights(new_weights: Array[(String, F64)] val,
@@ -669,15 +669,6 @@ end
     else
       Fail()
       recover Array[(String, U128)]() end
-    end
-
-  // Hmm, do I want this mutating thingie in here at all?
-  fun ref twiddle(from: String, to: String) =>
-    for (lb, c) in lb_to_c.pairs() do
-      if c == from then
-        lb_to_c(lb) = to
-        return
-      end
     end
 
 primitive RoundF64
