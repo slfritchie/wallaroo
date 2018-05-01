@@ -375,7 +375,10 @@ for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @pr
 
         // update model
         for c in to_add'.values() do if not who.contains(c) then  who = who.add(c) end end
-@printf[I32]("\twho.size()    = %d\n".cstring(), who.size())
+@printf[I32]("\twho.size()    = %d, ".cstring(), who.size())
+for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+@printf[I32]("\tto_add' = %d, ".cstring(), to_add'.size())
+for c in to_add'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
 
         // update SUT
         hp = match hp
@@ -401,7 +404,10 @@ for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; 
 
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
-@printf[I32]("\twho.size() = %d\n".cstring(), who.size())
+@printf[I32]("\twho.size()    = %d, ".cstring(), who.size())
+for c in who.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
+@printf[I32]("\tto_remove' = %d, ".cstring(), to_remove'.size())
+for c in to_remove'.values() do @printf[I32]("%s,".cstring(), c.cstring()) end; @printf[I32]("\n".cstring())
 
         // update SUT
         hp = match hp
