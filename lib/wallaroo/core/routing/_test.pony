@@ -34,7 +34,7 @@ actor Main is TestList
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
     test(_TestAdjustHashPartitions2to1)
-    // test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
+    test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
 
 class iso _TestMakeHashPartitions is UnitTest
@@ -278,4 +278,34 @@ primitive CompareWeights
       end
     end
 
+/*********************************************/
 
+primitive HashOpAdd is Stringable
+  fun string(): String iso^ => "add_claimants".clone()
+
+type HashOp is (HashOpAdd /** | HashOpRemove **/)
+
+class box TestOp is Stringable
+  let op: HashOp
+  let cs: Array[String] iso = recover cs.create() end
+
+new create() =>
+  op = HashOpAdd
+  cs.push("One is the loneliest number...")
+
+fun string(): String iso^ =>
+  "TODO".clone()
+
+class _TestPonycheckStateful is Property1[(Array[TestOp])]
+  fun name(): String => "hash_partitions/ponycheck"
+
+  fun gen(): Generator[Array[TestOp]] =>
+    // Generate a single TestOp, constructor with zero args
+    let gen_testop = Generators.unit[TestOp](TestOp)
+
+    // Generate a sequence of TestOp objects,
+    // specifically an Array with minimum size of 1.
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
+
+  fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
+    @printf[I32](".".cstring())
