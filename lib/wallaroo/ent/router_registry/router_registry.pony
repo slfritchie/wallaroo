@@ -208,7 +208,7 @@ actor RouterRegistry is InFlightAckRequester
         ifdef debug then
           @printf[I32]("register_source: resuming ?? source\n".cstring())
         end
-        tcp_source.unmute_source(_dummy_consumer)
+        //SLF delete line? tcp_source.unmute_source(_dummy_consumer)
       end
     end
     match _omni_router
@@ -1139,7 +1139,7 @@ actor RouterRegistry is InFlightAckRequester
         ifdef debug then
           @printf[I32]("_stop_all_local: stopping ?? source\n".cstring())
         end
-        tcp_source.mute_source(_dummy_consumer)
+        //SLF delete line? tcp_source.mute_source(_dummy_consumer)
       else
         @printf[I32]("_stop_all_local: skipping stop ?? source\n".cstring())
       end
@@ -1162,7 +1162,7 @@ actor RouterRegistry is InFlightAckRequester
         ifdef debug then
           @printf[I32]("_resume_all_local: resuming ?? source\n".cstring())
         end
-        tcp_source.unmute_source(_dummy_consumer)
+        //SLF delete line? tcp_source.unmute_source(_dummy_consumer)
       else
         @printf[I32]("_resume_all_local: skipping resume ?? source\n".cstring())
       end
