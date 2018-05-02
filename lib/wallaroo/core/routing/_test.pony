@@ -297,7 +297,15 @@ class box TestOp is Stringable
     cs = consume cs'
 
   fun string(): String iso^ =>
-    "TODO".clone()
+    let s: String ref = recover s.create() end
+
+    s.append("op=" + op.string() + ",cs=[")
+    for c in cs.values() do
+      s.append(c + ",")
+    end
+    if cs.size() > 0 then try s.pop()? /* remove trailing comma */ end end
+    s.append("]")
+    s.clone()
 
 class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
