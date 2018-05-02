@@ -287,14 +287,17 @@ type HashOp is (HashOpAdd /** | HashOpRemove **/)
 
 class box TestOp is Stringable
   let op: HashOp
-  let cs: Array[String] iso = recover cs.create() end
+  let cs: Array[String] val
 
-new create() =>
-  op = HashOpAdd
-  cs.push("One is the loneliest number...")
+  new create() =>
+    let cs': Array[String] trn = recover cs.create() end
 
-fun string(): String iso^ =>
-  "TODO".clone()
+    op = HashOpAdd
+    cs'.push("One is the loneliest number...")
+    cs = consume cs'
+
+  fun string(): String iso^ =>
+    "TODO".clone()
 
 class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
@@ -308,4 +311,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
-    @printf[I32](".".cstring())
+    @printf[I32]("property:\n".cstring())
+    for t in arg1.values() do
+      @printf[I32]("    %s\n".cstring(), t.string().cstring())
+    end
+    @printf[I32]("\n".cstring())
