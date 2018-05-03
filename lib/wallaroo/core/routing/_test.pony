@@ -292,11 +292,13 @@ class box TestOp is Stringable
   let op: HashOp
   let cs: Array[String] val
 
-  new create(op': HashOp) =>
+  new create(op': HashOp, n_set: Set[USize]) =>
     let cs': Array[String] trn = recover cs.create() end
 
     op = op'
-    cs'.push("One is the loneliest number...")
+    for n in n_set.values() do
+      cs'.push("n" + n.string())
+    end
     cs = consume cs'
 
   fun string(): String iso^ =>
@@ -314,6 +316,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
+    let max_claimant_name: USize = 50
+
     // Generate a single HashOp: add or remove
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd; HashOpRemove ])?
@@ -322,13 +326,18 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         Generators.unit[HashOp](HashOpAdd)
       end
 
-    // Generate a single TestOp, constructor with 1 arg
+    // Generate a single n, 0 <= n < max_claimant_name
+    let gen_n = Generators.usize(where min=0, max=max_claimant_name)
+
+    // Generate a set of n's.
+    let gen_ns = Generators.set_of[USize](
+      gen_n where max=(max_claimant_name*3))
+
+    // Generate a single TestOp, constructor with 2 args
     // We use map2() + lambda to call our TestOp constructor.
-    // map2() has 2 args, but we only need 1 for TestOp constructor,
-    // so we pass in gen_hash_op 2x and ignore the 2nd one
-    let gen_testop = Generators.map2[HashOp, HashOp, TestOp](
-      gen_hash_op, gen_hash_op,
-      {(hash_op, ignored) => TestOp(hash_op)}
+    let gen_testop = Generators.map2[HashOp, Set[USize], TestOp](
+      gen_hash_op, gen_ns,
+      {(hash_op, n_set) => TestOp(hash_op, n_set)}
     )
 
     // Generate a sequence of TestOp objects,
