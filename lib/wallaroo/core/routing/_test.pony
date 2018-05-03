@@ -350,6 +350,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
     // Create our initial state-keeping vars
     var sut = HashPartitions.create([])
+    var who: Set[String] = who.create()
 
     // Apply each TestOp to state, nothing else
     for op in arg1.values() do
@@ -357,12 +358,16 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       | let o: HashOpAdd =>
         let to_add: Array[String] iso = recover to_add.create() end
         for c in op.cs.values() do
-          to_add.push(c)
+          if not who.contains(c) then
+            to_add.push(c)
+          end
         end
         let to_add' = recover val consume to_add end
 
         // update model
-        None
+        for c in to_add'.values() do
+          who = who.add(c)
+        end
         // update SUT
         sut = try sut.add_claimants(to_add')?
         else
@@ -373,12 +378,16 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       | let o: HashOpRemove =>
         let to_remove: Array[String] iso = recover to_remove.create() end
         for c in op.cs.values() do
-          to_remove.push(c)
+          if who.contains(c) then
+            to_remove.push(c)
+          end
         end
         let to_remove' = recover val consume to_remove end
 
         // update model
-        None
+        for c in to_remove'.values() do
+          who = who.sub(c)
+        end
         // update SUT
         sut = try sut.remove_claimants(to_remove')?
         else
