@@ -317,7 +317,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 50
+    let max_claimant_name: USize = 250
 
     // Generate a single HashOp: add or remove
     let gen_hash_op = try Generators.one_of[HashOp]([
