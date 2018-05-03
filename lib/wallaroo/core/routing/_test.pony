@@ -36,7 +36,6 @@ actor Main is TestList
     test(_TestAdjustHashPartitions2to1)
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
-
 class iso _TestMakeHashPartitions is UnitTest
   """
   Basic test of making a simple HashPartition with 3 claimants (TODO vocab??).
@@ -336,7 +335,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 50
+    let max_claimant_name: USize = 50 // PUTMEBACK: 100
 
     let gen_hash_op = try Generators.one_of[HashOp]([
         HashOpAdd; HashOpRemove ])?
@@ -387,7 +386,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         // update SUT
         sut = try sut.add_claimants(to_add')?
           else
-            Fail()
+            ph.fail("add_claimants error")
             bogus
           end
 
@@ -405,28 +404,52 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         // update SUT
         sut = try sut.remove_claimants(to_remove')?
           else
-            ph.assert_eq[Bool](true, false)  // Fail()
+            ph.fail("remove_claimants error")
             bogus
           end
       end
 
       // Step-wise sanity checks & model properties
-      var sut_size: USize = 0
-      for (c, w) in sut.get_weights_normalized().pairs() do
-        ph.assert_eq[Bool](who.contains(c), true)
-        ph.assert_eq[F64](w, 1.0)
-        if c == "" then
-          // If "" unclaimed is in the weights list, then it should be
-          // everything and it should be the only thing.
-          ph.assert_eq[USize](sut.get_weights_normalized().size(), 1)
-        else
-          sut_size = sut_size + 1
-        end
-      end
-      ph.assert_eq[USize](who.size(), sut_size)
+
+      _sanity_checks(who, sut, ph)
     end
     
     // Final sanity checks & model properties
-    None // for now
+    _sanity_checks(who, sut, ph)
+
+  fun _sanity_checks(who: Set[String], sut: HashPartitions,
+    ph: PropertyHelper): Bool
+  =>
+    // Weights from HashPartitions created stepwise should be equal to
+    // a single step; build single-step HashPartitions with 'who' set.
+    let who_a: Array[String] trn = recover who_a.create() end
+    for c in who.values() do who_a.push(c) end
+           // Bug trigger: try who_a.pop()? ; who_a.push("bad worker") end
+    let hp_single = HashPartitions.create(consume who_a)
+
+    let norm_w_single  = hp_single.get_weights_normalized()
+    let norm_w_sut = sut.get_weights_normalized()
+    try
+      CompareWeights(norm_w_single, norm_w_sut, "stepwise", __loc.line())?
+    else
+      ph.fail("CompareWeights failed")
+      return false
+    end
+
+    // Check for overflow errors: the entire map could "add up"
+    // to U128.max_value() (which is correct) but have an integer
+    // overflow error along the way (which is not correct)
+    var sum: U128 = 0
+    for (c, s) in sut.get_sizes().values() do
+      let last_sum = sum = sum + s
+      if sum < last_sum then
+        ph.fail("size overflow error by " + c + " size " + s.string())
+      end
+    end
+
+    // The sum we just calculated ought to be the max_value.
+    if sum != U128.max_value() then
+      ph.fail("final sum error at " + sum.string())
+    end
 
     true
