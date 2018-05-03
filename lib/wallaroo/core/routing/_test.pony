@@ -317,7 +317,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 5 /**50**/
+    let max_claimant_name: USize = 50
 
     // Generate a single HashOp: add or remove
     let gen_hash_op = try Generators.one_of[HashOp]([
@@ -332,7 +332,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
     // Generate a set of n's.
     let gen_ns = Generators.set_of[USize](
-      gen_n where max=4 /**(max_claimant_name*3)**/ )
+      gen_n where max=(max_claimant_name*3))
 
     // Generate a single TestOp, constructor with 2 args
     // We use map2() + lambda to call our TestOp constructor.
@@ -343,7 +343,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
 
     // Generate a sequence of TestOp objects,
     // specifically an Array with minimum size of 1.
-    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1, max=5)
+    Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1)
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
     @printf[I32](".".cstring())
