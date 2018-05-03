@@ -29,13 +29,14 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
+/****
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
     test(_TestAdjustHashPartitions2to1)
+ ****/
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
-
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -304,12 +305,12 @@ class box TestOp is Stringable
   fun string(): String iso^ =>
     let s: String ref = recover s.create() end
 
-    s.append("op=" + op.string() + ",cs=[")
+    s.append("\n  op=" + op.string() + ",cs=[")
     for c in cs.values() do
       s.append(c + ",")
     end
     if cs.size() > 0 then try s.pop()? /* remove trailing comma */ end end
-    s.append("]\n")
+    s.append("]")
     s.clone()
 
 class _TestPonycheckStateful is Property1[(Array[TestOp])]
@@ -345,8 +346,52 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     Generators.seq_of[TestOp, Array[TestOp]](gen_testop where min=1, max=5)
 
   fun property(arg1: Array[TestOp], ph: PropertyHelper) /**?**/ =>
-    @printf[I32]("property:\n".cstring())
-    for t in arg1.values() do
-      @printf[I32]("    %s\n".cstring(), t.string().cstring())
+    @printf[I32](".".cstring())
+
+    // Create our initial state-keeping vars
+    var sut = HashPartitions.create([])
+
+    // Apply each TestOp to state, nothing else
+    for op in arg1.values() do
+      match op.op
+      | let o: HashOpAdd =>
+        let to_add: Array[String] iso = recover to_add.create() end
+        for c in op.cs.values() do
+          to_add.push(c)
+        end
+        let to_add' = recover val consume to_add end
+
+        // update model
+        None
+        // update SUT
+        sut = try sut.add_claimants(to_add')?
+        else
+          ph.fail("add failed")
+          return
+        end
+
+      | let o: HashOpRemove =>
+        let to_remove: Array[String] iso = recover to_remove.create() end
+        for c in op.cs.values() do
+          to_remove.push(c)
+        end
+        let to_remove' = recover val consume to_remove end
+
+        // update model
+        None
+        // update SUT
+        sut = try sut.remove_claimants(to_remove')?
+        else
+          ph.fail("remove failed")
+          return
+        end
+      end
+
+      // Step-wise sanity checks & model properties
+      None
     end
-    @printf[I32]("\n".cstring())
+    
+    // Final sanity checks & model properties
+    None // for now
+
+    ph.assert_true(true)
