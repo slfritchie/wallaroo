@@ -317,7 +317,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    let max_claimant_name: USize = 250
+    let max_claimant_name: USize = 50 // TODO was 100
 
     // Generate a single HashOp: add or remove
     let gen_hash_op = try Generators.one_of[HashOp]([
@@ -397,7 +397,21 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       end
 
       // Step-wise sanity checks & model properties
-      None
+
+      // Create H'P based on who in a single step
+      let who_a: Array[String] trn = recover who_a.create() end
+      for c in who.values() do who_a.push(c) end
+             //// Bug trigger: try who_a.pop()? ; who_a.push("bad worker") end
+      let hp_single = HashPartitions.create(consume who_a)
+
+      let norm_w_single  = hp_single.get_weights_normalized()
+      let norm_w_sut = sut.get_weights_normalized()
+      try
+        // Weights from H'P created stepwise should be equal to single step
+        CompareWeights(norm_w_single, norm_w_sut, "stepwise", __loc.line())?
+      else
+        ph.fail("CompareWeights failed")
+      end
     end
     
     // Final sanity checks & model properties
