@@ -283,16 +283,19 @@ primitive CompareWeights
 primitive HashOpAdd is Stringable
   fun string(): String iso^ => "add_claimants".clone()
 
-type HashOp is (HashOpAdd /** | HashOpRemove **/)
+primitive HashOpRemove is Stringable
+  fun string(): String iso^ => "remove_claimants".clone()
+
+type HashOp is (HashOpAdd | HashOpRemove)
 
 class box TestOp is Stringable
   let op: HashOp
   let cs: Array[String] val
 
-  new create() =>
+  new create(op': HashOp) =>
     let cs': Array[String] trn = recover cs.create() end
 
-    op = HashOpAdd
+    op = op'
     cs'.push("One is the loneliest number...")
     cs = consume cs'
 
@@ -311,8 +314,22 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
   fun name(): String => "hash_partitions/ponycheck"
 
   fun gen(): Generator[Array[TestOp]] =>
-    // Generate a single TestOp, constructor with zero args
-    let gen_testop = Generators.unit[TestOp](TestOp)
+    // Generate a single HashOp: add or remove
+    let gen_hash_op = try Generators.one_of[HashOp]([
+        HashOpAdd; HashOpRemove ])?
+      else
+        Fail() // shakes fist at partial one_of() ... {sigh}
+        Generators.unit[HashOp](HashOpAdd)
+      end
+
+    // Generate a single TestOp, constructor with 1 arg
+    // We use map2() + lambda to call our TestOp constructor.
+    // map2() has 2 args, but we only need 1 for TestOp constructor,
+    // so we pass in gen_hash_op 2x and ignore the 2nd one
+    let gen_testop = Generators.map2[HashOp, HashOp, TestOp](
+      gen_hash_op, gen_hash_op,
+      {(hash_op, ignored) => TestOp(hash_op)}
+    )
 
     // Generate a sequence of TestOp objects,
     // specifically an Array with minimum size of 1.
