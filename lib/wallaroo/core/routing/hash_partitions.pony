@@ -48,11 +48,8 @@ class val HashPartitions is (Equatable[HashPartitions] & Stringable)
       let fraction: F64 = w / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz') /// SLF OVERFLOW FIXME!!
-  @printf[I32]("create_with_weights: PUSH c %s, fraction %.10f sz' %.10f sz %s\n".cstring(), c.cstring(), fraction, sz', sz.string().cstring())
-
       sizes.push((c, sz))
     end
-  @printf[I32]("create_with_weights: sizes size %d:\n".cstring(), sizes.size()); for (cc, ss) in sizes.values() do @printf[I32]("  cc: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
     create2(consume sizes)
 
   new val create_with_sizes(sizes: Array[(String, U128)] val) =>
@@ -99,19 +96,13 @@ fun add_claimants(cs: Array[String] val, decimal_digits: USize = 2):
     end
   end
   for (c, w) in current_weights.pairs() do
-    @printf[I32]("  ... new_weights push (c %s, w %.2f)\n".cstring(), c.cstring(), w)
     new_weights.push((c, w))
   end
   for c in cs.values() do
-    new_weights.push((c, F64(1.0)))
-    @printf[I32]("  ... new_weights push (c %s, w c %.2f)\n".cstring(), c.cstring(), F64(1.0))
+    new_weights.push((c, 1.0))
   end
-
   let new_weights' = recover val consume new_weights end
-
-  if (current_weights.size() == 0)
-    //or ( (current_weights.size() == 1) and (current_weights(0)._1 == "") )
-  then
+  if get_weights_normalized().size() == 0 then
     create_with_weights(new_weights', decimal_digits)
   else
     adjust_weights(new_weights', decimal_digits)
@@ -143,7 +134,6 @@ fun remove_claimants(cs: Array[String] val, decimal_digits: USize = 2):
       new_weights.push((c, w))
     end
   end
-          @printf[I32]("REMOVE: new_weights size %d:\n".cstring(), new_weights.size())//; for (cc, ss) in new_weights'.values() do @printf[I32]("  a: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
   adjust_weights(consume new_weights, decimal_digits)
 
 fun ref create2(sizes: Array[(String, U128)] val) =>
@@ -172,33 +162,11 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     var sum: U128 = 0
     for interval in interval_sizes.values() do
       sum = sum + interval
-/***
-      let last_sum = sum = sum + interval
-      if (sum < last_sum) and (sum != 0) then
-        try
-          @printf[I32]("OUCH!  interval_sizes.size() = %d, sum = %s\n".cstring(), interval_sizes.size(), sum.string().cstring())
-          for i in Range[USize](0, interval_sizes.size()) do
-            let c = lb_to_c(lower_bounds(i)?)?
-            let lb = lower_bounds(i)?
-            let i' = interval_sizes(i)?
-            @printf[I32]("i=%d c %s lb %.2f%% ".cstring(), i, c.cstring(), (lb.f64()/U128.max_value().f64())*100.0)
-            @printf[I32]("interval %.2f%%\n".cstring(), (i'.f64()/U128.max_value().f64())*100.0)
-          end
-        end
-        Fail()
-      end
- ***/
     end
-    if sum != 0 then
-      let idx = lower_bounds.size() - 1
-      let i_adjust = (U128.max_value() - sum)
-      try
-        @printf[I32]("adj c %s by i_adjust %s\n".cstring(), lb_to_c(lower_bounds(idx)?)?.cstring(), i_adjust.string().cstring())
-        interval_sizes(idx)? = interval_sizes(idx)? + i_adjust
-      else
-        Fail()
-      end
-    end
+    let idx = lower_bounds.size() - 1
+    let i_adjust = (U128.max_value() - sum)
+    try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust
+      else Fail() end
 
   fun box eq(y: HashPartitions box): Bool =>
     """
@@ -352,7 +320,6 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
 
     try
       for i in Range[USize](0, interval_sizes.size()) do
-        @printf[I32]("          norm_for_pp: c %s size %s\n".cstring(), lb_to_c(lower_bounds(i)?)?.cstring(), interval_sizes(i)?.string().cstring())
         min_size = min_size.min(interval_sizes(i)?)
       end
 
@@ -368,7 +335,6 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
   fun _adjust_weights(new_weights: Array[(String, F64)] val,
     decimal_digits: USize = 2): HashPartitions
    =>
-          @printf[I32]("new_weights size %d:\n".cstring(), new_weights.size()); for (cc, ss) in new_weights.values() do @printf[I32]("  a: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
     //// Figure out what claimants have been removed.
 
     let current_weights = get_weights_normalized(decimal_digits)
@@ -445,16 +411,7 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
         (let c, let s) = sizes4(0)?
         let frac = (s.f64()/U128.max_value().f64())
         if RoundF64(frac, decimal_digits) != 1.0 then
-          @printf[I32]("SUM error:\n".cstring())
-          @printf[I32]("SUM error: RoundF64(frac) = %.50f\n".cstring(), RoundF64(frac, decimal_digits))
-          @printf[I32]("SUM error: frac = %.50f\n".cstring(), frac)
-          @printf[I32]("SUM error: (c %s, s %s)\n".cstring(), c.cstring(), s.string().cstring())
-
-          @printf[I32]("sizes1 size %d:\n".cstring(), sizes1.size()); for (cc, ss) in sizes1.values() do @printf[I32]("  1: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
-          @printf[I32]("sizes2 size %d:\n".cstring(), sizes2.size()); for (cc, ss) in sizes2.values() do @printf[I32]("  2: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
-          @printf[I32]("sizes3 size %d:\n".cstring(), sizes3.size()); for (cc, ss) in sizes3.values() do @printf[I32]("  3: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
-          @printf[I32]("sizes4 size %d:\n".cstring(), sizes4.size()); for (cc, ss) in sizes4.values() do @printf[I32]("  4: (c %s, s %s)\n".cstring(), cc.cstring(), ss.string().cstring()) end
-          @printf[I32]("SHOULD Fail() but SKIP\n".cstring(), sizes4.size()) /////////          Fail()
+          Fail()
         end
         if c == "" then
           // Entire interval is unclaimed, so return empty list instead.

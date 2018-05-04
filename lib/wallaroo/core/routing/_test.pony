@@ -390,8 +390,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     let bogus = HashPartitions.create(recover ["error-case-bogus"] end)
     var who: Set[String] = who.create()
 
-    var qq: String iso = recover qq.create() end
-
     // Apply each TestOp to state, check for sanity, etc.
     for op in arg1.values() do
       match op.op
@@ -403,12 +401,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_add' = recover val consume to_add end
-                  qq.append("add_claimants(recover [")
-                  for c in to_add'.values() do
-                    qq.append("\"" + c + "\";")
-                  end
-                  if to_add'.size() > 0 then try qq.pop()? end end
-                  qq.append("] end)\n")
 
         // update model
         for c in to_add'.values() do
@@ -422,7 +414,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
             sut.pretty_print()
             for c in to_add'.values() do @printf[I32]("    to_add' %s\n".cstring(), c.cstring())
             end
-            @printf[I32]("qq = %s\n".cstring(), qq.cstring())
             Fail(); bogus
           end
 
@@ -434,12 +425,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_remove' = recover val consume to_remove end
-                  qq.append("remove_claimants(recover [")
-                  for c in to_remove'.values() do
-                    qq.append("\"" + c + "\";")
-                  end
-                  if to_remove'.size() > 0 then try qq.pop()? end end
-                  qq.append("] end)\n")
 
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
@@ -451,7 +436,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
             sut.pretty_print()
             for c in to_remove'.values() do @printf[I32]("    to_remove' %s\n".cstring(), c.cstring())
             end
-            @printf[I32]("qq = %s\n".cstring(), qq.cstring())
             Fail(); bogus
           end
       end
@@ -491,7 +475,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       try
         (let c, let s) = sut.get_sizes()(i)?
         if s == 0 then
-          @printf[I32]("\nBoom0\n".cstring())
           sut.pretty_print()
           ph.fail("size is zero for claimant " + c)
           ph.fail("sut.get_sizes().size() = " + sut.get_sizes().size().string())
@@ -503,7 +486,6 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
             // means we're off by exactly one.  Define this as ok.
             None
           else
-            @printf[I32]("\nBoom1\n".cstring())
             ph.fail("size overflow error by " + c + " size " + s.string() + " sum is " + sum.string())
           end
         end
@@ -511,10 +493,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     end
 
     // The sum we just calculated ought to be the max_value.
-    if (sum != U128.max_value())
-      and (sum != 0)
-    then
-      @printf[I32]("\nBoom2\n".cstring())
+    // Overflow by exactly one (sum is 0) is ok.
+    if (sum != U128.max_value()) and (sum != 0) then
       ph.fail("final sum error at " + sum.string())
     end
 
