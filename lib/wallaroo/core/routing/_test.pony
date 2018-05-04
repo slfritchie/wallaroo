@@ -169,8 +169,8 @@ class iso _Regression0to1 is UnitTest
 
     sut = sut.add_claimants(recover [c] end)?
     let w = sut.get_weights_normalized()(c)?
-    @printf[I32]("REGRESSION: w = %.10f\n".cstring(), w)
     // NOTE: This will not fail if w is NaN: h.assert_eq[F64](1.0, w)
+    h.assert_eq[Bool](false, w.nan())
     h.assert_eq[Bool](true, (w == 1))
 
 class iso _TestAdjustHashPartitions is UnitTest

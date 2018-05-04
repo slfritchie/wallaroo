@@ -13,7 +13,11 @@ class val HashPartitions is (Equatable[HashPartitions] & Stringable)
     create a HashPartitions that assigns equal weight to all claimants.
     """
     let sizes: Array[(String, U128)] iso = recover sizes.create() end
-    let interval: U128 = U128.max_value() / cs.size().u128()
+    let interval: U128 = if cs.size() == 0 then
+      U128.max_value()
+    else
+      U128.max_value() / cs.size().u128()
+    end
 
     for c in cs.values() do
       if c != "" then
@@ -45,13 +49,14 @@ class val HashPartitions is (Equatable[HashPartitions] & Stringable)
       sum = sum + w
     end
     for (c, w) in weights'.values() do
-      let fraction: F64 = w / sum
-      let sz': F64 = U128.max_value().f64() * fraction
-      let sz: U128 = U128.from[F64](sz') /// SLF OVERFLOW FIXME!!
-      if (c != "") and (sz == 0) then
-        @printf[I32]("HEY HEY, c %s fraction %.10f sz %s w %.10f sum %.10f\n".cstring(), c.cstring(), fraction, sz.string().cstring(), w, sum)
+      if w == sum then
+        sizes.push((c, U128.max_value()))
+      else
+        let fraction: F64 = w / sum
+        let sz': F64 = U128.max_value().f64() * fraction
+        let sz: U128 = U128.from[F64](sz')
+        sizes.push((c, sz))
       end
-      sizes.push((c, sz))
     end
     create2(consume sizes)
 
@@ -307,6 +312,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     for (_, weight) in weights.pairs() do
       min_weight = min_weight.min(weight)
     end
+    if min_weight == 0 then
+      Fail()
+    end
     for (node, weight) in weights.pairs() do
       ws(node) = RoundF64(weight.f64() / min_weight, decimal_digits)
     end
@@ -324,6 +332,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     try
       for i in Range[USize](0, interval_sizes.size()) do
         min_size = min_size.min(interval_sizes(i)?)
+      end
+      if min_size == 0 then
+        Fail()
       end
 
       for i in Range[USize](0, interval_sizes.size()) do
@@ -412,7 +423,7 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
       // Either it's all unclaimed or all claimed or we have an error
       try
         (let c, let s) = sizes4(0)?
-        let frac = (s.f64()/U128.max_value().f64())
+        let frac = (s.f64() / U128.max_value().f64())
         if RoundF64(frac, decimal_digits) != 1.0 then
           Fail()
         end
