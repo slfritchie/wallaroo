@@ -29,41 +29,35 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
-    test(_Yo)
-/***
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
-    test(_TestAdjustHashPartitions2to1)
+    test(_Regression2to1)
+    test(_Regression0to1)
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
- ***/
 
-class iso _Yo is UnitTest
+
+class iso _Regression0to1 is UnitTest
+  """
+  Regression test for overflow when adding a single claimant to
+  empty map.  Funny that I hadn't created a unit test that tested
+  this very simple scenario.  However, I'm half-confident that most
+  or all of the sanity checking by CompareWeights() wouldn't catch
+  the NaN problem in the map caused by overflow in
+  create_with_weights()....
+  """
   fun name(): String =>
-    "Yo"
+    "hash_partitions/regression-0-to-1"
 
   fun ref apply(h: TestHelper) ? =>
     var sut = HashPartitions.create(recover [] end)
+    let c = "n27"
 
-// sut = sut.remove_claimants(recover [] end)?
-// @printf[I32]("line %d\n".cstring(), __loc.line())
-sut = sut.add_claimants(recover ["n27"] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
-sut = sut.remove_claimants(recover ["n27"] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
-/****
-sut = sut.remove_claimants(recover [] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
-sut = sut.remove_claimants(recover [] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
-sut = sut.add_claimants(recover ["n5";"n35";"n20";"n16";"n30";"n19";"n32";"n49";"n6";"n45";"n44";"n31";"n29";"n46";"n4";"n13";"n21";"n38";"n12";"n24";"n28";"n8";"n17";"n37";"n23";"n1";"n47";"n41";"n11";"n36";"n14";"n3";"n33";"n7";"n25";"n40";"n48";"n34";"n50";"n15";"n2";"n10";"n42"] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
-sut = sut.remove_claimants(recover ["n5";"n16";"n20";"n30";"n19";"n32";"n49";"n6";"n45";"n44";"n31";"n29";"n46";"n4";"n13";"n21";"n38";"n12";"n24";"n28";"n8";"n17";"n1";"n23";"n47";"n41";"n36";"n14";"n7";"n33";"n48";"n34";"n50";"n15";"n2";"n10"] end)?
-@printf[I32]("line %d\n".cstring(), __loc.line())
- ****/
-@printf[I32]("\nEnd of yo, happy!\n\n".cstring())
-
+    sut = sut.add_claimants(recover [c] end)?
+    let w = sut.get_weights_normalized()(c)?
+    // NOTE: This will not fail if w is NaN: h.assert_eq[F64](1.0, w)
+    h.assert_eq[Bool](true, (w == 1))
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -155,7 +149,7 @@ class iso _TestMakeHashPartitions3 is UnitTest
       end
     end
 
-class iso _TestAdjustHashPartitions2to1 is UnitTest
+class iso _Regression2to1 is UnitTest
   """
   Regression test for failure found by Ponycheck: remove claimants
   so that only a single claimant remains.
