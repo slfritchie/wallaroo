@@ -492,10 +492,11 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
       end
     end
 
-    // The sum we just calculated ought to be the max_value.
-    // Overflow by exactly one (sum is 0) is ok.
-    if (sum != U128.max_value()) and (sum != 0) then
-      ph.fail("final sum error at " + sum.string())
+    if (sut.get_sizes().size() > 0) then
+      // The sum for a non-empty map ought to be max_value.
+      if sum != U128.max_value() then
+        ph.fail("final sum error at " + sum.string() + ", sut.get_sizes().size() = " + sut.get_sizes().size().string())
+      end
     end
 
     true
