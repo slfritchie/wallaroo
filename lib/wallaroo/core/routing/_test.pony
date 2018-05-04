@@ -490,6 +490,11 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
             ph.fail("size overflow error by " + c + " size " + s.string() + " sum is " + sum.string())
           end
         end
+
+        // Claimant name "" is invalid if visible here
+        if c == "" then
+          ph.fail("Claimant name \"\" found with size " + s.string())
+        end
       end
     end
 
