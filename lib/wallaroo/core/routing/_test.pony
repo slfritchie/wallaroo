@@ -29,12 +29,41 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
+    test(_Yo)
+/***
     test(_TestMakeHashPartitions)
     test(_TestMakeHashPartitions2)
     test(_TestMakeHashPartitions3)
     test(_TestAdjustHashPartitions)
     test(_TestAdjustHashPartitions2to1)
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
+ ***/
+
+class iso _Yo is UnitTest
+  fun name(): String =>
+    "Yo"
+
+  fun ref apply(h: TestHelper) ? =>
+    var sut = HashPartitions.create(recover [] end)
+
+// sut = sut.remove_claimants(recover [] end)?
+// @printf[I32]("line %d\n".cstring(), __loc.line())
+sut = sut.add_claimants(recover ["n27"] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+sut = sut.remove_claimants(recover ["n27"] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+/****
+sut = sut.remove_claimants(recover [] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+sut = sut.remove_claimants(recover [] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+sut = sut.add_claimants(recover ["n5";"n35";"n20";"n16";"n30";"n19";"n32";"n49";"n6";"n45";"n44";"n31";"n29";"n46";"n4";"n13";"n21";"n38";"n12";"n24";"n28";"n8";"n17";"n37";"n23";"n1";"n47";"n41";"n11";"n36";"n14";"n3";"n33";"n7";"n25";"n40";"n48";"n34";"n50";"n15";"n2";"n10";"n42"] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+sut = sut.remove_claimants(recover ["n5";"n16";"n20";"n30";"n19";"n32";"n49";"n6";"n45";"n44";"n31";"n29";"n46";"n4";"n13";"n21";"n38";"n12";"n24";"n28";"n8";"n17";"n1";"n23";"n47";"n41";"n36";"n14";"n7";"n33";"n48";"n34";"n50";"n15";"n2";"n10"] end)?
+@printf[I32]("line %d\n".cstring(), __loc.line())
+ ****/
+@printf[I32]("\nEnd of yo, happy!\n\n".cstring())
+
 
 class iso _TestMakeHashPartitions is UnitTest
   """
@@ -367,6 +396,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     let bogus = HashPartitions.create(recover ["error-case-bogus"] end)
     var who: Set[String] = who.create()
 
+    var qq: String iso = recover qq.create() end
+
     // Apply each TestOp to state, check for sanity, etc.
     for op in arg1.values() do
       match op.op
@@ -378,6 +409,12 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_add' = recover val consume to_add end
+                  qq.append("add_claimants(recover [")
+                  for c in to_add'.values() do
+                    qq.append("\"" + c + "\";")
+                  end
+                  if to_add'.size() > 0 then try qq.pop()? end end
+                  qq.append("] end)\n")
 
         // update model
         for c in to_add'.values() do
@@ -387,7 +424,12 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         sut = try sut.add_claimants(to_add')?
           else
             ph.fail("add_claimants error")
-            bogus
+            @printf[I32]("add_claimants error\n".cstring())
+            sut.pretty_print()
+            for c in to_add'.values() do @printf[I32]("    to_add' %s\n".cstring(), c.cstring())
+            end
+            @printf[I32]("qq = %s\n".cstring(), qq.cstring())
+            Fail(); bogus
           end
 
       | let o: HashOpRemove =>
@@ -398,6 +440,12 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
           end
         end
         let to_remove' = recover val consume to_remove end
+                  qq.append("remove_claimants(recover [")
+                  for c in to_remove'.values() do
+                    qq.append("\"" + c + "\";")
+                  end
+                  if to_remove'.size() > 0 then try qq.pop()? end end
+                  qq.append("] end)\n")
 
         // update model
         for c in to_remove'.values() do who = who.sub(c) end
@@ -405,7 +453,12 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         sut = try sut.remove_claimants(to_remove')?
           else
             ph.fail("remove_claimants error")
-            bogus
+            @printf[I32]("remove_claimants error\n".cstring())
+            sut.pretty_print()
+            for c in to_remove'.values() do @printf[I32]("    to_remove' %s\n".cstring(), c.cstring())
+            end
+            @printf[I32]("qq = %s\n".cstring(), qq.cstring())
+            Fail(); bogus
           end
       end
 
@@ -445,6 +498,7 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         (let c, let s) = sut.get_sizes()(i)?
         if s == 0 then
           @printf[I32]("\nBoom0\n".cstring())
+          sut.pretty_print()
           ph.fail("size is zero for claimant " + c)
           ph.fail("sut.get_sizes().size() = " + sut.get_sizes().size().string())
         end
