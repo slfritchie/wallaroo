@@ -19,6 +19,7 @@ Copyright 2017 The Wallaroo Authors.
 use "collections"
 use "ponycheck"
 use "ponytest"
+use "wallaroo/core/routing"
 use "wallaroo_labs/mort"
 
 actor Main is TestList

@@ -29,7 +29,6 @@ use data_channel = "core/data_channel"
 use initialization = "core/initialization"
 use rebalancing = "ent/rebalancing"
 use recovery = "ent/recovery"
-use routing = "core/routing"
 use spike = "ent/spike"
 use topology = "core/topology"
 use watermarking = "ent/watermarking"
@@ -47,7 +46,6 @@ actor Main is TestList
     initialization.Main.make().tests(test)
     rebalancing.Main.make().tests(test)
     recovery.Main.make().tests(test)
-    routing.Main.make().tests(test)
     spike.Main.make().tests(test)
     topology.Main.make().tests(test)
     watermarking.Main.make().tests(test)
