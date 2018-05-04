@@ -3,9 +3,9 @@ use "crypto"
 use "wallaroo_labs/mort"
 
 class val HashPartitions is (Equatable[HashPartitions] & Stringable)
-  let lower_bounds: Array[U128] = lower_bounds.create()
-  let interval_sizes: Array[U128] = interval_sizes.create()
-  let lb_to_c: Map[U128, String] = lb_to_c.create()  // lower bound -> claimant
+  let _lower_bounds: Array[U128] = _lower_bounds.create()
+  let _interval_sizes: Array[U128] = _interval_sizes.create()
+  let _lb_to_c: Map[U128, String] = _lb_to_c.create()  // lower bound -> claimant
 
   new val create(cs: Array[String] val) =>
     """
@@ -158,9 +158,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
       for i in Range[USize](0, count) do
         let c = sizes(i)?._1
         let interval = sizes(i)?._2
-        lower_bounds.push(next_lower_bound)
-        interval_sizes.push(interval)
-        lb_to_c(next_lower_bound) = c
+        _lower_bounds.push(next_lower_bound)
+        _interval_sizes.push(interval)
+        _lb_to_c(next_lower_bound) = c
         next_lower_bound = next_lower_bound + interval
       end
     else
@@ -168,12 +168,12 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     end
 
     var sum: U128 = 0
-    for interval in interval_sizes.values() do
+    for interval in _interval_sizes.values() do
       sum = sum + interval
     end
-    let idx = lower_bounds.size() - 1
+    let idx = _lower_bounds.size() - 1
     let i_adjust = (U128.max_value() - sum)
-    try interval_sizes(idx)? = interval_sizes(idx)? + i_adjust
+    try _interval_sizes(idx)? = _interval_sizes(idx)? + i_adjust
       else Fail() end
 
   fun box eq(y: HashPartitions box): Bool =>
@@ -181,14 +181,14 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     Implement eq for Equatable trait.
     """
     try
-      if (lower_bounds.size() == y.lower_bounds.size()) and
-         (interval_sizes.size() == y.interval_sizes.size()) and
-         (lb_to_c.size() == y.lb_to_c.size())
+      if (_lower_bounds.size() == y._lower_bounds.size()) and
+         (_interval_sizes.size() == y._interval_sizes.size()) and
+         (_lb_to_c.size() == y._lb_to_c.size())
       then
-        for i in lower_bounds.keys() do
-          if (lower_bounds(i)? != y.lower_bounds(i)?) or
-             (interval_sizes(i)? != y.interval_sizes(i)?) or
-             (lb_to_c(lower_bounds(i)?)? != y.lb_to_c(y.lower_bounds(i)?)?)
+        for i in _lower_bounds.keys() do
+          if (_lower_bounds(i)? != y._lower_bounds(i)?) or
+             (_interval_sizes(i)? != y._interval_sizes(i)?) or
+             (_lb_to_c(_lower_bounds(i)?)? != y._lb_to_c(y._lower_bounds(i)?)?)
           then
             return false
           end
@@ -214,9 +214,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     let s: String iso = "".clone()
 
     try
-      for i in lower_bounds.keys() do
-        s.append(lb_to_c(lower_bounds(i)?)? + "@" +
-          interval_sizes(i)?.string() + ",")
+      for i in _lower_bounds.keys() do
+        s.append(_lb_to_c(_lower_bounds(i)?)? + "@" +
+          _interval_sizes(i)?.string() + ",")
       end
     else
       Fail()
@@ -224,20 +224,20 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     consume s
 
   fun get_claimant(hash: U128): String ? =>
-    var next_to_last_idx: USize = lower_bounds.size() - 1
+    var next_to_last_idx: USize = _lower_bounds.size() - 1
     var last_idx: USize = 0
 
-    if hash > lower_bounds(next_to_last_idx)? then
-      return lb_to_c(lower_bounds(next_to_last_idx)?)?
+    if hash > _lower_bounds(next_to_last_idx)? then
+      return _lb_to_c(_lower_bounds(next_to_last_idx)?)?
     end
 
     // Binary search
     while true do
-      let next_lower_bound = lower_bounds(last_idx)?
+      let next_lower_bound = _lower_bounds(last_idx)?
 
       if hash >= next_lower_bound then
-        if hash < lower_bounds(last_idx + 1)? then
-          return lb_to_c(next_lower_bound)?
+        if hash < _lower_bounds(last_idx + 1)? then
+          return _lb_to_c(next_lower_bound)?
         else
           var step =
             (next_to_last_idx.isize() - last_idx.isize()).abs().usize() / 2
@@ -264,19 +264,19 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     get_claimant(hashed_key)?
 
   fun claimants(): Iterator[String] ref =>
-    lb_to_c.values()
+    _lb_to_c.values()
 
   fun _get_interval_size_sums(): Map[String,U128] =>
     let interval_sums: Map[String,U128] = interval_sums.create()
 
     try
-      for c in lb_to_c.values() do
+      for c in _lb_to_c.values() do
         interval_sums(c) = 0
       end
 
-      for i in Range[USize](0, lower_bounds.size()) do
-        let c = lb_to_c(lower_bounds(i)?)?
-        interval_sums(c) = interval_sums(c)? + interval_sizes(i)?
+      for i in Range[USize](0, _lower_bounds.size()) do
+        let c = _lb_to_c(_lower_bounds(i)?)?
+        interval_sums(c) = interval_sums(c)? + _interval_sizes(i)?
       end
     else
       Fail()
@@ -287,9 +287,9 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     let s: Array[(String, U128)] = s.create()
 
     try 
-      for i in Range[USize](0, lower_bounds.size()) do
-        let c = lb_to_c(lower_bounds(i)?)?
-        s.push((c, interval_sizes(i)?))
+      for i in Range[USize](0, _lower_bounds.size()) do
+        let c = _lb_to_c(_lower_bounds(i)?)?
+        s.push((c, _interval_sizes(i)?))
       end
     else
       Fail()
@@ -330,16 +330,16 @@ fun ref create2(sizes: Array[(String, U128)] val) =>
     let ns: Array[(String, F64)] = ns.create()
 
     try
-      for i in Range[USize](0, interval_sizes.size()) do
-        min_size = min_size.min(interval_sizes(i)?)
+      for i in Range[USize](0, _interval_sizes.size()) do
+        min_size = min_size.min(_interval_sizes(i)?)
       end
       if min_size == 0 then
         Fail()
       end
 
-      for i in Range[USize](0, interval_sizes.size()) do
-        let w = RoundF64(interval_sizes(i)?.f64() / min_size.f64(), decimal_digits)
-        ns.push((lb_to_c(lower_bounds(i)?)?, w))
+      for i in Range[USize](0, _interval_sizes.size()) do
+        let w = RoundF64(_interval_sizes(i)?.f64() / min_size.f64(), decimal_digits)
+        ns.push((_lb_to_c(_lower_bounds(i)?)?, w))
       end
     else
       Fail()

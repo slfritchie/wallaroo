@@ -41,7 +41,7 @@ actor Main is TestList
 
 class iso _TestMakeHashPartitions is UnitTest
   """
-  Basic test of making a simple HashPartition with 3 claimants (TODO vocab??).
+  Basic test of making a simple HashPartition with 3 claimants.
   """
   fun name(): String =>
     "hash_partitions/line-" + __loc.line().string()
@@ -50,8 +50,6 @@ class iso _TestMakeHashPartitions is UnitTest
     let n3: Array[String] val = recover ["n1"; "n2"; "n3"] end
     let hp = HashPartitions(n3)
     // hp.pretty_print()
-
-    h.assert_eq[USize](n3.size(), hp.lb_to_c.size())
 
     // There's no guarantee the following is true, but it probably is true.
 
