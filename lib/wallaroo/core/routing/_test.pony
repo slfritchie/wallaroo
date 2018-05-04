@@ -324,7 +324,7 @@ class TestOp is Stringable
 
     s.append("op=" + op.string() + ",cs=[")
     for c in cs.values() do
-      s.append(c + ",")
+      s.append("\"" + c + "\";")
     end
     if cs.size() > 0 then try s.pop()? /* remove trailing comma */ end end
     s.append("]")
@@ -441,14 +441,22 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     // overflow error along the way (which is not correct)
     var sum: U128 = 0
     for (c, s) in sut.get_sizes().values() do
+      if s == 0 then
+        @printf[I32]("\nBoom0\n".cstring())
+        ph.fail("size is zero for claimant " + c)
+      end
       let last_sum = sum = sum + s
       if sum < last_sum then
-        ph.fail("size overflow error by " + c + " size " + s.string())
+        @printf[I32]("\nBoom1\n".cstring())
+        ph.fail("size overflow error by " + c + " size " + s.string() + " sum is " + sum.string())
       end
     end
 
     // The sum we just calculated ought to be the max_value.
-    if sum != U128.max_value() then
+    if (sum != U128.max_value())
+      and (sum != 0)
+    then
+      @printf[I32]("\nBoom2\n".cstring())
       ph.fail("final sum error at " + sum.string())
     end
 
