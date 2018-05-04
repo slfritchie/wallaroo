@@ -48,6 +48,9 @@ class val HashPartitions is (Equatable[HashPartitions] & Stringable)
       let fraction: F64 = w / sum
       let sz': F64 = U128.max_value().f64() * fraction
       let sz: U128 = U128.from[F64](sz') /// SLF OVERFLOW FIXME!!
+      if (c != "") and (sz == 0) then
+        @printf[I32]("HEY HEY, c %s fraction %.10f sz %s w %.10f sum %.10f\n".cstring(), c.cstring(), fraction, sz.string().cstring(), w, sum)
+      end
       sizes.push((c, sz))
     end
     create2(consume sizes)

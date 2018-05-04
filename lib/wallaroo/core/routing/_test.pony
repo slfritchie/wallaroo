@@ -38,27 +38,6 @@ actor Main is TestList
     test(Property1UnitTest[(Array[TestOp])](_TestPonycheckStateful))
 
 
-class iso _Regression0to1 is UnitTest
-  """
-  Regression test for overflow when adding a single claimant to
-  empty map.  Funny that I hadn't created a unit test that tested
-  this very simple scenario.  However, I'm half-confident that most
-  or all of the sanity checking by CompareWeights() wouldn't catch
-  the NaN problem in the map caused by overflow in
-  create_with_weights()....
-  """
-  fun name(): String =>
-    "hash_partitions/regression-0-to-1"
-
-  fun ref apply(h: TestHelper) ? =>
-    var sut = HashPartitions.create(recover [] end)
-    let c = "n27"
-
-    sut = sut.add_claimants(recover [c] end)?
-    let w = sut.get_weights_normalized()(c)?
-    // NOTE: This will not fail if w is NaN: h.assert_eq[F64](1.0, w)
-    h.assert_eq[Bool](true, (w == 1))
-
 class iso _TestMakeHashPartitions is UnitTest
   """
   Basic test of making a simple HashPartition with 3 claimants (TODO vocab??).
@@ -171,6 +150,28 @@ class iso _Regression2to1 is UnitTest
         h.assert_eq[String](c, "no other claimant is possible")
       end
     end
+
+class iso _Regression0to1 is UnitTest
+  """
+  Regression test for overflow when adding a single claimant to
+  empty map.  Funny that I hadn't created a unit test that tested
+  this very simple scenario.  However, I'm half-confident that most
+  or all of the sanity checking by CompareWeights() wouldn't catch
+  the NaN problem in the map caused by overflow in
+  create_with_weights()....
+  """
+  fun name(): String =>
+    "hash_partitions/regression-0-to-1"
+
+  fun ref apply(h: TestHelper) ? =>
+    var sut = HashPartitions.create(recover [] end)
+    let c = "n27"
+
+    sut = sut.add_claimants(recover [c] end)?
+    let w = sut.get_weights_normalized()(c)?
+    @printf[I32]("REGRESSION: w = %.10f\n".cstring(), w)
+    // NOTE: This will not fail if w is NaN: h.assert_eq[F64](1.0, w)
+    h.assert_eq[Bool](true, (w == 1))
 
 class iso _TestAdjustHashPartitions is UnitTest
   """
@@ -476,8 +477,8 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
         (let c, let s) = sut.get_sizes()(i)?
         if s == 0 then
           sut.pretty_print()
-          ph.fail("size is zero for claimant " + c)
-          ph.fail("sut.get_sizes().size() = " + sut.get_sizes().size().string())
+          ph.fail("size is zero for claimant " + c + ", " +
+            "sut.get_sizes().size() = " + sut.get_sizes().size().string())
         end
         let last_sum = sum = sum + s
         if sum < last_sum then
