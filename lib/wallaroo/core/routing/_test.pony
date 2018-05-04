@@ -440,15 +440,25 @@ class _TestPonycheckStateful is Property1[(Array[TestOp])]
     // to U128.max_value() (which is correct) but have an integer
     // overflow error along the way (which is not correct)
     var sum: U128 = 0
-    for (c, s) in sut.get_sizes().values() do
-      if s == 0 then
-        @printf[I32]("\nBoom0\n".cstring())
-        ph.fail("size is zero for claimant " + c)
-      end
-      let last_sum = sum = sum + s
-      if sum < last_sum then
-        @printf[I32]("\nBoom1\n".cstring())
-        ph.fail("size overflow error by " + c + " size " + s.string() + " sum is " + sum.string())
+    for i in Range[USize](0, sut.get_sizes().size()) do
+      try
+        (let c, let s) = sut.get_sizes()(i)?
+        if s == 0 then
+          @printf[I32]("\nBoom0\n".cstring())
+          ph.fail("size is zero for claimant " + c)
+          ph.fail("sut.get_sizes().size() = " + sut.get_sizes().size().string())
+        end
+        let last_sum = sum = sum + s
+        if sum < last_sum then
+          if i == (sut.get_sizes().size() - 1) then
+            // Our iteration has reached the end.  An overflow here
+            // means we're off by exactly one.  Define this as ok.
+            None
+          else
+            @printf[I32]("\nBoom1\n".cstring())
+            ph.fail("size overflow error by " + c + " size " + s.string() + " sum is " + sum.string())
+          end
+        end
       end
     end
 
