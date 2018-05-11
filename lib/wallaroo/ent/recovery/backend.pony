@@ -400,11 +400,13 @@ class AsyncJournalledFile
   let _filepath: FilePath
   let _file: File
   let _journal: SimpleJournal
+  var _offset: USize
 
   new create(filepath: FilePath, journal: SimpleJournal) =>
     _filepath = filepath
     _file = File(_filepath)
     _journal = journal
+    _offset = 0
 
   fun ref datasync() =>
     // TODO journal!
@@ -423,31 +425,26 @@ class AsyncJournalledFile
   fun ref errno(): (FileOK val | FileError val | FileEOF val | 
     FileBadFileNumber val | FileExists val | FilePermissionDenied val)
   =>
-    // TODO journal!
-    ifdef "journaldbg" then
-      @printf[I32]("### Journal: errno %s\n".cstring(), _filepath.path.cstring())
-    end
+    // TODO journal!  Perhaps fake a File* error if journal write failed?
     _file.errno()
 
   fun ref position(): USize val =>
-    // TODO journal!
-    ifdef "journaldbg" then
-      @printf[I32]("### Journal: position %s\n".cstring(), _filepath.path.cstring())
+    let f_offset = _file.position()
+    if f_offset != _offset then
+      Fail()
     end
-    _file.position()
+    f_offset
 
   fun ref print(data: (String box | Array[U8 val] box)): Bool val =>
     ifdef "journaldbg" then
       @printf[I32]("### Journal: print %s {data}\n".cstring(), _filepath.path.cstring())
     end
     // TODO journal!
-    _file.print(data)
+    let ret = _file.print(data)
+    _offset = _file.position()
+    ret
 
   fun ref read(len: USize): Array[U8 val] iso^ =>
-    // TODO journal!
-    ifdef "journaldbg" then
-      @printf[I32]("### Journal: read %s len %d\n".cstring(), _filepath.path.cstring(), len)
-    end
     _file.read(len)
 
   fun ref seek_end(offset: USize): None =>
@@ -456,6 +453,7 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
     _file.seek_end(offset)
+    _offset = _file.position()
 
   fun ref seek_start(offset: USize): None =>
     // TODO journal!
@@ -463,6 +461,7 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
     _file.seek_start(offset)
+    _offset = _file.position()
 
   fun ref set_length(len: USize): Bool val =>
     // TODO journal!
@@ -472,10 +471,6 @@ class AsyncJournalledFile
     _file.set_length(len)
 
   fun ref size(): USize val =>
-    // TODO journal!
-    ifdef "journaldbg" then
-      @printf[I32]("### Journal: size %s\n".cstring(), _filepath.path.cstring())
-    end
     _file.size()
 
   fun ref sync() =>
@@ -490,16 +485,9 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
     end
     // TODO journal!
-    _file.writev(data)
-
-/***
-  fun ref datasync() => None
-  fun ref start_log_replay() =>
-    _event_log.log_replay_finished()
-  fun ref write(): USize => 0
-  fun ref encode_entry(entry: LogEntry) => None
-  fun bytes_written(): USize => 0
- ***/
+    let ret = _file.writev(data)
+    _offset = _file.position()
+    ret
 
 actor SimpleJournal
   let _fp_dir: FilePath
