@@ -59,6 +59,7 @@ actor EventLog
   let _replay_complete_markers: Map[U64, Bool] =
     _replay_complete_markers.create()
   let _config: EventLogConfig
+  let _the_journal: SimpleJournal
   var num_encoded: USize = 0
   var _flush_waiting: USize = 0
   var _initialized: Bool = false
@@ -68,8 +69,11 @@ actor EventLog
   var _rotating: Bool = false
   var _backend_bytes_after_snapshot: USize
 
-  new create(event_log_config: EventLogConfig = EventLogConfig()) =>
+  new create(the_journal: SimpleJournal,
+    event_log_config: EventLogConfig = EventLogConfig())
+   =>
     _config = event_log_config
+    _the_journal = the_journal
     _backend = match _config.filename
       | let f: String val =>
         try
@@ -77,7 +81,7 @@ actor EventLog
             match _config.log_dir
             | let ld: FilePath =>
               RotatingFileBackend(ld, f, _config.suffix, this,
-                _config.backend_file_length)?
+                _config.backend_file_length, _the_journal)?
             else
               Fail()
               DummyBackend(this)
@@ -85,9 +89,9 @@ actor EventLog
           else
             match _config.log_dir
             | let ld: FilePath =>
-              FileBackend(FilePath(ld, f)?, this)
+              FileBackend(FilePath(ld, f)?, this, _the_journal)
             | let ld: AmbientAuth =>
-              FileBackend(FilePath(ld, f)?, this)
+              FileBackend(FilePath(ld, f)?, this, _the_journal)
             else
               Fail()
               DummyBackend(this)

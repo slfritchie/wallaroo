@@ -103,19 +103,23 @@ class FileBackend is Backend
   // - statechange id
   // - payload
 
-  let _file: File iso
+  let _file: AsyncJournalledFile iso
   let _filepath: FilePath
   let _event_log: EventLog
+  let _the_journal: SimpleJournal
   let _writer: Writer iso
   var _replay_log_exists: Bool
   var _bytes_written: USize = 0
 
-  new create(filepath: FilePath, event_log: EventLog) =>
+  new create(filepath: FilePath, event_log: EventLog,
+    the_journal: SimpleJournal)
+  =>
     _writer = recover iso Writer end
     _filepath = filepath
     _replay_log_exists = _filepath.exists()
-    _file = recover iso File(filepath) end
+    _file = recover iso AsyncJournalledFile(filepath, the_journal) end
     _event_log = event_log
+    _the_journal = the_journal
 
   fun ref dispose() =>
     _file.dispose()
@@ -322,18 +326,21 @@ class RotatingFileBackend is Backend
   let _base_name: String
   let _suffix: String
   let _event_log: EventLog
+  let _the_journal: SimpleJournal
   let _file_length: (USize | None)
   var _offset: U64
   var _rotate_requested: Bool = false
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
-    event_log: EventLog, file_length: (USize | None)) ?
+    event_log: EventLog, file_length: (USize | None),
+    the_journal: SimpleJournal) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
     _suffix = suffix
     _file_length = file_length
     _event_log = event_log
+    _the_journal = the_journal
 
     // scan existing files matching _base_path, and identify the latest one
     // based on the hex offset
@@ -347,7 +354,7 @@ class RotatingFileBackend is Backend
     end
     let p = _base_name + "-" + HexOffset(_offset) + _suffix
     let fp = FilePath(_base_dir, p)?
-    _backend = FileBackend(fp, _event_log)
+    _backend = FileBackend(fp, _event_log, the_journal)
 
   fun bytes_written(): USize => _backend.bytes_written()
 
@@ -385,6 +392,126 @@ class RotatingFileBackend is Backend
       // 4. open new backend with new file set to new offset.
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
-      _backend = FileBackend(fp, _event_log)
+      _backend = FileBackend(fp, _event_log, _the_journal)
     end
     _rotate_requested = false
+
+class AsyncJournalledFile
+  let _filepath: FilePath
+  let _file: File
+  let _journal: SimpleJournal
+
+  new create(filepath: FilePath, journal: SimpleJournal) =>
+    _filepath = filepath
+    _file = File(_filepath)
+    _journal = journal
+
+  fun ref datasync() =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: datasync %s\n".cstring(), _filepath.path.cstring())
+    end
+    _file.datasync()
+
+  fun ref dispose() =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: dispose %s\n".cstring(), _filepath.path.cstring())
+    end
+    // Nothing (?) to do for the journal
+    _file.dispose()
+
+  fun ref errno(): (FileOK val | FileError val | FileEOF val | 
+    FileBadFileNumber val | FileExists val | FilePermissionDenied val)
+  =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: errno %s\n".cstring(), _filepath.path.cstring())
+    end
+    _file.errno()
+
+  fun ref position(): USize val =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: position %s\n".cstring(), _filepath.path.cstring())
+    end
+    _file.position()
+
+  fun ref print(data: (String box | Array[U8 val] box)): Bool val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: print %s {data}\n".cstring(), _filepath.path.cstring())
+    end
+    // TODO journal!
+    _file.print(data)
+
+  fun ref read(len: USize): Array[U8 val] iso^ =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: read %s len %d\n".cstring(), _filepath.path.cstring(), len)
+    end
+    _file.read(len)
+
+  fun ref seek_end(offset: USize): None =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+    end
+    _file.seek_end(offset)
+
+  fun ref seek_start(offset: USize): None =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+    end
+    _file.seek_start(offset)
+
+  fun ref set_length(len: USize): Bool val =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _filepath.path.cstring(), len)
+    end
+    _file.set_length(len)
+
+  fun ref size(): USize val =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: size %s\n".cstring(), _filepath.path.cstring())
+    end
+    _file.size()
+
+  fun ref sync() =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: sync %s\n".cstring(), _filepath.path.cstring())
+    end
+    _file.sync()
+
+  fun ref writev(data: ByteSeqIter box): Bool val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
+    end
+    // TODO journal!
+    _file.writev(data)
+
+/***
+  fun ref datasync() => None
+  fun ref start_log_replay() =>
+    _event_log.log_replay_finished()
+  fun ref write(): USize => 0
+  fun ref encode_entry(entry: LogEntry) => None
+  fun bytes_written(): USize => 0
+ ***/
+
+actor SimpleJournal
+  let _fp_dir: FilePath
+  var _fp_j: (FilePath | None) = None
+  var _f_j: (File | None) = None
+
+  new create(fp_dir: FilePath) =>
+    _fp_dir = fp_dir
+
+    try
+      _fp_j = FilePath(_fp_dir, "./journal.bin")?
+      _f_j = File(_fp_j as FilePath)
+    else
+      Fail()
+    end

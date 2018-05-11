@@ -43,6 +43,7 @@ class ControlChannelListenNotifier is TCPListenNotify
   let _recovery_file: FilePath
   let _event_log: EventLog
   let _recovery_file_cleaner: RecoveryFileCleaner
+  let _the_journal: SimpleJournal
 
   new iso create(worker_name: String, auth: AmbientAuth,
     connections: Connections, is_initializer: Bool,
@@ -50,7 +51,8 @@ class ControlChannelListenNotifier is TCPListenNotify
     layout_initializer: LayoutInitializer, recovery: Recovery,
     recovery_replayer: RecoveryReplayer, router_registry: RouterRegistry,
     recovery_file: FilePath, data_host: String, data_service: String,
-    event_log: EventLog, recovery_file_cleaner: RecoveryFileCleaner)
+    event_log: EventLog, recovery_file_cleaner: RecoveryFileCleaner,
+    the_journal: SimpleJournal)
   =>
     _auth = auth
     _worker_name = worker_name
@@ -66,6 +68,7 @@ class ControlChannelListenNotifier is TCPListenNotify
     _recovery_file = recovery_file
     _event_log = event_log
     _recovery_file_cleaner = recovery_file_cleaner
+    _the_journal = the_journal
 
   fun ref listening(listen: TCPListener ref) =>
     try
@@ -85,11 +88,12 @@ class ControlChannelListenNotifier is TCPListenNotify
         _service, _auth)?
       _connections.send_control_to_cluster(message)
 
-      let f = File(_recovery_file)
+      let f = AsyncJournalledFile(_recovery_file, _the_journal)
       f.print(_host)
       f.print(_service)
       f.sync()
       f.dispose()
+      // TODO: AsyncJournalledFile does not provide implicit sync semantics here
 
       @printf[I32]((_worker_name + " control: listening on " + _host + ":" +
         _service + "\n").cstring())

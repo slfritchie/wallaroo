@@ -278,6 +278,7 @@ primitive PartitionFileReader
     let keys = recover trn Array[WeightedKey[String]] end
 
     try
+      // TODO: We assume that all journal data is copied to local file system first
       let file = File(FilePath(auth, filename)?)
       for line in file.lines() do
         let els = line.split(",")
