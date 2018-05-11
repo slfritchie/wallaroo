@@ -17,6 +17,7 @@ Copyright 2017 The Wallaroo Authors.
 */
 
 use "collections"
+use "files"
 use "ponytest"
 use "wallaroo_labs/equality"
 use "wallaroo/core/boundary"
@@ -53,7 +54,7 @@ class iso _TestLocalPartitionRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -110,7 +111,7 @@ class iso _TestOmniRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -181,7 +182,7 @@ class iso _TestDataRouterEqualityAfterRemove is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -214,7 +215,7 @@ class iso _TestDataRouterEqualityAfterAdd is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -299,9 +300,10 @@ primitive _DataReceiversGenerator
 
 primitive _ConnectionsGenerator
   fun apply(env: Env, auth: AmbientAuth): Connections =>
+    let the_journal: SimpleJournal = SimpleJournalNoop
     Connections("", "", auth, "", "", "", "",
       _NullMetricsSink, "", "", false, "", false
-      where event_log = EventLog())
+      where event_log = EventLog(the_journal, auth), the_journal = the_journal)
 
 primitive _RecoveryReplayerGenerator
   fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer =>
