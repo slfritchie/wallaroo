@@ -38,13 +38,15 @@ class val EventLogConfig
   let backend_file_length: (USize | None)
   let log_rotation: Bool
   let suffix: String
+  let do_local_file_io: Bool
 
   new val create(log_dir': (FilePath | AmbientAuth | None) = None,
     filename': (String val | None) = None,
     logging_batch_size': USize = 10,
     backend_file_length': (USize | None) = None,
     log_rotation': Bool = false,
-    suffix': String = ".evlog")
+    suffix': String = ".evlog",
+    do_local_file_io': Bool = true)
   =>
     filename = filename'
     log_dir = log_dir'
@@ -52,13 +54,16 @@ class val EventLogConfig
     backend_file_length = backend_file_length'
     log_rotation = log_rotation'
     suffix = suffix'
+    do_local_file_io = do_local_file_io'
 
-actor EventLog
+actor EventLog is SimpleJournalAsyncResponseReceiver
   let _resilients: Map[StepId, Resilient] = _resilients.create()
   let _backend: Backend
   let _replay_complete_markers: Map[U64, Bool] =
     _replay_complete_markers.create()
   let _config: EventLogConfig
+  let _the_journal: SimpleJournal
+  let _auth: AmbientAuth
   var num_encoded: USize = 0
   var _flush_waiting: USize = 0
   var _initialized: Bool = false
@@ -68,8 +73,12 @@ actor EventLog
   var _rotating: Bool = false
   var _backend_bytes_after_snapshot: USize
 
-  new create(event_log_config: EventLogConfig = EventLogConfig()) =>
+  new create(the_journal: SimpleJournal, auth: AmbientAuth,
+    event_log_config: EventLogConfig = EventLogConfig())
+   =>
     _config = event_log_config
+    _the_journal = the_journal
+    _auth = auth
     _backend = match _config.filename
       | let f: String val =>
         try
@@ -77,7 +86,8 @@ actor EventLog
             match _config.log_dir
             | let ld: FilePath =>
               RotatingFileBackend(ld, f, _config.suffix, this,
-                _config.backend_file_length)?
+                _config.backend_file_length, _the_journal, _auth,
+                _config.do_local_file_io)?
             else
               Fail()
               DummyBackend(this)
@@ -85,9 +95,11 @@ actor EventLog
           else
             match _config.log_dir
             | let ld: FilePath =>
-              FileBackend(FilePath(ld, f)?, this)
+              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth,
+                _config.do_local_file_io)
             | let ld: AmbientAuth =>
-              FileBackend(FilePath(ld, f)?, this)
+              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth,
+                _config.do_local_file_io)
             else
               Fail()
               DummyBackend(this)
@@ -313,3 +325,15 @@ actor EventLog
     else
       Fail()
     end
+
+  // Hmmmm, if we're using RotatingFileBackend, then knowing the
+  // identity of the failed journal isn't really helpful, is it?
+
+  be async_io_ok(j: SimpleJournal, optag: USize) =>
+      // @printf[I32]("EventLog: TODO async_io_ok journal %d tag %d\n".cstring(), j, optag)
+      None
+
+  be async_io_error(j: SimpleJournal, optag: USize) =>
+      @printf[I32]("EventLog: TODO async_io_error journal %d tag %d\n".cstring(),
+      j, optag)
+    Fail()

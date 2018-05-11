@@ -56,6 +56,8 @@ actor Startup
   var _joining_listener: (TCPListener | None) = None
 
   // RECOVERY FILES
+  var _the_journal_filepath: (FilePath | None) = None
+  var _the_journal: (SimpleJournal | None) = None
   var _event_log_file: String = ""
   var _event_log_dir_filepath: (FilePath | None) = None
   var _event_log_file_basename: String = ""
@@ -202,6 +204,7 @@ actor Startup
 
       var is_recovering: Bool = false
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
+      _the_journal = SimpleJournal(_the_journal_filepath as FilePath)
 
       // check to see if we can recover
       // Use Set to make the logic explicit and clear
@@ -284,19 +287,23 @@ actor Startup
 
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
-          EventLog(EventLogConfig(event_log_dir_filepath,
+          EventLog(_the_journal as SimpleJournal, auth,
+            EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            suffix' = _event_log_file_suffix, log_rotation' = true))
+            suffix' = _event_log_file_suffix, log_rotation' = true,
+            do_local_file_io' = _startup_options.do_local_file_io))
         else
-          EventLog(EventLogConfig(event_log_dir_filepath,
+          EventLog(_the_journal as SimpleJournal, auth,
+            EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
-              _startup_options.event_log_file_length))
+              _startup_options.event_log_file_length,
+            do_local_file_io' = _startup_options.do_local_file_io))
         end
       else
-        EventLog()
+        EventLog(_the_journal as SimpleJournal, auth)
       end
       let event_log = _event_log as EventLog
 
@@ -307,6 +314,7 @@ actor Startup
         metrics_conn, m_addr(0)?, m_addr(1)?, _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
         _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
@@ -336,7 +344,8 @@ actor Startup
           _env, auth, connections, router_registry, metrics_conn,
           _startup_options.is_initializer, data_receivers, event_log, recovery,
           recovery_replayer, _local_topology_file, _data_channel_file,
-          _worker_names_file)
+          _worker_names_file, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io)
 
       if (_external_host != "") or (_external_service != "") then
         let external_channel_notifier =
@@ -373,7 +382,8 @@ actor Startup
           _cluster_initializer, local_topology_initializer, recovery,
           recovery_replayer, router_registry,
           control_channel_filepath, _startup_options.my_d_host,
-          _startup_options.my_d_service, event_log, this)
+          _startup_options.my_d_service, event_log, this,
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io)
 
       // We need to recover connections before creating our control
       // channel listener, since it's at that point that we notify
@@ -443,21 +453,26 @@ actor Startup
         end
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
+      _the_journal = SimpleJournal(_the_journal_filepath as FilePath)
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
-          EventLog(EventLogConfig(event_log_dir_filepath,
+          EventLog(_the_journal as SimpleJournal, auth,
+            EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            suffix' = _event_log_file_suffix, log_rotation' = true))
+            suffix' = _event_log_file_suffix, log_rotation' = true,
+            do_local_file_io' = _startup_options.do_local_file_io))
         else
-          EventLog(EventLogConfig(event_log_dir_filepath,
+          EventLog(_the_journal as SimpleJournal, auth,
+            EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
-              _startup_options.event_log_file_length))
+              _startup_options.event_log_file_length,
+            do_local_file_io' = _startup_options.do_local_file_io))
         end
       else
-        EventLog()
+        EventLog(_the_journal as SimpleJournal, auth)
       end
       let event_log = _event_log as EventLog
 
@@ -468,6 +483,7 @@ actor Startup
         _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
         _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
@@ -497,7 +513,8 @@ actor Startup
           _env, auth, connections, router_registry, metrics_conn,
           _startup_options.is_initializer, data_receivers,
           event_log, recovery, recovery_replayer,
-          _local_topology_file, _data_channel_file, _worker_names_file
+          _local_topology_file, _data_channel_file, _worker_names_file,
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io
           where is_joining = true)
 
       if (_external_host != "") or (_external_service != "") then
@@ -544,7 +561,8 @@ actor Startup
           _cluster_initializer, local_topology_initializer, recovery,
           recovery_replayer, router_registry, control_channel_filepath,
           _startup_options.my_d_host, _startup_options.my_d_service,
-          event_log, this)
+          event_log, this, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io)
 
       connections.make_and_register_recoverable_listener(
         auth, consume control_notifier, control_channel_filepath,
@@ -590,6 +608,8 @@ actor Startup
   fun ref _set_recovery_file_names(auth: AmbientAuth) =>
     try
       _event_log_dir_filepath = FilePath(auth, _startup_options.resilience_dir)?
+      _the_journal_filepath = FilePath(auth,
+        _startup_options.resilience_dir + "/the-journal.bin")?
     else
       Fail()
     end

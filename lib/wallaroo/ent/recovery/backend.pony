@@ -103,30 +103,46 @@ class FileBackend is Backend
   // - statechange id
   // - payload
 
-  let _file: File iso
-  let _filepath: FilePath
+  let _file: AsyncJournalledFile iso
+  let _file_path: String
   let _event_log: EventLog
+  let _the_journal: SimpleJournal
   let _writer: Writer iso
   var _replay_log_exists: Bool
   var _bytes_written: USize = 0
+  var _do_local_file_io: Bool = true
 
-  new create(filepath: FilePath, event_log: EventLog) =>
+  new create(filepath: FilePath, event_log: EventLog,
+    the_journal: SimpleJournal, auth: AmbientAuth,
+    do_local_file_io: Bool)
+  =>
     _writer = recover iso Writer end
-    _filepath = filepath
-    _replay_log_exists = _filepath.exists()
-    _file = recover iso File(filepath) end
+    _file_path = filepath.path
+    _replay_log_exists = filepath.exists()
+    _file = recover iso
+      AsyncJournalledFile(filepath, the_journal, auth, do_local_file_io) end
     _event_log = event_log
+    _the_journal = the_journal
+    _do_local_file_io = do_local_file_io
 
   fun ref dispose() =>
     _file.dispose()
+    // This journal prototype uses a single SimpleJournal per EventLog
+    // log file ... which is a hack to avoid re-writing a large amount
+    // of EventLog.  The append-only log file rotation ought to be
+    // something that SimpleJournal takes full responsibility for.
+    _the_journal.dispose_journal()
 
   fun bytes_written(): USize =>
     _bytes_written
 
+  fun get_path(): String =>
+    _file_path
+
   fun ref start_log_replay() =>
     if _replay_log_exists then
       @printf[I32](("RESILIENCE: Replaying from recovery log file: " +
-        _filepath.path + "\n").cstring())
+        _file_path + "\n").cstring())
 
       //replay log to EventLog
       try
@@ -301,6 +317,7 @@ class FileBackend is Backend
     match _file.errno()
     | FileOK => None
     else
+@printf[I32]("DBG sync line %d\n".cstring(), __loc.line())
       error
     end
 
@@ -322,18 +339,25 @@ class RotatingFileBackend is Backend
   let _base_name: String
   let _suffix: String
   let _event_log: EventLog
+  let _the_journal: SimpleJournal
+  let _auth: AmbientAuth
+  let _do_local_file_io: Bool
   let _file_length: (USize | None)
   var _offset: U64
   var _rotate_requested: Bool = false
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
-    event_log: EventLog, file_length: (USize | None)) ?
+    event_log: EventLog, file_length: (USize | None),
+    the_journal: SimpleJournal, auth: AmbientAuth, do_local_file_io: Bool) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
     _suffix = suffix
     _file_length = file_length
     _event_log = event_log
+    _the_journal = the_journal
+    _auth = auth
+    _do_local_file_io = do_local_file_io
 
     // scan existing files matching _base_path, and identify the latest one
     // based on the hex offset
@@ -347,7 +371,9 @@ class RotatingFileBackend is Backend
     end
     let p = _base_name + "-" + HexOffset(_offset) + _suffix
     let fp = FilePath(_base_dir, p)?
-    _backend = FileBackend(fp, _event_log)
+    let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+    let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
+    _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
 
@@ -375,6 +401,13 @@ class RotatingFileBackend is Backend
   fun ref rotate_file() ? =>
     // only do this if current backend has actually written anything
     if _backend.bytes_written() > 0 then
+      // TODO This is a placeholder for recording that we're rotating
+      // an EventLog backend file, which is a prototype quick hack for
+      // keeping such state within an SimpleJournal collection thingie.
+      let rotation_history = AsyncJournalledFile(FilePath(_auth, "TODO-EventLog-rotation-history.txt")?, _the_journal, _auth,
+        _do_local_file_io)
+      rotation_history.print("START of rotation: finished writing to " + _backend.get_path())
+
       // 1. sync/datasync the current backend to ensure everything is written
       _backend.sync()?
       _backend.datasync()?
@@ -385,6 +418,298 @@ class RotatingFileBackend is Backend
       // 4. open new backend with new file set to new offset.
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
-      _backend = FileBackend(fp, _event_log)
+      let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+      let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
+      _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
+
+      // TODO Part two of the log rotation hack.  Sync
+      rotation_history.print("END of rotation: starting writing to " + _backend.get_path())
+      rotation_history.sync() // TODO we want synchronous response
+      rotation_history.dispose()
     end
     _rotate_requested = false
+
+class AsyncJournalledFile
+  let _file_path: String
+  let _file: File
+  let _journal: SimpleJournal
+  let _auth: AmbientAuth
+  var _offset: USize
+  let _do_local_file_io: Bool
+  var _tag: USize = 1
+
+  new create(filepath: FilePath, journal: SimpleJournal,
+    auth: AmbientAuth, do_local_file_io: Bool)
+  =>
+    _file_path = filepath.path
+    _file = if do_local_file_io then
+      File(filepath)
+    else
+      try // Partial func hack
+        File(FilePath(auth, "/dev/null")?)
+      else
+        Fail()
+        File(filepath)
+      end
+    end
+    _journal = journal
+    _auth = auth
+    _offset = 0
+    _do_local_file_io = do_local_file_io
+
+  fun ref datasync() =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: datasync %s\n".cstring(), _file_path.cstring())
+    end
+    if _do_local_file_io then
+      _file.datasync()
+    end
+
+  fun ref dispose() =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: dispose %s\n".cstring(), _file_path.cstring())
+    end
+    // Nothing (?) to do for the journal
+    if _do_local_file_io then
+      _file.dispose()
+    end
+
+  fun ref errno(): (FileOK val | FileError val | FileEOF val | 
+    FileBadFileNumber val | FileExists val | FilePermissionDenied val)
+  =>
+    // TODO journal!  Perhaps fake a File* error if journal write failed?
+    _file.errno()
+
+  fun ref position(): USize val =>
+    _file.position()
+
+  fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
+    end
+    _journal.writev(_file_path, [data; "\n"], _tag)
+    _tag = _tag + 1
+
+    if _do_local_file_io then
+      _file.writev([data; "\n"])
+    else
+      true // TODO journal writev success/failure
+    end
+
+  fun ref read(len: USize): Array[U8 val] iso^ =>
+    _file.read(len)
+
+  fun ref seek_end(offset: USize): None =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _file_path.cstring(), offset)
+    end
+    if _do_local_file_io then
+      _file.seek_end(offset)
+      _offset = _file.position()
+    end
+
+  fun ref seek_start(offset: USize): None =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _file_path.cstring(), offset)
+    end
+    if _do_local_file_io then
+      _file.seek_start(offset)
+      _offset = _file.position()
+    end
+
+  fun ref set_length(len: USize): Bool val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _file_path.cstring(), len)
+    end
+    _journal.set_length(_file_path, len, _tag)
+    _tag = _tag + 1
+
+    if _do_local_file_io then
+      _file.set_length(len)
+    else
+      true // TODO journal set_length success/failure
+    end
+
+  fun ref size(): USize val =>
+    if _do_local_file_io then
+      _file.size()
+    else
+      Fail(); 0
+    end
+
+  fun ref sync() =>
+    // TODO journal!
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: sync %s\n".cstring(), _file_path.cstring())
+    end
+    if _do_local_file_io then
+      _file.sync()
+    end
+
+  fun ref writev(data: ByteSeqIter val): Bool val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
+    end
+    _journal.writev(_file_path, data, _tag)
+    _tag = _tag + 1
+
+    if _do_local_file_io then
+      let ret = _file.writev(data)
+      _offset = _file.position()
+      ret
+    else
+      true
+    end
+
+trait SimpleJournalAsyncResponseReceiver
+  be async_io_ok(j: SimpleJournal tag, optag: USize)
+  be async_io_error(j: SimpleJournal tag, optag: USize)
+
+actor SimpleJournal
+  var filepath: FilePath
+  var _j_file: File
+  var _j_file_closed: Bool
+  let _encode_io_ops: Bool
+  let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
+
+  new create(filepath': FilePath, encode_io_ops: Bool = true,
+    owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
+  =>
+    filepath = filepath'
+    _encode_io_ops = encode_io_ops
+    _owner = owner
+
+    _j_file = File(filepath)
+    _j_file_closed = false
+    // A newly created file has offset @ start of file, we want the end of file
+    _j_file.seek_end(0)
+
+  // TODO This method only exists because of prototype hack laziness
+  // that does not refactor both RotatingEventLog & SimpleJournal.
+  // It is used only by RotatingEventLog.
+  be dispose_journal() =>
+    _j_file.dispose()
+    _j_file_closed = true
+
+  be set_length(path: String, len: USize, optag: USize = 0) =>
+    if _j_file_closed then
+      Fail()
+    end
+    if _encode_io_ops then
+      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
+        recover [len] end, recover [path] end)
+      let wb: Writer = wb.create()
+
+      if pdu_size > U32.max_value().usize() then
+        Fail()
+      end
+      wb.u32_be(pdu_size.u32())
+      wb.writev(consume pdu)
+      _j_file.writev(wb.done())
+    else
+      Fail()
+    end
+
+  be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+    if _j_file_closed then
+      Fail()
+    end
+    let write_res =
+      if _encode_io_ops then
+        let bytes: Array[U8] trn = recover bytes.create() end
+        let wb: Writer = wb.create()
+
+          for bseq in data.values() do
+            bytes.reserve(bseq.size())
+            match bseq
+            | let s: String =>
+              // no: bytes.concat(s.values())
+              for b in s.values() do
+                bytes.push(b)
+              end
+            | let a: Array[U8] val =>
+              // no: bytes.concat(a.values())
+              for b in a.values() do
+                bytes.push(b)
+              end
+            end
+          end
+
+        let bytes_size = bytes.size()
+        (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
+          [], [path; consume bytes])
+
+        wb.u32_be(pdu_size.u32())
+        wb.writev(consume pdu)
+        ifdef "journaldbg" then
+          @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
+        end
+        _j_file.writev(wb.done())
+      else
+        _j_file.writev(data)
+      end
+    if not write_res then
+      // We don't know how many bytes were written.  ^_^
+      // TODO So, I suppose we need to ask the OS about the file size
+      // to figure that out so that we can do <TBD> to recover.
+      try
+        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+        o.async_io_error(this, optag)
+      end
+    end
+    if optag > 0 then
+      try
+        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+        o.async_io_ok(this, optag)
+      end
+    end
+
+/**********************************************************
+|------+----------------+---------------------------------|
+| Size | Type           | Description                     |
+|------+----------------+---------------------------------|
+|    1 | U8             | Protocol version = 0            |
+|    1 | U8             | Op type                         |
+|    1 | U8             | Number of int args              |
+|    1 | U8             | Number of string/byte args      |
+|    8 | USize          | Op tag                          |
+|    8 | USize          | 1st int arg                     |
+|    8 | USize          | nth int arg                     |
+|    8 | USize          | Size of 1st string/byte arg     |
+|    8 | USize          | Size of nth string/byte arg     |
+|    X | String/ByteSeq | Contents of 1st string/byte arg |
+|    X | String/ByteSeq | Contents of nth string/byte arg |
+ **********************************************************/
+
+primitive _SJ
+  fun set_length(): U8 => 0
+  fun writev(): U8 => 1
+
+  fun encode_request(optag: USize, op: U8,
+    ints: Array[USize], bss: Array[ByteSeq]):
+    (Array[ByteSeq] iso^, USize)
+  =>
+    let wb: Writer = wb.create()
+
+    wb.u8(0)
+    wb.u8(op)
+    wb.u8(ints.size().u8())
+    wb.u8(bss.size().u8())
+    wb.u64_be(optag.u64())
+    for i in ints.values() do
+      wb.i64_be(i.i64())
+    end
+    for bs in bss.values() do
+      wb.i64_be(bs.size().i64())
+    end
+    for bs in bss.values() do
+      wb.write(bs)
+    end
+    let size = wb.size()
+    (wb.done(), size)
+
+
+

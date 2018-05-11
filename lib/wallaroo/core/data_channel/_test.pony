@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+use "files"
 use "ponytest"
 use "wallaroo/core/boundary"
 use "wallaroo/ent/data_receiver"
@@ -74,13 +75,14 @@ class _TestDataChannel is DataChannelListenNotify
 
     try
       let auth = h.env.root as AmbientAuth
-      let event_log = EventLog()
+      let the_journal = SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?)
+      let event_log = EventLog(the_journal, auth)
       let conns = Connections("app_name", "worker_name", auth,
         "127.0.0.1", "0",
         "127.0.0.1", "0",
         _NullMetricsSink, "127.0.0.1", "0",
         true, "/tmp/foo_connections.txt", false
-        where event_log = event_log)
+        where event_log = event_log, the_journal = the_journal)
       let dr = DataReceivers(auth, conns, "worker_name")
       let rr = RouterRegistry(auth, "worker_name", dr, conns,
         _DummyRecoveryFileCleaner, 1, false)
