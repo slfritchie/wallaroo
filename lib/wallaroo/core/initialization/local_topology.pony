@@ -610,7 +610,6 @@ actor LocalTopologyInitializer is LayoutInitializer
         @printf[I32](("Saving worker names to file: " + _worker_names_file +
           "\n").cstring())
         let worker_names_filepath = FilePath(_auth, _worker_names_file)?
-        @printf[I32]("delete me %d\n".cstring(), _the_journal)
         let file = AsyncJournalledFile(worker_names_filepath, _the_journal)
         // Clear file
         file.set_length(0)

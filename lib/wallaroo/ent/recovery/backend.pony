@@ -463,8 +463,8 @@ class AsyncJournalledFile
     _file.seek_start(offset)
     _offset = _file.position()
 
-  fun ref set_length(len: USize): Bool val =>
-    // TODO journal!
+  fun ref set_length(len: USize, optag: USize = 0): Bool val =>
+    _journal.set_length(_filepath.path, len, optag)
     ifdef "journaldbg" then
       @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _filepath.path.cstring(), len)
     end
@@ -490,16 +490,72 @@ class AsyncJournalledFile
     ret
 
 actor SimpleJournal
-  let _fp_dir: FilePath
-  var _fp_j: (FilePath | None) = None
-  var _f_j: (File | None) = None
+  var _j_filepath: FilePath
+  var _j_file: File
 
-  new create(fp_dir: FilePath) =>
-    _fp_dir = fp_dir
+  new create(j_filepath: FilePath) =>
+    _j_filepath = j_filepath
+    @printf[I32]("### SimpleJournal create at %s\n".cstring(), _j_filepath.path.cstring())
+    _j_file = File(_j_filepath)
+    _j_file.seek_end(0)
 
-    try
-      _fp_j = FilePath(_fp_dir, "./journal.bin")?
-      _f_j = File(_fp_j as FilePath)
-    else
+  be set_length(path: String, len: USize, optag: USize = 0) =>
+    @printf[I32]("### SimpleJournal: set_length %s len %d optag %d\n".cstring(), path.cstring(), len, optag)
+    (let pdu, let pdu_size) = _encode_request(optag, _SJ.set_length(),
+      recover [len] end, recover [path] end)
+    let wb: Writer = wb.create()
+
+    if pdu_size > U32.max_value().usize() then
       Fail()
     end
+    wb.u32_be(pdu_size.u32())
+    wb.writev(consume pdu)
+    _j_file.writev(wb.done())
+
+/**********************************************************
+|------+----------------+---------------------------------|
+| Size | Type           | Description                     |
+|------+----------------+---------------------------------|
+|    1 | U8             | Protocol version = 0            |
+|    1 | U8             | Op type                         |
+|    1 | U8             | Number of int args              |
+|    1 | U8             | Number of string/byte args      |
+|    8 | USize          | Op tag                          |
+|    8 | USize          | 1st int arg                     |
+|    8 | USize          | nth int arg                     |
+|    8 | USize          | Size of 1st string/byte arg     |
+|    8 | USize          | Size of nth string/byte arg     |
+|    X | String/ByteSeq | Contents of 1st string/byte arg |
+|    X | String/ByteSeq | Contents of nth string/byte arg |
+ **********************************************************/
+
+  fun ref _encode_request(optag: USize, op: U8,
+    ints: Array[USize], bss: Array[ByteSeq]):
+    (Array[ByteSeq] iso^, USize)
+  =>
+    let wb: Writer = wb.create()
+
+    wb.u8(0)
+    wb.u8(op)
+    wb.u8(ints.size().u8())
+    wb.u8(bss.size().u8())
+    wb.u64_be(optag.u64())
+    for i in ints.values() do
+      wb.i64_be(i.i64())
+    end
+    for bs in bss.values() do
+      wb.write(bs)
+/**      match bs
+      | bs_string: String =>
+        wb.write(bs)
+      | bs_a: Array[U8] =>
+        wb.write(bs_a)
+      end **/
+    end
+    let size = wb.size()
+    (wb.done(), size)
+
+primitive _SJ
+  fun set_length(): U8 => 0
+
+
