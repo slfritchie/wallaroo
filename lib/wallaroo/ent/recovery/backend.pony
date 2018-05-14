@@ -435,14 +435,12 @@ class AsyncJournalledFile
     end
     f_offset
 
-  fun ref print(data: (String box | Array[U8 val] box)): Bool val =>
+  fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
     ifdef "journaldbg" then
       @printf[I32]("### Journal: print %s {data}\n".cstring(), _filepath.path.cstring())
     end
-    // TODO journal!
-    let ret = _file.print(data)
-    _offset = _file.position()
-    ret
+    _journal.writev(_filepath.path, [data; "\n"])
+    _file.writev([data; "\n"])
 
   fun ref read(len: USize): Array[U8 val] iso^ =>
     _file.read(len)
@@ -464,10 +462,10 @@ class AsyncJournalledFile
     _offset = _file.position()
 
   fun ref set_length(len: USize, optag: USize = 0): Bool val =>
-    _journal.set_length(_filepath.path, len, optag)
     ifdef "journaldbg" then
       @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _filepath.path.cstring(), len)
     end
+    _journal.set_length(_filepath.path, len, optag)
     _file.set_length(len)
 
   fun ref size(): USize val =>
@@ -480,11 +478,11 @@ class AsyncJournalledFile
     end
     _file.sync()
 
-  fun ref writev(data: ByteSeqIter box): Bool val =>
+  fun ref writev(data: ByteSeqIter val): Bool val =>
     ifdef "journaldbg" then
       @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
     end
-    // TODO journal!
+    _journal.writev(_filepath.path, data)
     let ret = _file.writev(data)
     _offset = _file.position()
     ret
@@ -495,13 +493,13 @@ actor SimpleJournal
 
   new create(j_filepath: FilePath) =>
     _j_filepath = j_filepath
-    @printf[I32]("### SimpleJournal create at %s\n".cstring(), _j_filepath.path.cstring())
+
     _j_file = File(_j_filepath)
+    // A newly created file has offset @ start of file, we want the end of file
     _j_file.seek_end(0)
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
-    @printf[I32]("### SimpleJournal: set_length %s len %d optag %d\n".cstring(), path.cstring(), len, optag)
-    (let pdu, let pdu_size) = _encode_request(optag, _SJ.set_length(),
+    (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
       recover [len] end, recover [path] end)
     let wb: Writer = wb.create()
 
@@ -511,6 +509,36 @@ actor SimpleJournal
     wb.u32_be(pdu_size.u32())
     wb.writev(consume pdu)
     _j_file.writev(wb.done())
+
+  be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+    let bytes: Array[U8] trn = recover bytes.create() end
+    let wb: Writer = wb.create()
+
+      for bseq in data.values() do
+        bytes.reserve(bseq.size())
+        match bseq
+        | let s: String =>
+          // no: bytes.concat(s.values())
+          for b in s.values() do
+            bytes.push(b)
+          end
+        | let a: Array[U8] val =>
+          // no: bytes.concat(a.values())
+          for b in a.values() do
+            bytes.push(b)
+          end
+        end
+      end
+
+    let bytes_size = bytes.size()
+    (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
+      [], [path; consume bytes])
+
+    wb.u32_be(pdu_size.u32())
+    wb.writev(consume pdu)
+    _j_file.writev(wb.done())
+    @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
+
 
 /**********************************************************
 |------+----------------+---------------------------------|
@@ -529,7 +557,11 @@ actor SimpleJournal
 |    X | String/ByteSeq | Contents of nth string/byte arg |
  **********************************************************/
 
-  fun ref _encode_request(optag: USize, op: U8,
+primitive _SJ
+  fun set_length(): U8 => 0
+  fun writev(): U8 => 1
+
+  fun encode_request(optag: USize, op: U8,
     ints: Array[USize], bss: Array[ByteSeq]):
     (Array[ByteSeq] iso^, USize)
   =>
@@ -544,18 +576,13 @@ actor SimpleJournal
       wb.i64_be(i.i64())
     end
     for bs in bss.values() do
+      wb.i64_be(bs.size().i64())
+    end
+    for bs in bss.values() do
       wb.write(bs)
-/**      match bs
-      | bs_string: String =>
-        wb.write(bs)
-      | bs_a: Array[U8] =>
-        wb.write(bs_a)
-      end **/
     end
     let size = wb.size()
     (wb.done(), size)
 
-primitive _SJ
-  fun set_length(): U8 => 0
 
 
