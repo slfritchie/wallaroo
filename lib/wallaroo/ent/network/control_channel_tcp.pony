@@ -88,7 +88,7 @@ class ControlChannelListenNotifier is TCPListenNotify
         _service, _auth)?
       _connections.send_control_to_cluster(message)
 
-      let f = AsyncJournalledFile(_recovery_file, _the_journal)
+      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth)
       f.print(_host)
       f.print(_service)
       f.sync()

@@ -585,7 +585,7 @@ actor LocalTopologyInitializer is LayoutInitializer
         @printf[I32](("Saving worker names to file: " + _worker_names_file +
           "\n").cstring())
         let worker_names_filepath = FilePath(_auth, _worker_names_file)?
-        let file = AsyncJournalledFile(worker_names_filepath, _the_journal)
+        let file = AsyncJournalledFile(worker_names_filepath, _the_journal, _auth)
         // Clear file
         file.set_length(0)
         for worker_name in t.worker_names.values() do
@@ -610,7 +610,7 @@ actor LocalTopologyInitializer is LayoutInitializer
       try
         let local_topology_file = FilePath(_auth, _local_topology_file)?
         // TODO: Back up old file before clearing it?
-        let file = AsyncJournalledFile(local_topology_file, _the_journal)
+        let file = AsyncJournalledFile(local_topology_file, _the_journal, _auth)
         // Clear contents of file.
         file.set_length(0)
         let wb = Writer

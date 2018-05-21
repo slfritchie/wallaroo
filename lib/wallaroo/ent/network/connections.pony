@@ -529,7 +529,7 @@ actor Connections is Cluster
     try
       let connection_addresses_file = FilePath(_auth,
         _connection_addresses_file)?
-      let file = AsyncJournalledFile(connection_addresses_file, _the_journal)
+      let file = AsyncJournalledFile(connection_addresses_file, _the_journal, _auth)
       let wb = Writer
       let serialised_connection_addresses: Array[U8] val =
         Serialised(SerialiseAuth(_auth), addresses)?.output(

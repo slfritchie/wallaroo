@@ -54,7 +54,7 @@ class iso _TestLocalPartitionRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?))
+    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -111,7 +111,7 @@ class iso _TestOmniRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?))
+    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -182,7 +182,7 @@ class iso _TestDataRouterEqualityAfterRemove is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?))
+    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -215,7 +215,7 @@ class iso _TestDataRouterEqualityAfterAdd is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?))
+    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -302,7 +302,7 @@ primitive _ConnectionsGenerator
     let the_journal = SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?)
     Connections("", "", auth, "", "", "", "",
       _NullMetricsSink, "", "", false, "", false
-      where event_log = EventLog(the_journal), the_journal = the_journal)
+      where event_log = EventLog(the_journal, auth), the_journal = the_journal)
 
 primitive _RecoveryReplayerGenerator
   fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer ? =>

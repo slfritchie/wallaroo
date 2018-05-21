@@ -111,7 +111,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
           _connections.send_control_to_cluster(message)
         end
       end
-      let f = AsyncJournalledFile(_recovery_file, _the_journal)
+      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth)
       f.print(_host)
       f.print(_service)
       f.sync()

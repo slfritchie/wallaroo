@@ -104,7 +104,7 @@ class FileBackend is Backend
   // - payload
 
   let _file: AsyncJournalledFile iso
-  let _filepath: FilePath
+  let _file_path: String
   let _event_log: EventLog
   let _the_journal: SimpleJournal
   let _writer: Writer iso
@@ -112,12 +112,12 @@ class FileBackend is Backend
   var _bytes_written: USize = 0
 
   new create(filepath: FilePath, event_log: EventLog,
-    the_journal: SimpleJournal)
+    the_journal: SimpleJournal, auth: AmbientAuth)
   =>
     _writer = recover iso Writer end
-    _filepath = filepath
-    _replay_log_exists = _filepath.exists()
-    _file = recover iso AsyncJournalledFile(filepath, the_journal) end
+    _file_path = filepath.path
+    _replay_log_exists = filepath.exists()
+    _file = recover iso AsyncJournalledFile(filepath, the_journal, auth, false) end
     _event_log = event_log
     _the_journal = the_journal
 
@@ -130,7 +130,7 @@ class FileBackend is Backend
   fun ref start_log_replay() =>
     if _replay_log_exists then
       @printf[I32](("RESILIENCE: Replaying from recovery log file: " +
-        _filepath.path + "\n").cstring())
+        _file_path + "\n").cstring())
 
       //replay log to EventLog
       try
@@ -305,6 +305,7 @@ class FileBackend is Backend
     match _file.errno()
     | FileOK => None
     else
+@printf[I32]("DBG sync line %d\n".cstring(), __loc.line())
       error
     end
 
@@ -327,13 +328,14 @@ class RotatingFileBackend is Backend
   let _suffix: String
   let _event_log: EventLog
   let _the_journal: SimpleJournal
+  let _auth: AmbientAuth
   let _file_length: (USize | None)
   var _offset: U64
   var _rotate_requested: Bool = false
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
     event_log: EventLog, file_length: (USize | None),
-    the_journal: SimpleJournal) ?
+    the_journal: SimpleJournal, auth: AmbientAuth) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
@@ -341,6 +343,7 @@ class RotatingFileBackend is Backend
     _file_length = file_length
     _event_log = event_log
     _the_journal = the_journal
+    _auth = auth
 
     // scan existing files matching _base_path, and identify the latest one
     // based on the hex offset
@@ -354,7 +357,9 @@ class RotatingFileBackend is Backend
     end
     let p = _base_name + "-" + HexOffset(_offset) + _suffix
     let fp = FilePath(_base_dir, p)?
-    _backend = FileBackend(fp, _event_log, the_journal)
+    let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+    let local_journal = SimpleJournal(local_journal_filepath, false)
+    _backend = FileBackend(fp, _event_log, local_journal, _auth)
 
   fun bytes_written(): USize => _backend.bytes_written()
 
@@ -392,35 +397,56 @@ class RotatingFileBackend is Backend
       // 4. open new backend with new file set to new offset.
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
-      _backend = FileBackend(fp, _event_log, _the_journal)
+      let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+      let local_journal = SimpleJournal(local_journal_filepath, false)
+      _backend = FileBackend(fp, _event_log, local_journal, _auth)
     end
     _rotate_requested = false
 
 class AsyncJournalledFile
-  let _filepath: FilePath
+  let _file_path: String
   let _file: File
   let _journal: SimpleJournal
+  let _auth: AmbientAuth
   var _offset: USize
+  let _do_local_io: Bool
 
-  new create(filepath: FilePath, journal: SimpleJournal) =>
-    _filepath = filepath
-    _file = File(_filepath)
+  new create(filepath: FilePath, journal: SimpleJournal,
+    auth: AmbientAuth, do_local_io: Bool = true)
+  =>
+    _file_path = filepath.path
+    _file = if do_local_io then
+      File(filepath)
+    else
+      try // Partial func hack
+        File(FilePath(auth, "/dev/null")?)
+      else
+        Fail()
+        File(filepath)
+      end
+    end
     _journal = journal
+    _auth = auth
     _offset = 0
+    _do_local_io = do_local_io
 
   fun ref datasync() =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: datasync %s\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: datasync %s\n".cstring(), _file_path.cstring())
     end
-    _file.datasync()
+    if _do_local_io then
+      _file.datasync()
+    end
 
   fun ref dispose() =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: dispose %s\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: dispose %s\n".cstring(), _file_path.cstring())
     end
     // Nothing (?) to do for the journal
-    _file.dispose()
+    if _do_local_io then
+      _file.dispose()
+    end
 
   fun ref errno(): (FileOK val | FileError val | FileEOF val | 
     FileBadFileNumber val | FileExists val | FilePermissionDenied val)
@@ -431,16 +457,20 @@ class AsyncJournalledFile
   fun ref position(): USize val =>
     let f_offset = _file.position()
     if f_offset != _offset then
-      Fail()
+      Fail()  // TODO this is a time bomb waiting for _do_local_io = false
     end
     f_offset
 
   fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: print %s {data}\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_filepath.path, [data; "\n"])
-    _file.writev([data; "\n"])
+    _journal.writev(_file_path, [data; "\n"])
+    if _do_local_io then
+      _file.writev([data; "\n"])
+    else
+      true // TODO journal writev success/failure
+    end
 
   fun ref read(len: USize): Array[U8 val] iso^ =>
     _file.read(len)
@@ -448,97 +478,126 @@ class AsyncJournalledFile
   fun ref seek_end(offset: USize): None =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _file_path.cstring(), offset)
     end
-    _file.seek_end(offset)
-    _offset = _file.position()
+    if _do_local_io then
+      _file.seek_end(offset)
+      _offset = _file.position()
+    end
 
   fun ref seek_start(offset: USize): None =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _file_path.cstring(), offset)
     end
-    _file.seek_start(offset)
-    _offset = _file.position()
+    if _do_local_io then
+      _file.seek_start(offset)
+      _offset = _file.position()
+    end
 
   fun ref set_length(len: USize, optag: USize = 0): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _filepath.path.cstring(), len)
+      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _file_path.cstring(), len)
     end
-    _journal.set_length(_filepath.path, len, optag)
-    _file.set_length(len)
+    _journal.set_length(_file_path, len, optag)
+    if _do_local_io then
+      _file.set_length(len)
+    else
+      true // TODO journal set_length success/failure
+    end
 
   fun ref size(): USize val =>
-    _file.size()
+    if _do_local_io then
+      _file.size()
+    else
+      Fail(); 0
+    end
 
   fun ref sync() =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: sync %s\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: sync %s\n".cstring(), _file_path.cstring())
     end
-    _file.sync()
+    if _do_local_io then
+      _file.sync()
+    end
 
   fun ref writev(data: ByteSeqIter val): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_filepath.path, data)
-    let ret = _file.writev(data)
-    _offset = _file.position()
-    ret
+    _journal.writev(_file_path, data)
+    if _do_local_io then
+      let ret = _file.writev(data)
+      _offset = _file.position()
+      ret
+    else
+      true
+    end
 
 actor SimpleJournal
-  var _j_filepath: FilePath
+  var filepath: FilePath
   var _j_file: File
+  let _encode_io_ops: Bool
 
-  new create(j_filepath: FilePath) =>
-    _j_filepath = j_filepath
+  new create(filepath': FilePath, encode_io_ops: Bool = true) =>
+    filepath = filepath'
+    _encode_io_ops = encode_io_ops
 
-    _j_file = File(_j_filepath)
+    _j_file = File(filepath)
     // A newly created file has offset @ start of file, we want the end of file
     _j_file.seek_end(0)
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
-    (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
-      recover [len] end, recover [path] end)
-    let wb: Writer = wb.create()
+    if _encode_io_ops then
+      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
+        recover [len] end, recover [path] end)
+      let wb: Writer = wb.create()
 
-    if pdu_size > U32.max_value().usize() then
+      if pdu_size > U32.max_value().usize() then
+        Fail()
+      end
+      wb.u32_be(pdu_size.u32())
+      wb.writev(consume pdu)
+      _j_file.writev(wb.done())
+    else
       Fail()
     end
-    wb.u32_be(pdu_size.u32())
-    wb.writev(consume pdu)
-    _j_file.writev(wb.done())
 
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
-    let bytes: Array[U8] trn = recover bytes.create() end
-    let wb: Writer = wb.create()
+    if _encode_io_ops then
+      let bytes: Array[U8] trn = recover bytes.create() end
+      let wb: Writer = wb.create()
 
-      for bseq in data.values() do
-        bytes.reserve(bseq.size())
-        match bseq
-        | let s: String =>
-          // no: bytes.concat(s.values())
-          for b in s.values() do
-            bytes.push(b)
-          end
-        | let a: Array[U8] val =>
-          // no: bytes.concat(a.values())
-          for b in a.values() do
-            bytes.push(b)
+        for bseq in data.values() do
+          bytes.reserve(bseq.size())
+          match bseq
+          | let s: String =>
+            // no: bytes.concat(s.values())
+            for b in s.values() do
+              bytes.push(b)
+            end
+          | let a: Array[U8] val =>
+            // no: bytes.concat(a.values())
+            for b in a.values() do
+              bytes.push(b)
+            end
           end
         end
+
+      let bytes_size = bytes.size()
+      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
+        [], [path; consume bytes])
+
+      wb.u32_be(pdu_size.u32())
+      wb.writev(consume pdu)
+      _j_file.writev(wb.done())
+      ifdef "journaldbg" then
+        @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
       end
-
-    let bytes_size = bytes.size()
-    (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
-      [], [path; consume bytes])
-
-    wb.u32_be(pdu_size.u32())
-    wb.writev(consume pdu)
-    _j_file.writev(wb.done())
-    @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
-
+    else
+      _j_file.writev(data)
+    end
 
 /**********************************************************
 |------+----------------+---------------------------------|

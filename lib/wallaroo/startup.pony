@@ -288,21 +288,21 @@ actor Startup
 
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
-          EventLog(_the_journal as SimpleJournal,
+          EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
             suffix' = _event_log_file_suffix, log_rotation' = true))
         else
-          EventLog(_the_journal as SimpleJournal,
+          EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
               _startup_options.event_log_file_length))
         end
       else
-        EventLog(_the_journal as SimpleJournal)
+        EventLog(_the_journal as SimpleJournal, auth)
       end
       let event_log = _event_log as EventLog
 
@@ -451,21 +451,21 @@ actor Startup
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
-          EventLog(_the_journal as SimpleJournal,
+          EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
             suffix' = _event_log_file_suffix, log_rotation' = true))
         else
-          EventLog(_the_journal as SimpleJournal,
+          EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
               _startup_options.event_log_file_length))
         end
       else
-        EventLog(_the_journal as SimpleJournal)
+        EventLog(_the_journal as SimpleJournal, auth)
       end
       let event_log = _event_log as EventLog
 
@@ -597,7 +597,8 @@ actor Startup
   fun ref _set_recovery_file_names(auth: AmbientAuth) =>
     try
       _event_log_dir_filepath = FilePath(auth, _startup_options.resilience_dir)?
-      _the_journal_filepath = FilePath(auth, "/tmp/the-journal.bin")?
+      _the_journal_filepath = FilePath(auth,
+        _startup_options.resilience_dir + "/the-journal.bin")?
     else
       Fail()
     end
