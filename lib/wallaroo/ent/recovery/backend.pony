@@ -117,7 +117,7 @@ class FileBackend is Backend
     _writer = recover iso Writer end
     _file_path = filepath.path
     _replay_log_exists = filepath.exists()
-    _file = recover iso AsyncJournalledFile(filepath, the_journal, auth, false) end
+    _file = recover iso AsyncJournalledFile(filepath, the_journal, auth) end
     _event_log = event_log
     _the_journal = the_journal
 
@@ -412,7 +412,7 @@ class AsyncJournalledFile
   let _do_local_io: Bool
 
   new create(filepath: FilePath, journal: SimpleJournal,
-    auth: AmbientAuth, do_local_io: Bool = true)
+    auth: AmbientAuth, do_local_io: Bool = false)
   =>
     _file_path = filepath.path
     _file = if do_local_io then
