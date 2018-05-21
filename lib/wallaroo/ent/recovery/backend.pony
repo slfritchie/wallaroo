@@ -123,9 +123,17 @@ class FileBackend is Backend
 
   fun ref dispose() =>
     _file.dispose()
+    // This journal prototype uses a single SimpleJournal per EventLog
+    // log file ... which is a hack to avoid re-writing a large amount
+    // of EventLog.  The append-only log file rotation ought to be
+    // something that SimpleJournal takes full responsibility for.
+    _the_journal.dispose_journal()
 
   fun bytes_written(): USize =>
     _bytes_written
+
+  fun get_path(): String =>
+    _file_path
 
   fun ref start_log_replay() =>
     if _replay_log_exists then
@@ -387,6 +395,12 @@ class RotatingFileBackend is Backend
   fun ref rotate_file() ? =>
     // only do this if current backend has actually written anything
     if _backend.bytes_written() > 0 then
+      // TODO This is a placeholder for recording that we're rotating
+      // an EventLog backend file, which is a prototype quick hack for
+      // keeping such state within an SimpleJournal collection thingie.
+      let rotation_history = AsyncJournalledFile(FilePath(_auth, "TODO-EventLog-rotation-history.txt")?, _the_journal, _auth)
+      rotation_history.print("START of rotation: finished writing to " + _backend.get_path())
+
       // 1. sync/datasync the current backend to ensure everything is written
       _backend.sync()?
       _backend.datasync()?
@@ -400,6 +414,11 @@ class RotatingFileBackend is Backend
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
       let local_journal = SimpleJournal(local_journal_filepath, false)
       _backend = FileBackend(fp, _event_log, local_journal, _auth)
+
+      // TODO Part two of the log rotation hack.  Sync
+      rotation_history.print("END of rotation: starting writing to " + _backend.get_path())
+      rotation_history.sync() // TODO we want synchronous response
+      rotation_history.dispose()
     end
     _rotate_requested = false
 
@@ -538,6 +557,7 @@ class AsyncJournalledFile
 actor SimpleJournal
   var filepath: FilePath
   var _j_file: File
+  var _j_file_closed: Bool
   let _encode_io_ops: Bool
 
   new create(filepath': FilePath, encode_io_ops: Bool = true) =>
@@ -545,10 +565,21 @@ actor SimpleJournal
     _encode_io_ops = encode_io_ops
 
     _j_file = File(filepath)
+    _j_file_closed = false
     // A newly created file has offset @ start of file, we want the end of file
     _j_file.seek_end(0)
 
+  // TODO This method only exists because of prototype hack laziness
+  // that does not refactor both RotatingEventLog & SimpleJournal.
+  // It is used only by RotatingEventLog.
+  be dispose_journal() =>
+    _j_file.dispose()
+    _j_file_closed = true
+
   be set_length(path: String, len: USize, optag: USize = 0) =>
+    if _j_file_closed then
+      Fail()
+    end
     if _encode_io_ops then
       (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
         recover [len] end, recover [path] end)
@@ -565,6 +596,9 @@ actor SimpleJournal
     end
 
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+    if _j_file_closed then
+      Fail()
+    end
     if _encode_io_ops then
       let bytes: Array[U8] trn = recover bytes.create() end
       let wb: Writer = wb.create()
