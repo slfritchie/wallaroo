@@ -59,6 +59,7 @@ actor Connections is Cluster
   let _spike_config: (SpikeConfig | None)
   let _event_log: EventLog
   let _the_journal: SimpleJournal
+  let _do_local_file_io: Bool
   let _log_rotation: Bool
 
   new create(app_name: String, worker_name: String,
@@ -68,7 +69,7 @@ actor Connections is Cluster
     is_initializer: Bool, connection_addresses_file: String,
     is_joining: Bool, spike_config: (SpikeConfig | None) = None,
     event_log: EventLog, the_journal: SimpleJournal,
-    log_rotation: Bool = false,
+    do_local_file_io: Bool = true, log_rotation: Bool = false,
     recovery_file_cleaner: (RecoveryFileCleaner | None) = None)
   =>
     _app_name = app_name
@@ -85,6 +86,7 @@ actor Connections is Cluster
     _spike_config = spike_config
     _event_log = event_log
     _the_journal = the_journal
+    _do_local_file_io = do_local_file_io
     _log_rotation = log_rotation
 
     if _is_initializer then
@@ -174,7 +176,7 @@ actor Connections is Cluster
         _is_initializer,
         MetricsReporter(_app_name, _worker_name, _metrics_conn),
         data_channel_file, layout_initializer, data_receivers,
-        recovery_replayer, router_registry, _the_journal)
+        recovery_replayer, router_registry, _the_journal, _do_local_file_io)
     // TODO: we need to get the init and max sizes from OS max
     // buffer size
     let dch_listener = DataChannelListener(_auth, consume data_notifier,
@@ -529,7 +531,7 @@ actor Connections is Cluster
     try
       let connection_addresses_file = FilePath(_auth,
         _connection_addresses_file)?
-      let file = AsyncJournalledFile(connection_addresses_file, _the_journal, _auth)
+      let file = AsyncJournalledFile(connection_addresses_file, _the_journal, _auth, _do_local_file_io)
       let wb = Writer
       let serialised_connection_addresses: Array[U8] val =
         Serialised(SerialiseAuth(_auth), addresses)?.output(

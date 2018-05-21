@@ -33,13 +33,15 @@ class val EventLogConfig
   let backend_file_length: (USize | None)
   let log_rotation: Bool
   let suffix: String
+  let log_local_file_io: Bool
 
   new val create(log_dir': (FilePath | AmbientAuth | None) = None,
     filename': (String val | None) = None,
     logging_batch_size': USize = 10,
     backend_file_length': (USize | None) = None,
     log_rotation': Bool = false,
-    suffix': String = ".evlog")
+    suffix': String = ".evlog",
+    log_local_file_io': Bool = true)
   =>
     filename = filename'
     log_dir = log_dir'
@@ -47,6 +49,7 @@ class val EventLogConfig
     backend_file_length = backend_file_length'
     log_rotation = log_rotation'
     suffix = suffix'
+    log_local_file_io = log_local_file_io'
 
 actor EventLog
   let _producers: Map[U128, Resilient] = _producers.create()
@@ -78,7 +81,8 @@ actor EventLog
             match _config.log_dir
             | let ld: FilePath =>
               RotatingFileBackend(ld, f, _config.suffix, this,
-                _config.backend_file_length, _the_journal, _auth)?
+                _config.backend_file_length, _the_journal, _auth,
+                _config.log_local_file_io)?
             else
               Fail()
               DummyBackend(this)
@@ -86,9 +90,11 @@ actor EventLog
           else
             match _config.log_dir
             | let ld: FilePath =>
-              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth)
+              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth,
+                _config.log_local_file_io)
             | let ld: AmbientAuth =>
-              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth)
+              FileBackend(FilePath(ld, f)?, this, _the_journal, _auth,
+                _config.log_local_file_io)
             else
               Fail()
               DummyBackend(this)

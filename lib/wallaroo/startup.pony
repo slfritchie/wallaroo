@@ -341,7 +341,8 @@ actor Startup
           _env, auth, connections, router_registry, metrics_conn,
           _startup_options.is_initializer, data_receivers, event_log, recovery,
           recovery_replayer, _local_topology_file, _data_channel_file,
-          _worker_names_file, _the_journal as SimpleJournal)
+          _worker_names_file, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io)
 
       if (_external_host != "") or (_external_service != "") then
         let external_channel_notifier =
@@ -379,7 +380,7 @@ actor Startup
           recovery_replayer, router_registry,
           control_channel_filepath, _startup_options.my_d_host,
           _startup_options.my_d_service, event_log, this,
-          _the_journal as SimpleJournal)
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io)
 
       // We need to recover connections before creating our control
       // channel listener, since it's at that point that we notify
@@ -505,7 +506,8 @@ actor Startup
           _startup_options.is_initializer, data_receivers,
           event_log, recovery, recovery_replayer,
           _local_topology_file, _data_channel_file, _worker_names_file,
-          _the_journal as SimpleJournal where is_joining = true)
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io
+          where is_joining = true)
 
       if (_external_host != "") or (_external_service != "") then
         let external_channel_notifier =
@@ -551,7 +553,8 @@ actor Startup
           _cluster_initializer, local_topology_initializer, recovery,
           recovery_replayer, router_registry, control_channel_filepath,
           _startup_options.my_d_host, _startup_options.my_d_service,
-          event_log, this, _the_journal as SimpleJournal)
+          event_log, this, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io)
 
       connections.make_and_register_recoverable_listener(
         auth, consume control_notifier, control_channel_filepath,

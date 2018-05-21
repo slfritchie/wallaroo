@@ -44,6 +44,7 @@ class ControlChannelListenNotifier is TCPListenNotify
   let _event_log: EventLog
   let _recovery_file_cleaner: RecoveryFileCleaner
   let _the_journal: SimpleJournal
+  let _do_local_file_io: Bool
 
   new iso create(name: String, auth: AmbientAuth,
     connections: Connections, is_initializer: Bool,
@@ -52,7 +53,7 @@ class ControlChannelListenNotifier is TCPListenNotify
     recovery_replayer: RecoveryReplayer, router_registry: RouterRegistry,
     recovery_file: FilePath, data_host: String, data_service: String,
     event_log: EventLog, recovery_file_cleaner: RecoveryFileCleaner,
-    the_journal: SimpleJournal)
+    the_journal: SimpleJournal, do_local_file_io: Bool)
   =>
     _auth = auth
     _name = name
@@ -69,6 +70,7 @@ class ControlChannelListenNotifier is TCPListenNotify
     _event_log = event_log
     _recovery_file_cleaner = recovery_file_cleaner
     _the_journal = the_journal
+    _do_local_file_io = do_local_file_io
 
   fun ref listening(listen: TCPListener ref) =>
     try
@@ -88,7 +90,8 @@ class ControlChannelListenNotifier is TCPListenNotify
         _service, _auth)?
       _connections.send_control_to_cluster(message)
 
-      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth)
+      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth,
+        _do_local_file_io)
       f.print(_host)
       f.print(_service)
       f.sync()

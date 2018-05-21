@@ -110,16 +110,20 @@ class FileBackend is Backend
   let _writer: Writer iso
   var _replay_log_exists: Bool
   var _bytes_written: USize = 0
+  var _do_local_file_io: Bool = true
 
   new create(filepath: FilePath, event_log: EventLog,
-    the_journal: SimpleJournal, auth: AmbientAuth)
+    the_journal: SimpleJournal, auth: AmbientAuth,
+    do_local_file_io: Bool)
   =>
     _writer = recover iso Writer end
     _file_path = filepath.path
     _replay_log_exists = filepath.exists()
-    _file = recover iso AsyncJournalledFile(filepath, the_journal, auth) end
+    _file = recover iso
+      AsyncJournalledFile(filepath, the_journal, auth, do_local_file_io) end
     _event_log = event_log
     _the_journal = the_journal
+    _do_local_file_io = do_local_file_io
 
   fun ref dispose() =>
     _file.dispose()
@@ -337,13 +341,14 @@ class RotatingFileBackend is Backend
   let _event_log: EventLog
   let _the_journal: SimpleJournal
   let _auth: AmbientAuth
+  let _do_local_file_io: Bool
   let _file_length: (USize | None)
   var _offset: U64
   var _rotate_requested: Bool = false
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
     event_log: EventLog, file_length: (USize | None),
-    the_journal: SimpleJournal, auth: AmbientAuth) ?
+    the_journal: SimpleJournal, auth: AmbientAuth, do_local_file_io: Bool) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
@@ -352,6 +357,7 @@ class RotatingFileBackend is Backend
     _event_log = event_log
     _the_journal = the_journal
     _auth = auth
+    _do_local_file_io = do_local_file_io
 
     // scan existing files matching _base_path, and identify the latest one
     // based on the hex offset
@@ -367,7 +373,7 @@ class RotatingFileBackend is Backend
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
     let local_journal = SimpleJournal(local_journal_filepath, false)
-    _backend = FileBackend(fp, _event_log, local_journal, _auth)
+    _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
 
@@ -398,7 +404,8 @@ class RotatingFileBackend is Backend
       // TODO This is a placeholder for recording that we're rotating
       // an EventLog backend file, which is a prototype quick hack for
       // keeping such state within an SimpleJournal collection thingie.
-      let rotation_history = AsyncJournalledFile(FilePath(_auth, "TODO-EventLog-rotation-history.txt")?, _the_journal, _auth)
+      let rotation_history = AsyncJournalledFile(FilePath(_auth, "TODO-EventLog-rotation-history.txt")?, _the_journal, _auth,
+        _do_local_file_io)
       rotation_history.print("START of rotation: finished writing to " + _backend.get_path())
 
       // 1. sync/datasync the current backend to ensure everything is written
@@ -413,7 +420,7 @@ class RotatingFileBackend is Backend
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
       let local_journal = SimpleJournal(local_journal_filepath, false)
-      _backend = FileBackend(fp, _event_log, local_journal, _auth)
+      _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync
       rotation_history.print("END of rotation: starting writing to " + _backend.get_path())
@@ -428,13 +435,13 @@ class AsyncJournalledFile
   let _journal: SimpleJournal
   let _auth: AmbientAuth
   var _offset: USize
-  let _do_local_io: Bool
+  let _do_local_file_io: Bool
 
   new create(filepath: FilePath, journal: SimpleJournal,
-    auth: AmbientAuth, do_local_io: Bool = false)
+    auth: AmbientAuth, do_local_file_io: Bool)
   =>
     _file_path = filepath.path
-    _file = if do_local_io then
+    _file = if do_local_file_io then
       File(filepath)
     else
       try // Partial func hack
@@ -447,14 +454,14 @@ class AsyncJournalledFile
     _journal = journal
     _auth = auth
     _offset = 0
-    _do_local_io = do_local_io
+    _do_local_file_io = do_local_file_io
 
   fun ref datasync() =>
     // TODO journal!
     ifdef "journaldbg" then
       @printf[I32]("### Journal: datasync %s\n".cstring(), _file_path.cstring())
     end
-    if _do_local_io then
+    if _do_local_file_io then
       _file.datasync()
     end
 
@@ -463,7 +470,7 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: dispose %s\n".cstring(), _file_path.cstring())
     end
     // Nothing (?) to do for the journal
-    if _do_local_io then
+    if _do_local_file_io then
       _file.dispose()
     end
 
@@ -476,7 +483,7 @@ class AsyncJournalledFile
   fun ref position(): USize val =>
     let f_offset = _file.position()
     if f_offset != _offset then
-      Fail()  // TODO this is a time bomb waiting for _do_local_io = false
+      Fail()  // TODO this is a time bomb waiting for _do_local_file_io = false
     end
     f_offset
 
@@ -485,7 +492,7 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
     end
     _journal.writev(_file_path, [data; "\n"])
-    if _do_local_io then
+    if _do_local_file_io then
       _file.writev([data; "\n"])
     else
       true // TODO journal writev success/failure
@@ -499,7 +506,7 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _file_path.cstring(), offset)
     end
-    if _do_local_io then
+    if _do_local_file_io then
       _file.seek_end(offset)
       _offset = _file.position()
     end
@@ -509,7 +516,7 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _file_path.cstring(), offset)
     end
-    if _do_local_io then
+    if _do_local_file_io then
       _file.seek_start(offset)
       _offset = _file.position()
     end
@@ -519,14 +526,14 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _file_path.cstring(), len)
     end
     _journal.set_length(_file_path, len, optag)
-    if _do_local_io then
+    if _do_local_file_io then
       _file.set_length(len)
     else
       true // TODO journal set_length success/failure
     end
 
   fun ref size(): USize val =>
-    if _do_local_io then
+    if _do_local_file_io then
       _file.size()
     else
       Fail(); 0
@@ -537,7 +544,7 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: sync %s\n".cstring(), _file_path.cstring())
     end
-    if _do_local_io then
+    if _do_local_file_io then
       _file.sync()
     end
 
@@ -546,7 +553,7 @@ class AsyncJournalledFile
       @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
     end
     _journal.writev(_file_path, data)
-    if _do_local_io then
+    if _do_local_file_io then
       let ret = _file.writev(data)
       _offset = _file.position()
       ret

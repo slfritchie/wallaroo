@@ -220,6 +220,7 @@ actor LocalTopologyInitializer is LayoutInitializer
   let _data_channel_file: String
   let _worker_names_file: String
   let _the_journal: SimpleJournal
+  let _do_local_file_io: Bool
   var _topology_initialized: Bool = false
   var _recovered_worker_names: Array[String] val =
     recover val Array[String] end
@@ -263,6 +264,7 @@ actor LocalTopologyInitializer is LayoutInitializer
     recovery_replayer: RecoveryReplayer,
     local_topology_file: String, data_channel_file: String,
     worker_names_file: String, the_journal: SimpleJournal,
+    do_local_file_io: Bool,
     cluster_manager: (ClusterManager | None) = None,
     is_joining: Bool = false)
   =>
@@ -282,6 +284,7 @@ actor LocalTopologyInitializer is LayoutInitializer
     _data_channel_file = data_channel_file
     _worker_names_file = worker_names_file
     _the_journal = the_journal
+    _do_local_file_io = do_local_file_io
     _cluster_manager = cluster_manager
     _is_joining = is_joining
     _router_registry.register_local_topology_initializer(this)
@@ -498,7 +501,7 @@ actor LocalTopologyInitializer is LayoutInitializer
             MetricsReporter(_application.name(), _worker_name,
               _metrics_conn),
             data_channel_filepath, this, _data_receivers, _recovery_replayer,
-            _router_registry, _the_journal)
+            _router_registry, _the_journal, _do_local_file_io)
 
         _connections.make_and_register_recoverable_data_channel_listener(
           _auth, consume data_notifier, _router_registry,
@@ -557,7 +560,7 @@ actor LocalTopologyInitializer is LayoutInitializer
             MetricsReporter(_application.name(), _worker_name,
               _metrics_conn),
             data_channel_filepath, this, _data_receivers, _recovery_replayer,
-            _router_registry, _the_journal)
+            _router_registry, _the_journal, _do_local_file_io)
 
         _connections.make_and_register_recoverable_data_channel_listener(
           _auth, consume data_notifier, _router_registry,
@@ -585,7 +588,7 @@ actor LocalTopologyInitializer is LayoutInitializer
         @printf[I32](("Saving worker names to file: " + _worker_names_file +
           "\n").cstring())
         let worker_names_filepath = FilePath(_auth, _worker_names_file)?
-        let file = AsyncJournalledFile(worker_names_filepath, _the_journal, _auth)
+        let file = AsyncJournalledFile(worker_names_filepath, _the_journal, _auth, _do_local_file_io)
         // Clear file
         file.set_length(0)
         for worker_name in t.worker_names.values() do
@@ -610,7 +613,8 @@ actor LocalTopologyInitializer is LayoutInitializer
       try
         let local_topology_file = FilePath(_auth, _local_topology_file)?
         // TODO: Back up old file before clearing it?
-        let file = AsyncJournalledFile(local_topology_file, _the_journal, _auth)
+        let file = AsyncJournalledFile(local_topology_file, _the_journal,
+          _auth, _do_local_file_io)
         // Clear contents of file.
         file.set_length(0)
         let wb = Writer

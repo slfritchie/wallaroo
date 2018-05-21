@@ -59,6 +59,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
   let _recovery_replayer: RecoveryReplayer
   let _router_registry: RouterRegistry
   let _the_journal: SimpleJournal
+  let _do_local_file_io: Bool
   let _joining_existing_cluster: Bool
 
   new iso create(name: String, auth: AmbientAuth,
@@ -68,6 +69,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
     layout_initializer: LayoutInitializer tag,
     data_receivers: DataReceivers, recovery_replayer: RecoveryReplayer,
     router_registry: RouterRegistry, the_journal: SimpleJournal,
+    log_local_file_io: Bool,
     joining: Bool = false)
   =>
     _name = name
@@ -81,6 +83,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
     _recovery_replayer = recovery_replayer
     _router_registry = router_registry
     _the_journal = the_journal
+    _do_local_file_io = log_local_file_io
     _joining_existing_cluster = joining
 
   fun ref listening(listen: DataChannelListener ref) =>
@@ -111,7 +114,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
           _connections.send_control_to_cluster(message)
         end
       end
-      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth)
+      let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth, _do_local_file_io)
       f.print(_host)
       f.print(_service)
       f.sync()
