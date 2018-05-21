@@ -450,6 +450,7 @@ actor Startup
         end
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
+      _the_journal = SimpleJournal(_the_journal_filepath as FilePath)
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
           EventLog(_the_journal as SimpleJournal, auth,
