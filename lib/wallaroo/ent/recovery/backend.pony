@@ -481,11 +481,7 @@ class AsyncJournalledFile
     _file.errno()
 
   fun ref position(): USize val =>
-    let f_offset = _file.position()
-    if f_offset != _offset then
-      Fail()  // TODO this is a time bomb waiting for _do_local_file_io = false
-    end
-    f_offset
+    _file.position()
 
   fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
     ifdef "journaldbg" then

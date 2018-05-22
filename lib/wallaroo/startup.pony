@@ -312,7 +312,8 @@ actor Startup
         _startup_options.d_host, _startup_options.d_service,
         metrics_conn, m_addr(0)?, m_addr(1)?, _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
-        _startup_options.spike_config, event_log, _the_journal as SimpleJournal,
+        _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
@@ -477,7 +478,8 @@ actor Startup
         metrics_conn, m.metrics_host, m.metrics_service,
         _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
-        _startup_options.spike_config, event_log, _the_journal as SimpleJournal,
+        _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
