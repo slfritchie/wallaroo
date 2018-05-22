@@ -440,6 +440,7 @@ class AsyncJournalledFile
   new create(filepath: FilePath, journal: SimpleJournal,
     auth: AmbientAuth, do_local_file_io: Bool)
   =>
+    @printf[I32]("@@@@ DBG: AsyncJournalledFile %s do_local_file_io %s\n".cstring(), filepath.path.cstring(), do_local_file_io.string().cstring())
     _file_path = filepath.path
     _file = if do_local_file_io then
       File(filepath)

@@ -293,13 +293,15 @@ actor Startup
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            suffix' = _event_log_file_suffix, log_rotation' = true))
+            suffix' = _event_log_file_suffix, log_rotation' = true,
+            do_local_file_io' = _startup_options.do_local_file_io))
         else
           EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
-              _startup_options.event_log_file_length))
+              _startup_options.event_log_file_length,
+            do_local_file_io' = _startup_options.do_local_file_io))
         end
       else
         EventLog(_the_journal as SimpleJournal, auth)
@@ -459,13 +461,15 @@ actor Startup
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            suffix' = _event_log_file_suffix, log_rotation' = true))
+            suffix' = _event_log_file_suffix, log_rotation' = true,
+            do_local_file_io' = _startup_options.do_local_file_io))
         else
           EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
-              _startup_options.event_log_file_length))
+              _startup_options.event_log_file_length,
+            do_local_file_io' = _startup_options.do_local_file_io))
         end
       else
         EventLog(_the_journal as SimpleJournal, auth)
