@@ -317,8 +317,8 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
   // identity of the failed journal isn't really helpful, is it?
 
   be async_io_ok(j: SimpleJournal, optag: USize) =>
-      @printf[I32]("EventLog: TODO async_io_ok journal %d tag %d\n".cstring(),
-      j, optag)
+      // @printf[I32]("EventLog: TODO async_io_ok journal %d tag %d\n".cstring(), j, optag)
+      None
 
   be async_io_error(j: SimpleJournal, optag: USize) =>
       @printf[I32]("EventLog: TODO async_io_error journal %d tag %d\n".cstring(),
