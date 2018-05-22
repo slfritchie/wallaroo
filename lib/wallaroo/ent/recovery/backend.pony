@@ -372,7 +372,7 @@ class RotatingFileBackend is Backend
     let p = _base_name + "-" + HexOffset(_offset) + _suffix
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = SimpleJournal(local_journal_filepath, false)
+    let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
@@ -419,7 +419,7 @@ class RotatingFileBackend is Backend
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-      let local_journal = SimpleJournal(local_journal_filepath, false)
+      let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync
@@ -436,11 +436,11 @@ class AsyncJournalledFile
   let _auth: AmbientAuth
   var _offset: USize
   let _do_local_file_io: Bool
+  var _tag: USize = 1
 
   new create(filepath: FilePath, journal: SimpleJournal,
     auth: AmbientAuth, do_local_file_io: Bool)
   =>
-    @printf[I32]("@@@@ DBG: AsyncJournalledFile %s do_local_file_io %s\n".cstring(), filepath.path.cstring(), do_local_file_io.string().cstring())
     _file_path = filepath.path
     _file = if do_local_file_io then
       File(filepath)
@@ -488,7 +488,9 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_file_path, [data; "\n"])
+    _journal.writev(_file_path, [data; "\n"], _tag)
+    _tag = _tag + 1
+
     if _do_local_file_io then
       _file.writev([data; "\n"])
     else
@@ -518,11 +520,13 @@ class AsyncJournalledFile
       _offset = _file.position()
     end
 
-  fun ref set_length(len: USize, optag: USize = 0): Bool val =>
+  fun ref set_length(len: USize): Bool val =>
     ifdef "journaldbg" then
       @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _file_path.cstring(), len)
     end
-    _journal.set_length(_file_path, len, optag)
+    _journal.set_length(_file_path, len, _tag)
+    _tag = _tag + 1
+
     if _do_local_file_io then
       _file.set_length(len)
     else
@@ -549,7 +553,9 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_file_path, data)
+    _journal.writev(_file_path, data, _tag)
+    _tag = _tag + 1
+
     if _do_local_file_io then
       let ret = _file.writev(data)
       _offset = _file.position()
@@ -558,15 +564,23 @@ class AsyncJournalledFile
       true
     end
 
+trait SimpleJournalAsyncResponseReceiver
+  be async_io_ok(j: SimpleJournal tag, optag: USize)
+  be async_io_error(j: SimpleJournal tag, optag: USize)
+
 actor SimpleJournal
   var filepath: FilePath
   var _j_file: File
   var _j_file_closed: Bool
   let _encode_io_ops: Bool
+  let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
-  new create(filepath': FilePath, encode_io_ops: Bool = true) =>
+  new create(filepath': FilePath, encode_io_ops: Bool = true,
+    owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
+  =>
     filepath = filepath'
     _encode_io_ops = encode_io_ops
+    _owner = owner
 
     _j_file = File(filepath)
     _j_file_closed = false
@@ -603,38 +617,54 @@ actor SimpleJournal
     if _j_file_closed then
       Fail()
     end
-    if _encode_io_ops then
-      let bytes: Array[U8] trn = recover bytes.create() end
-      let wb: Writer = wb.create()
+    let write_res =
+      if _encode_io_ops then
+        let bytes: Array[U8] trn = recover bytes.create() end
+        let wb: Writer = wb.create()
 
-        for bseq in data.values() do
-          bytes.reserve(bseq.size())
-          match bseq
-          | let s: String =>
-            // no: bytes.concat(s.values())
-            for b in s.values() do
-              bytes.push(b)
-            end
-          | let a: Array[U8] val =>
-            // no: bytes.concat(a.values())
-            for b in a.values() do
-              bytes.push(b)
+          for bseq in data.values() do
+            bytes.reserve(bseq.size())
+            match bseq
+            | let s: String =>
+              // no: bytes.concat(s.values())
+              for b in s.values() do
+                bytes.push(b)
+              end
+            | let a: Array[U8] val =>
+              // no: bytes.concat(a.values())
+              for b in a.values() do
+                bytes.push(b)
+              end
             end
           end
+
+        let bytes_size = bytes.size()
+        (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
+          [], [path; consume bytes])
+
+        wb.u32_be(pdu_size.u32())
+        wb.writev(consume pdu)
+        ifdef "journaldbg" then
+          @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
         end
-
-      let bytes_size = bytes.size()
-      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
-        [], [path; consume bytes])
-
-      wb.u32_be(pdu_size.u32())
-      wb.writev(consume pdu)
-      _j_file.writev(wb.done())
-      ifdef "journaldbg" then
-        @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
+        _j_file.writev(wb.done())
+      else
+        _j_file.writev(data)
       end
-    else
-      _j_file.writev(data)
+    if not write_res then
+      // We don't know how many bytes were written.  ^_^
+      // TODO So, I suppose we need to ask the OS about the file size
+      // to figure that out so that we can do <TBD> to recover.
+      try
+        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+        o.async_io_error(this, optag)
+      end
+    end
+    if optag > 0 then
+      try
+        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+        o.async_io_ok(this, optag)
+      end
     end
 
 /**********************************************************

@@ -51,7 +51,7 @@ class val EventLogConfig
     suffix = suffix'
     do_local_file_io = do_local_file_io'
 
-actor EventLog
+actor EventLog is SimpleJournalAsyncResponseReceiver
   let _producers: Map[U128, Resilient] = _producers.create()
   let _backend: Backend
   let _replay_complete_markers: Map[U64, Bool] =
@@ -312,3 +312,15 @@ actor EventLog
     else
       Fail()
     end
+
+  // Hmmmm, if we're using RotatingFileBackend, then knowing the
+  // identity of the failed journal isn't really helpful, is it?
+
+  be async_io_ok(j: SimpleJournal, optag: USize) =>
+      @printf[I32]("EventLog: TODO async_io_ok journal %d tag %d\n".cstring(),
+      j, optag)
+
+  be async_io_error(j: SimpleJournal, optag: USize) =>
+      @printf[I32]("EventLog: TODO async_io_error journal %d tag %d\n".cstring(),
+      j, optag)
+    Fail()
