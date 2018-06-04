@@ -1,4 +1,5 @@
 import SocketServer
+import os
 import socket
 import struct
 import threading
@@ -6,6 +7,7 @@ import time
 import sys
 
 base_dir = ''
+appending = {}
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -37,6 +39,10 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 (cmd,) = struct.unpack('>c', bytes[0])
                 if cmd == 'l':
                     self.do_ls()
+                elif cmd == 'g':
+                    self.do_get(bytes[1:])
+                elif cmd == 'P':
+                    self.do_streaming_put(bytes[1:])
                 else:
                     self.do_unknown(cmd)
         except Exception as e:
@@ -46,8 +52,63 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     def finish(self):
         print "YO: DOS_Server finish"
 
+    def do_get(self, filename):
+        reply = 'TODO: get "{}"\n'.format(filename)
+        try:
+            f = open(base_dir + '/' + filename, 'r')
+            st = os.fstat(f.fileno())
+            self.request.sendall(self.frame_bytes(st.st_size))
+            reply = 'TODO: fstat results = {}\n'.format(st)
+            while True:
+                bytes = f.read(32768)
+                if bytes == '':
+                    break
+                self.request.sendall(bytes)
+        except Exception as e:
+            raise e
+        finally:
+            try:
+                f.close()
+            except:
+                None
+
+    def do_streaming_put(self, filename):
+        try:
+            f = open(base_dir + '/' + filename, 'wx')
+            reply = 'ok\n'.format(filename)
+            self.request.sendall(self.frame_bytes(len(reply)))
+            self.request.sendall(reply)
+            while True:
+                bytes = self.request.recv(32768)
+                print 'DBG: do_streaming_put: got %d bytes' % len(bytes)
+                if bytes == '':
+                    break
+                # Note: when writing a real server:
+                # "Write a string to the file. There is no return value.""
+                f.write(bytes)
+        except Exception as e:
+            reply = 'ERROR: {}\n'.format(e)
+            self.request.sendall(self.frame_bytes(len(reply)))
+            self.request.sendall(reply)
+            raise e
+        finally:
+            try:
+                f.close()
+            except:
+                None
+
     def do_ls(self):
-        reply = 'TODO: implement do_ls({})\n'.format(base_dir)
+        files = []
+        reply = ''
+        for file in os.listdir(base_dir):
+            files.append(file)
+        files.sort()
+        for file in files:
+            if appending.has_key(file):
+                status = 'yes'
+            else:
+                status = 'no'
+            reply = reply + '{}\t{}\n'.format(file, status)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         print 'REPLY: {}'.format(reply)
