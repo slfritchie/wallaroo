@@ -15,11 +15,13 @@ actor Main
     @usleep[None](U32(100_000))
     dos.send_ls(p)
 
+type DOSreply is (String)
+
 actor DOSclient
   var _sock: (TCPConnection | None) = None
   let _out: OutStream
   var _connected: Bool = false
-  let _waiting_reply: Array[(Promise[Any]| None)] = _waiting_reply.create()
+  let _waiting_reply: Array[(Promise[DOSreply]| None)] = _waiting_reply.create()
 
   new create(env: Env, host: String, port: String) =>
     _out = env.out
@@ -34,7 +36,7 @@ actor DOSclient
   be disconnected() =>
     _connected = false
 
-  be send_ls(p: (Promise[Any] | None) = None) =>
+  be send_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
 
     if _connected then
@@ -51,10 +53,10 @@ actor DOSclient
       match p
       | None =>
         None
-      | let pp: Promise[Any] =>
+      | let pp: Promise[DOSreply] =>
         pp.reject()
       end
-      // try (p as Promise[Any]).reject() end
+      // try (p as Promise[DOSreply]).reject() end
     end
 
   be response(data: Array[U8] iso) =>
