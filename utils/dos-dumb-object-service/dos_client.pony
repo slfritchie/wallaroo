@@ -6,16 +6,16 @@ use "promises"
 actor Main
   new create(env: Env) =>
     let dos = DOSclient(env, "localhost", "9999")
-    let p = Promise[String]
+    let p = Promise[DOSreply]
     p.next[None](
-      {(str) => env.out.print("PROMISE: I got: " + str)},
+      {(a) => env.out.print("PROMISE: I got array of size " + a.size().string())},
       {() => env.out.print("PROMISE: BUMMER!")}
     )
 
     @usleep[None](U32(100_000))
     dos.send_ls(p)
 
-type DOSreply is (String)
+type DOSreply is (String val| Array[(String, USize, Bool)] val)
 
 actor DOSclient
   var _sock: (TCPConnection | None) = None
@@ -73,7 +73,20 @@ actor DOSclient
       match p
       | None => None
       | let pp: Promise[DOSreply] =>
-        pp(str)
+        let lines = recover val str.split("\n") end
+        let res: Array[(String, USize, Bool)] iso = recover res.create() end
+
+        for l in lines.values() do
+          let fs = l.split("\t")
+          if fs.size() == 0 then
+            break
+          end
+          let file = fs(0)?
+          let size = fs(1)?.usize()?
+          let b = if fs(2)? == "no" then false else true end
+          res.push((file, size, b))
+        end
+        pp(consume res)
       end
     else
       _out.print("DOSclient: response: should never happen")
