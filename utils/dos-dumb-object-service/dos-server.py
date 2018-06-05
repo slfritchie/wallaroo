@@ -109,7 +109,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 status = 'yes'
             else:
                 status = 'no'
-            reply = reply + '{}\t{}\n'.format(file, status)
+            stat = os.stat(base_dir + "/" + file)
+            reply = reply + '{}\t{}\t{}\n'.format(file, stat.st_size, status)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         print 'REPLY: {}'.format(reply)

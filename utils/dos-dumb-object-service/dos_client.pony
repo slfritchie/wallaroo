@@ -35,6 +35,13 @@ actor DOSclient
 
   be disconnected() =>
     _connected = false
+    for p in _waiting_reply.values() do
+      match p
+      | None => None
+      | let pp: Promise[DOSreply] =>
+        pp.reject()
+      end
+    end
 
   be send_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
@@ -56,11 +63,21 @@ actor DOSclient
       | let pp: Promise[DOSreply] =>
         pp.reject()
       end
-      // try (p as Promise[DOSreply]).reject() end
     end
 
   be response(data: Array[U8] iso) =>
-    _out.print("DOSclient GOT:" + String.from_array(consume data))
+    let str = String.from_array(consume data)
+    _out.print("DOSclient GOT:" + str)
+    try
+      let p = _waiting_reply.shift()?
+      match p
+      | None => None
+      | let pp: Promise[DOSreply] =>
+        pp(str)
+      end
+    else
+      _out.print("DOSclient: response: should never happen")
+    end
 
 class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
