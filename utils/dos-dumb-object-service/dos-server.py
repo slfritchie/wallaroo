@@ -17,9 +17,6 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     """
     """
 
-#    def __init__(self, connected_socket, host_port_tuple, instance_ThreadedTCPServer):
-#        print "YO: DOS_Server connected to %s" % str(host_port_tuple)
-
     def setup(self):
         print "YO: DOS_Server setup"
 
