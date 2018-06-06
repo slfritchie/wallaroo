@@ -8,20 +8,31 @@ actor Main
     let dos = DOSclient(env, "localhost", "9999")
     let p = Promise[DOSreply]
     p.next[None](
-      {(a) => env.out.print("PROMISE: I got array of size " + a.size().string())},
+      {(a) =>
+        env.out.print("PROMISE: I got array of size " + a.size().string())
+        try
+          for (file, size, appending) in (a as DOSreplyLS).values() do
+            env.out.print("\t" + file + "," + size.string() + "," + appending.string())
+          end
+        end
+      },
       {() => env.out.print("PROMISE: BUMMER!")}
     )
 
     @usleep[None](U32(100_000))
     dos.send_ls(p)
 
-type DOSreply is (String val| Array[(String, USize, Bool)] val)
+type DOSreplyLS is Array[(String, USize, Bool)] val
+type DOSreply is (String val| DOSreplyLS val)
+primitive DOSls
+primitive DOSnoop
+type DOSop is (DOSls | DOSnoop)
 
 actor DOSclient
   var _sock: (TCPConnection | None) = None
   let _out: OutStream
   var _connected: Bool = false
-  let _waiting_reply: Array[(Promise[DOSreply]| None)] = _waiting_reply.create()
+  let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
 
   new create(env: Env, host: String, port: String) =>
     _out = env.out
@@ -35,7 +46,7 @@ actor DOSclient
 
   be disconnected() =>
     _connected = false
-    for p in _waiting_reply.values() do
+    for (op, p) in _waiting_reply.values() do
       match p
       | None => None
       | let pp: Promise[DOSreply] =>
@@ -54,7 +65,7 @@ actor DOSclient
       request.push(1)
       request.append("l")
       try (_sock as TCPConnection).write(consume request) end
-      _waiting_reply.push(p)
+      _waiting_reply.push((DOSls, p))
     else
       _out.print("DOSclient: ERROR: not connected!  TODO")
       match p
@@ -67,26 +78,31 @@ actor DOSclient
 
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
-    _out.print("DOSclient GOT:" + str)
+    // _out.print("DOSclient GOT:" + str)
     try
-      let p = _waiting_reply.shift()?
+      (let op, let p) = _waiting_reply.shift()?
       match p
-      | None => None
+      | None =>
+        None
       | let pp: Promise[DOSreply] =>
-        let lines = recover val str.split("\n") end
-        let res: Array[(String, USize, Bool)] iso = recover res.create() end
+        match op
+        | DOSls =>
+          let lines = recover val str.split("\n") end
+          let res: Array[(String, USize, Bool)] iso = recover res.create() end
 
-        for l in lines.values() do
-          let fs = l.split("\t")
-          if fs.size() == 0 then
-            break
+          for l in lines.values() do
+            let fs = l.split("\t")
+            if fs.size() == 0 then
+              // This is the split value after the final \n of the output
+              break
+            end
+            let file = fs(0)?
+            let size = fs(1)?.usize()?
+            let b = if fs(2)? == "no" then false else true end
+            res.push((file, size, b))
           end
-          let file = fs(0)?
-          let size = fs(1)?.usize()?
-          let b = if fs(2)? == "no" then false else true end
-          res.push((file, size, b))
+          pp(consume res)
         end
-        pp(consume res)
       end
     else
       _out.print("DOSclient: response: should never happen")
