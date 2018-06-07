@@ -1,4 +1,5 @@
 
+use "collections"
 use "files"
 use "net"
 use "promises"
@@ -34,9 +35,14 @@ actor Main
       }
 
     let p1 = Promise[DOSreply]
-    p1.next[None]({(chunk: DOSreply): None => got_a_chunk.apply(chunk) },
+    // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
+    p1.next[None](
+      {(chunk: DOSreply): None => got_a_chunk.apply(chunk) },
       {() => failed_a_chunk.apply() })
     dos.do_get_chunk("bar", 0, 0, p1)
+
+    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk)
+
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -117,6 +123,21 @@ actor DOSclient
       | let pp: Promise[DOSreply] =>
         pp.reject()
       end
+    end
+
+  be get_file(filename: String, file_size: USize, chunk_size: USize,
+    p_success: {(DOSreply): None} val, p_failed: {(): None} val)
+  =>
+    for i in Range[USize](0, file_size, chunk_size) do
+      let p1 = Promise[DOSreply]
+      // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
+      p1.next[None](
+        {(chunk: DOSreply): None =>
+          @printf[I32]("PROMISE: 0x%lx: Yay, chunk at offset %d\n".cstring(), i)
+          p_success.apply(chunk)
+        },
+        {() => p_failed.apply() })
+      do_get_chunk(filename, i, chunk_size, p1)
     end
 
   be response(data: Array[U8] iso) =>
