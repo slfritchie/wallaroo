@@ -41,21 +41,12 @@ actor Main
       {() => failed_a_chunk.apply() })
     dos.do_get_chunk("bar", 0, 0, p0b)
 
-    env.out.print("*** GET #1")
     let file_notify = {(success: Bool, num_chunks: USize) =>
       @printf[I32]("PROMISE: 0x%x: entire file transfer success for %s num_chunks %d\n".cstring(),
         this, success.string().cstring(), num_chunks)
       }
     dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, file_notify)
-    env.out.print("*** GET #2")
-
-/***
-    let p2 = Promise[Bool]
-    p2.next[None](
-      {(num_chunks: USize): None => env.out.print("GET #2 complete in #chunks:" + num_chunks.string()) },
-      {() => env.out.print("GET #2 FAILED") })
-    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, p2)
- ***/
+    // dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, file_notify)
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -181,6 +172,7 @@ actor DOSclient
         file_notify(true, bools.size())
         },
       {(): None =>
+        @printf[I32]("PROMISE BIG: *******************\n\n\n".cstring())
         @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
        file_notify(false, 0)
       })
@@ -224,7 +216,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  var _qqq_crashme: USize = 77777 // 4
+  var _qqq_crashme: USize = 7
 
   new create(client: DOSclient, out: OutStream) =>
     _client = client
