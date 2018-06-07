@@ -6,8 +6,10 @@ use "promises"
 actor Main
   new create(env: Env) =>
     let dos = DOSclient(env, "localhost", "9999")
-    let p = Promise[DOSreply]
-    p.next[None](
+    @usleep[None](U32(100_000))
+
+    let p0 = Promise[DOSreply]
+    p0.next[None](
       {(a) =>
         env.out.print("PROMISE: I got array of size " + a.size().string())
         try
@@ -18,15 +20,30 @@ actor Main
       },
       {() => env.out.print("PROMISE: BUMMER!")}
     )
+    dos.do_ls(p0)
 
-    @usleep[None](U32(100_000))
-    dos.send_ls(p)
+    // got_a_chunk is {(DOSreply): None} val
+    let got_a_chunk = {(chunk: DOSreply): None =>
+        @printf[I32]("PROMISE: 0x%x: I got a chunk of size %d\n".cstring(),
+          this, chunk.size())
+        try @printf[I32](">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
+      }
+    let failed_a_chunk = {(): None =>
+         @printf[I32]("PROMISE: 0x%x: BUMMER!\n".cstring(),
+          this)
+      }
+
+    let p1 = Promise[DOSreply]
+    p1.next[None]({(chunk: DOSreply): None => got_a_chunk.apply(chunk) },
+      {() => failed_a_chunk.apply() })
+    dos.do_get_chunk("bar", 0, 0, p1)
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
+primitive DOSgetchunk
 primitive DOSls
 primitive DOSnoop
-type DOSop is (DOSls | DOSnoop)
+type DOSop is (DOSgetchunk | DOSls | DOSnoop)
 
 actor DOSclient
   var _sock: (TCPConnection | None) = None
@@ -54,11 +71,11 @@ actor DOSclient
       end
     end
 
-  be send_ls(p: (Promise[DOSreply] | None) = None) =>
+  be do_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
 
     if _connected then
-      _out.print("DOSc: send_ls")
+      _out.print("DOSc: do_ls")
       request.push(0)
       request.push(0)
       request.push(0)
@@ -66,6 +83,32 @@ actor DOSclient
       request.append("l")
       try (_sock as TCPConnection).write(consume request) end
       _waiting_reply.push((DOSls, p))
+    else
+      _out.print("DOSclient: ERROR: not connected!  TODO")
+      match p
+      | None =>
+        None
+      | let pp: Promise[DOSreply] =>
+        pp.reject()
+      end
+    end
+
+  be do_get_chunk(filename: String, offset: USize, size: USize,
+    p: (Promise[DOSreply] | None) = None)
+  =>
+    let request: String iso = recover String end
+
+    if _connected then
+      let pdu: String = "g" + filename + "\t" + offset.string() + "\t" + size.string()
+      _out.print("DOSc: do_get_chunk: " + pdu)
+
+      request.push(0)
+      request.push(0)
+      request.push(0)
+      request.push(pdu.size().u8()) // TODO: bogus if request size > 255
+      request.append(pdu)
+      try (_sock as TCPConnection).write(consume request) end
+      _waiting_reply.push((DOSgetchunk, p))
     else
       _out.print("DOSclient: ERROR: not connected!  TODO")
       match p
@@ -102,6 +145,8 @@ actor DOSclient
             res.push((file, size, b))
           end
           pp(consume res)
+        | DOSgetchunk =>
+          pp(str)
         end
       end
     else
