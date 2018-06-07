@@ -34,15 +34,28 @@ actor Main
           this)
       }
 
-    let p1 = Promise[DOSreply]
+    let p0b = Promise[DOSreply]
     // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
-    p1.next[None](
+    p0b.next[None](
       {(chunk: DOSreply): None => got_a_chunk.apply(chunk) },
       {() => failed_a_chunk.apply() })
-    dos.do_get_chunk("bar", 0, 0, p1)
+    dos.do_get_chunk("bar", 0, 0, p0b)
 
-    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk)
+    env.out.print("*** GET #1")
+    let file_notify = {(success: Bool, num_chunks: USize) =>
+      @printf[I32]("PROMISE: 0x%x: entire file transfer success for %s num_chunks %d\n".cstring(),
+        this, success.string().cstring(), num_chunks)
+      }
+    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, file_notify)
+    env.out.print("*** GET #2")
 
+/***
+    let p2 = Promise[Bool]
+    p2.next[None](
+      {(num_chunks: USize): None => env.out.print("GET #2 complete in #chunks:" + num_chunks.string()) },
+      {() => env.out.print("GET #2 FAILED") })
+    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, p2)
+ ***/
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -126,20 +139,53 @@ actor DOSclient
     end
 
   be get_file(filename: String, file_size: USize, chunk_size: USize,
-    p_success: {(DOSreply): None} val, p_failed: {(): None} val)
+    chunk_success: {(DOSreply): None} val, chunk_failed: {(): None} val,
+    file_notify: {(Bool, USize): None} val)
   =>
+    let chunk_ps: Array[Promise[Bool]] = chunk_ps.create()
+
     for i in Range[USize](0, file_size, chunk_size) do
+      let p0 = Promise[Bool]
+      // p0.next[None]({(x: Bool) => None}, {() => None})
+      p0.next[None](
+        {(x: Bool) =>
+          @printf[I32]("PROMISE: 0x%lx: Yay, p0 chunk at offset %d\n".cstring(), this, i)
+          None
+        },
+        {() =>
+          @printf[I32]("PROMISE: 0x%lx: BOO, p0 chunk at offset %d\n".cstring(), this, i)
+          None
+        })
+      chunk_ps.push(p0)
+
       let p1 = Promise[DOSreply]
       // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
       p1.next[None](
         {(chunk: DOSreply): None =>
-          @printf[I32]("PROMISE: 0x%lx: Yay, chunk at offset %d\n".cstring(), i)
-          p_success.apply(chunk)
+          @printf[I32]("PROMISE: 0x%lx: Yay, p1 chunk at offset %d\n".cstring(), this, i)
+          chunk_success.apply(chunk)
+          p0.apply(true)
         },
-        {() => p_failed.apply() })
+        {() =>
+          @printf[I32]("PROMISE: 0x%lx: BOO, p1 chunk at offset %d\n".cstring(), this, i)
+          chunk_failed.apply()
+          p0.reject()
+        })
       do_get_chunk(filename, i, chunk_size, p1)
     end
 
+    let p_all_chunks1 = Promises[Bool].join(chunk_ps.values())
+    p_all_chunks1.next[None](
+      {(bools: Array[Bool] val): None =>
+        @printf[I32]("PROMISE BIG: 0x%lx: yay\n".cstring(), this)
+        file_notify(true, bools.size())
+        },
+      {(): None =>
+        @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
+       file_notify(false, 0)
+      })
+
+  // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
     // _out.print("DOSclient GOT:" + str)
@@ -178,6 +224,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
+  var _qqq_crashme: USize = 77777 // 4
 
   new create(client: DOSclient, out: OutStream) =>
     _client = client
@@ -218,6 +265,10 @@ class DOSnotify is TCPConnectionNotify
 
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
     _out.print("SOCK: sent")
+    _qqq_crashme = _qqq_crashme - 1
+    if _qqq_crashme == 0 then
+      conn.close()
+    end
     data
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
@@ -225,6 +276,7 @@ class DOSnotify is TCPConnectionNotify
     data
 
   fun ref closed(conn: TCPConnection ref) =>
+    _out.print("SOCK: closed")
     _client.disconnected()
 
 primitive Bytes
