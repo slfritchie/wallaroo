@@ -52,18 +52,43 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     def finish(self):
         print "YO: DOS_Server finish"
 
-    def do_get(self, filename):
-        reply = 'TODO: get "{}"\n'.format(filename)
+    def do_get(self, request):
+        """
+        Input: file-name\tstarting-offset\tbytes-desired
+
+        If the bytes-desired field is 0, then send the entire file.
+
+        Output: Entire/partial file contents in a single frame.
+        """
         try:
+            (filename, offset, wanted) = request.split("\t")
+            offset = int(offset)
+            offset = max(0, offset) # negative offset -> 0
+            wanted = int(wanted)
+            print 'DBG: file %s offset %d wanted %d' % (filename, offset, wanted)
             f = open(base_dir + '/' + filename, 'r')
             st = os.fstat(f.fileno())
-            self.request.sendall(self.frame_bytes(st.st_size))
-            reply = 'TODO: fstat results = {}\n'.format(st)
+            file_size = st.st_size
+            if wanted == 0:
+                wanted = file_size
+            remaining = min(wanted, file_size - offset)
+            remaining = max(0, remaining)
+            self.request.sendall(self.frame_bytes(remaining))
+            print 'DBG: get file %s frame size %d' % (filename, remaining)
+            f.seek(offset)
+            print 'DBG: get file %s offset %d' % (filename, offset)
             while True:
-                bytes = f.read(32768)
-                if bytes == '':
+                if remaining == 0:
                     break
+                to_read = min(remaining, 32768)
+                bytes = f.read(to_read)
+                if to_read != len(bytes):
+                    print 'HEY, should never happen: wanted %d bytes but got %d' %\
+                        (to_read, len(bytes))
+                    sys.exit(66)
                 self.request.sendall(bytes)
+                print 'DBG: sent %d bytes' % len(bytes)
+                remaining -= len(bytes)
         except Exception as e:
             raise e
         finally:
@@ -99,6 +124,11 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 None
 
     def do_ls(self):
+        """
+        Output: 0 or more lines of ASCII text:
+
+        file-name\tfile-size\tstatus-currently-appending-yes-or-no\n
+        """
         files = []
         reply = ''
         for file in os.listdir(base_dir):
