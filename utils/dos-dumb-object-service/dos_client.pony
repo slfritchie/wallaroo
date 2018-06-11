@@ -19,7 +19,7 @@ actor Main
           end
         end
       },
-      {() => env.out.print("PROMISE: BUMMER!")}
+      {() => env.out.print("PROMISE: 1 BUMMER!")}
     )
     dos.do_ls(p0)
 
@@ -30,7 +30,7 @@ actor Main
         try @printf[I32](">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
       }
     let failed_a_chunk = {(): None =>
-         @printf[I32]("PROMISE: 0x%x: BUMMER!\n".cstring(),
+         @printf[I32]("PROMISE: 0x%x: 2 BUMMER!\n".cstring(),
           this)
       }
 
@@ -41,12 +41,14 @@ actor Main
       {() => failed_a_chunk.apply() })
     dos.do_get_chunk("bar", 0, 0, p0b)
 
-    let file_notify = {(success: Bool, num_chunks: USize) =>
-      @printf[I32]("PROMISE: 0x%x: entire file transfer success for %s num_chunks %d\n".cstring(),
-        this, success.string().cstring(), num_chunks)
+    let path1 = "bar"
+    let notify_get_file_complete = recover val
+      {(success: Bool, num_chunks: USize): None =>
+      @printf[I32]("PROMISE: 0x%x: entire file transfer for %s was status %s num_chunks %d\n".cstring(),
+        this, path1.cstring(), success.string().cstring(), num_chunks)
       }
-    dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, file_notify)
-    // dos.get_file("bar", 47, 10, got_a_chunk, failed_a_chunk, file_notify)
+    end
+    dos.get_file(path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -131,7 +133,7 @@ actor DOSclient
 
   be get_file(filename: String, file_size: USize, chunk_size: USize,
     chunk_success: {(DOSreply): None} val, chunk_failed: {(): None} val,
-    file_notify: {(Bool, USize): None} val)
+    notify_get_file_complete: {(Bool, USize): None} val)
   =>
     let chunk_ps: Array[Promise[Bool]] = chunk_ps.create()
 
@@ -169,12 +171,12 @@ actor DOSclient
     p_all_chunks1.next[None](
       {(bools: Array[Bool] val): None =>
         @printf[I32]("PROMISE BIG: 0x%lx: yay\n".cstring(), this)
-        file_notify(true, bools.size())
+        notify_get_file_complete(true, bools.size())
         },
       {(): None =>
         @printf[I32]("PROMISE BIG: *******************\n\n\n".cstring())
         @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
-       file_notify(false, 0)
+       notify_get_file_complete(false, 0)
       })
 
   // Used only by the DOSnotify socket thingie
