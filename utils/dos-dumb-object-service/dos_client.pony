@@ -7,7 +7,7 @@ use "promises"
 actor Main
   new create(env: Env) =>
     let dos = DOSclient(env, "localhost", "9999")
-    @usleep[None](U32(100_000))
+    @usleep[None](U32(300_000))
 
     let p0 = Promise[DOSreply]
     p0.next[None](
@@ -52,7 +52,26 @@ actor Main
       @printf[I32]("\n".cstring())
       }
     end
-    dos.do_get_file[Bool](path1, 64000, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
+    dos.do_get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
+
+    @printf[I32]("BEFORE SLEEP\n".cstring())
+    @usleep[None](U32(300_000))
+    @printf[I32]("AFTER SLEEP\n".cstring())
+    let p1 = Promise[DOSreply]
+    p1.next[None](
+      {(a) =>
+        env.out.print("PROMISE: I got array of size " + a.size().string())
+        try
+          for (file, size, appending) in (a as DOSreplyLS).values() do
+            env.out.print("\t" + file + "," + size.string() + "," + appending.string())
+          end
+        end
+      },
+      {() => env.out.print("PROMISE: 1 BUMMER!")}
+    )
+    dos.do_ls(p1)
+    @usleep[None](U32(300_000))
+    dos.dispose()
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -63,16 +82,46 @@ type DOSop is (DOSgetchunk | DOSls | DOSnoop)
 
 actor DOSclient
   let _out: OutStream
+  var _auth: (AmbientAuth | None) = None
+  let _host: String
+  let _port: String
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
+  var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
 
   new create(env: Env, host: String, port: String) =>
     _out = env.out
+    try _auth = env.root as AmbientAuth end
+    _host = host
+    _port = port
+    _reconn()
+
+  fun ref _reconn (): None =>
+    @printf[I32]("DOS: calling _reconn\n".cstring())
     try
-      _sock = TCPConnection(env.root as AmbientAuth,
-        recover DOSnotify(this, env.out) end, "localhost", "9999")
+      _sock = TCPConnection(_auth as AmbientAuth,
+        recover DOSnotify(this, _out) end, _host, _port)
     end
+
+  be dispose() =>
+    @printf[I32]("DOS: &&&&&dispose\n".cstring())
+    _do_reconnect = false
+    _dispose()
+
+  fun ref _dispose() =>
+    @printf[I32]("DOS: _dispose\n".cstring())
+    try (_sock as TCPConnection).dispose() end
+    _connected = false
+    for (op, p) in _waiting_reply.values() do
+      match p
+      | None => None
+      | let pp: Promise[DOSreply] =>
+        pp.reject()
+      end
+    end
+    _waiting_reply.clear()
+    _connected = false
 
   be connected() =>
     @printf[I32]("DOS: connected\n".cstring())
@@ -80,18 +129,10 @@ actor DOSclient
 
   be disconnected() =>
     @printf[I32]("DOS: disconnected\n".cstring())
-    _connected = false
-    for (op, p) in _waiting_reply.values() do
-      match p
-      | None => None
-      | let pp: Promise[DOSreply] =>
-        @printf[I32]("DOS: disconnected, rejecting\n".cstring())
-        pp.reject()
-      end
+    _dispose()
+    if _do_reconnect then
+      _reconn()
     end
-    _waiting_reply.clear()
-    _connected = false
-    _sock = None
 
   be do_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
@@ -103,6 +144,7 @@ actor DOSclient
       request.push(0)
       request.push(1)
       request.append("l")
+
       try (_sock as TCPConnection).write(consume request) end
       _waiting_reply.push((DOSls, p))
     else
@@ -179,7 +221,6 @@ actor DOSclient
         notify_get_file_complete(true, ts)
         },
       {(): None =>
-        @printf[I32]("PROMISE BIG: *******************\n\n\n".cstring())
         @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
         let empty_array: Array[T] val = recover empty_array.create() end
        notify_get_file_complete(false, empty_array)
