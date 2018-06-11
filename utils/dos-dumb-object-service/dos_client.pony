@@ -7,7 +7,7 @@ use "promises"
 actor Main
   new create(env: Env) =>
     let dos = DOSclient(env, "localhost", "9999")
-    @usleep[None](U32(300_000))
+    @usleep[None](U32(100_000))
 
     let p0 = Promise[DOSreply]
     p0.next[None](
@@ -67,7 +67,7 @@ actor Main
           end
         end
       },
-      {() => env.out.print("PROMISE: 1 BUMMER!")}
+      {() => env.out.print("PROMISE: 2 BUMMER!")}
     )
     dos.do_ls(p1)
     @usleep[None](U32(300_000))
@@ -110,7 +110,7 @@ actor DOSclient
     _dispose()
 
   fun ref _dispose() =>
-    @printf[I32]("DOS: _dispose\n".cstring())
+    @printf[I32]("DOS: _dispose.  NOTE: %d promises to reject\n".cstring(), _waiting_reply.size())
     try (_sock as TCPConnection).dispose() end
     _connected = false
     for (op, p) in _waiting_reply.values() do
@@ -148,11 +148,12 @@ actor DOSclient
       try (_sock as TCPConnection).write(consume request) end
       _waiting_reply.push((DOSls, p))
     else
-      _out.print("DOSclient: ERROR: not connected!  TODO")
       match p
       | None =>
+        // _out.print("DOSclient: ERROR: ls not connected, no promise!  TODO")
         None
       | let pp: Promise[DOSreply] =>
+        // _out.print("DOSclient: ERROR: ls not connected, reject!  TODO")
         pp.reject()
       end
     end
@@ -174,11 +175,12 @@ actor DOSclient
       try (_sock as TCPConnection).write(consume request) end
       _waiting_reply.push((DOSgetchunk, p))
     else
-      _out.print("DOSclient: ERROR: not connected!  TODO")
       match p
       | None =>
+        // _out.print("DOSclient: ERROR: get_chunk not connected, no promise!  TODO")
         None
       | let pp: Promise[DOSreply] =>
+        // _out.print("DOSclient: ERROR: get_chunk not connected, reject!  TODO")
         pp.reject()
       end
     end
@@ -236,36 +238,45 @@ actor DOSclient
       | None =>
         None
       | let pp: Promise[DOSreply] =>
-        match op
-        | DOSls =>
-          let lines = recover val str.split("\n") end
-          let res: Array[(String, USize, Bool)] iso = recover res.create() end
+        try
+          match op
+          | DOSls =>
+            let lines = recover val str.split("\n") end
+            let res: Array[(String, USize, Bool)] iso = recover res.create() end
 
-          for l in lines.values() do
-            let fs = l.split("\t")
-            if fs.size() == 0 then
-              // This is the split value after the final \n of the output
-              break
+            for l in lines.values() do
+              let fs = l.split("\t")
+              if fs.size() == 0 then
+                // This is the split value after the final \n of the output
+                break
+              end
+              let file = fs(0)?
+              let size = fs(1)?.usize()?
+              let b = if fs(2)? == "no" then false else true end
+              res.push((file, size, b))
             end
-            let file = fs(0)?
-            let size = fs(1)?.usize()?
-            let b = if fs(2)? == "no" then false else true end
-            res.push((file, size, b))
+            pp(consume res)
+          | DOSgetchunk =>
+            pp(str)
           end
-          pp(consume res)
-        | DOSgetchunk =>
-          pp(str)
+        else
+          // Protocol parsing error, e.g., for DOSls.
+          // Reject so client can proceed.
+          pp.reject()
         end
       end
     else
-      _out.print("DOSclient: response: should never happen")
+      // If the error is due to the socket being closed, then
+      // all promises that are still in_waiting_reply will
+      // be rejected by our disconnected() behavior.
+      None
     end
 
 class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  var _qqq_crashme: USize = 30
+  var _qqq_crashme: USize = 6
 
   new create(client: DOSclient, out: OutStream) =>
     _client = client
