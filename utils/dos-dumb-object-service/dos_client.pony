@@ -64,21 +64,15 @@ type DOSop is (DOSgetchunk | DOSls | DOSnoop)
 actor DOSclient
   let _out: OutStream
   var _sock: (TCPConnection | None) = None
-  let _reconn: {()}
   var _connected: Bool = false
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
 
   new create(env: Env, host: String, port: String) =>
     _out = env.out
-    let parent = this
-    _reconn = {() =>
-      @printf[I32]("DOS: calling _reconn\n".cstring())
-      try
-        TCPConnection(env.root as AmbientAuth,
-          recover DOSnotify(parent, env.out) end, "localhost", "9999")
-      end
-      }
-      _sock = _reconn()
+    try
+      _sock = TCPConnection(env.root as AmbientAuth,
+        recover DOSnotify(this, env.out) end, "localhost", "9999")
+    end
 
   be connected() =>
     @printf[I32]("DOS: connected\n".cstring())
@@ -97,7 +91,7 @@ actor DOSclient
     end
     _waiting_reply.clear()
     _connected = false
-    _sock = _reconn()
+    _sock = None
 
   be do_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
