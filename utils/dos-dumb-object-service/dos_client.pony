@@ -24,23 +24,20 @@ actor Main
     dos.do_ls(p0)
 
     // got_a_chunk is {(DOSreply): None} val
-    let got_a_chunk = {(chunk: DOSreply): None =>
-        @printf[I32]("PROMISE: 0x%x: I got a chunk of size %d\n".cstring(),
-          this, chunk.size())
-        try @printf[I32](">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
-      }
-    let failed_a_chunk = {(): None =>
-         @printf[I32]("PROMISE: 0x%x: 2 BUMMER!\n".cstring(),
-          this)
-      }
+    let got_a_chunk = {(chunk: DOSreply): Bool =>
+      @printf[I32]("PROMISE: 0x%x: I got a chunk of size %d\n".cstring(),
+        this, chunk.size())
+      try @printf[I32](">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
+      true
+    }
+    let failed_a_chunk = {(offset: USize): Bool =>
+      @printf[I32]("PROMISE: 0x%x: 2 BUMMER, failed chunk at offset %d!\n".cstring(), this, offset)
+      false
+    }
 
-    let p0b = Promise[DOSreply]
-    // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
-    p0b.next[None](
-      {(chunk: DOSreply): None => got_a_chunk.apply(chunk) },
-      {() => failed_a_chunk.apply() })
-    dos.do_get_chunk("bar", 0, 0, p0b)
+    dos.do_get_chunk[Bool]("bar", 0, 0, got_a_chunk, failed_a_chunk)
 
+/***
     let path1 = "bar"
     let notify_get_file_complete = recover val
       {(success: Bool, num_chunks: USize): None =>
@@ -48,7 +45,8 @@ actor Main
         this, path1.cstring(), success.string().cstring(), num_chunks)
       }
     end
-    dos.get_file(path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
+    dos.get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
+ ***/
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -105,8 +103,8 @@ actor DOSclient
       end
     end
 
-  be do_get_chunk(filename: String, offset: USize, size: USize,
-    p: (Promise[DOSreply] | None) = None)
+  be do_get_chunk[T: Any #share](filename: String, offset: USize, size: USize,
+    chunk_success: {(DOSreply): T} val, chunk_failed: {(USize): T} val)
   =>
     let request: String iso = recover String end
 
@@ -119,65 +117,44 @@ actor DOSclient
       request.push(0)
       request.push(pdu.size().u8()) // TODO: bogus if request size > 255
       request.append(pdu)
+
+      let p = Promise[DOSreply]
+      // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
+      p.next[T](
+        {(chunk: DOSreply): T => chunk_success.apply(chunk) },
+        {(): T => chunk_failed.apply(offset) })
       try (_sock as TCPConnection).write(consume request) end
       _waiting_reply.push((DOSgetchunk, p))
     else
       _out.print("DOSclient: ERROR: not connected!  TODO")
-      match p
-      | None =>
-        None
-      | let pp: Promise[DOSreply] =>
-        pp.reject()
-      end
+      chunk_failed.apply(offset)
     end
 
-  be get_file(filename: String, file_size: USize, chunk_size: USize,
-    chunk_success: {(DOSreply): None} val, chunk_failed: {(): None} val,
+/***
+  be get_file[T](filename: String, file_size: USize, chunk_size: USize,
+    chunk_success: {(DOSreply): T} val, chunk_failed: {(USize): T} val,
     notify_get_file_complete: {(Bool, USize): None} val)
   =>
-    let chunk_ps: Array[Promise[Bool]] = chunk_ps.create()
+    let chunk_ps: Array[Promise[T]] = chunk_ps.create()
 
-    for i in Range[USize](0, file_size, chunk_size) do
-      let p0 = Promise[Bool]
-      // p0.next[None]({(x: Bool) => None}, {() => None})
-      p0.next[None](
-        {(x: Bool) =>
-          @printf[I32]("PROMISE: 0x%lx: Yay, p0 chunk at offset %d\n".cstring(), this, i)
-          None
-        },
-        {() =>
-          @printf[I32]("PROMISE: 0x%lx: BOO, p0 chunk at offset %d\n".cstring(), this, i)
-          None
-        })
-      chunk_ps.push(p0)
-
-      let p1 = Promise[DOSreply]
-      // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
-      p1.next[None](
-        {(chunk: DOSreply): None =>
-          @printf[I32]("PROMISE: 0x%lx: Yay, p1 chunk at offset %d\n".cstring(), this, i)
-          chunk_success.apply(chunk)
-          p0.apply(true)
-        },
-        {() =>
-          @printf[I32]("PROMISE: 0x%lx: BOO, p1 chunk at offset %d\n".cstring(), this, i)
-          chunk_failed.apply()
-          p0.reject()
-        })
-      do_get_chunk(filename, i, chunk_size, p1)
+    for offset in Range[USize](0, file_size, chunk_size) do
+      let p = do_get_chunk[T](filename, offset, chunk_size,
+        chunk_success, chunk_failed)
+      chunk_ps.push(p)
     end
 
-    let p_all_chunks1 = Promises[Bool].join(chunk_ps.values())
+    let p_all_chunks1 = Promises[T].join(chunk_ps.values())
     p_all_chunks1.next[None](
-      {(bools: Array[Bool] val): None =>
+      {(ts: Array[T] val): None =>
         @printf[I32]("PROMISE BIG: 0x%lx: yay\n".cstring(), this)
-        notify_get_file_complete(true, bools.size())
+        notify_get_file_complete(true, ts.size())
         },
       {(): None =>
         @printf[I32]("PROMISE BIG: *******************\n\n\n".cstring())
         @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
        notify_get_file_complete(false, 0)
       })
+  ***/
 
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
