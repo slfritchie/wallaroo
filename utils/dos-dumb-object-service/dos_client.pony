@@ -37,16 +37,14 @@ actor Main
 
     dos.do_get_chunk[Bool]("bar", 0, 0, got_a_chunk, failed_a_chunk)
 
-/***
     let path1 = "bar"
     let notify_get_file_complete = recover val
-      {(success: Bool, num_chunks: USize): None =>
+      {(success: Bool, a: Array[Bool]): None =>
       @printf[I32]("PROMISE: 0x%x: entire file transfer for %s was status %s num_chunks %d\n".cstring(),
-        this, path1.cstring(), success.string().cstring(), num_chunks)
+        this, path1.cstring(), success.string().cstring(), a.size())
       }
     end
     dos.get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
- ***/
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -130,10 +128,10 @@ actor DOSclient
       chunk_failed.apply(offset)
     end
 
-/***
-  be get_file[T](filename: String, file_size: USize, chunk_size: USize,
+  be get_file[T: Any #share](filename: String, file_size: USize,
+    chunk_size: USize,
     chunk_success: {(DOSreply): T} val, chunk_failed: {(USize): T} val,
-    notify_get_file_complete: {(Bool, USize): None} val)
+    notify_get_file_complete: {(Bool, Array[T]): None} val)
   =>
     let chunk_ps: Array[Promise[T]] = chunk_ps.create()
 
@@ -147,14 +145,13 @@ actor DOSclient
     p_all_chunks1.next[None](
       {(ts: Array[T] val): None =>
         @printf[I32]("PROMISE BIG: 0x%lx: yay\n".cstring(), this)
-        notify_get_file_complete(true, ts.size())
+        notify_get_file_complete(true, ts)
         },
       {(): None =>
         @printf[I32]("PROMISE BIG: *******************\n\n\n".cstring())
         @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
-       notify_get_file_complete(false, 0)
+       notify_get_file_complete(false, Array[T].create())
       })
-  ***/
 
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
