@@ -55,6 +55,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 (cmd,) = struct.unpack('>c', bytes[0])
                 if cmd == 'a':
                     self.do_streaming_append(bytes[1:])
+                elif cmd == 'd':
+                    self.do_delete(bytes[1:])
                 elif cmd == 'g':
                     self.do_get(bytes[1:])
                 elif cmd == 'l':
@@ -194,6 +196,17 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 f.close()
             except:
                 None
+
+    def do_delete(self, filename):
+        path = base_dir + '/' + filename
+        try:
+            os.unlink(path)
+            reply = 'ok'
+        except:
+            reply = 'ERROR'
+        self.request.sendall(self.frame_bytes(len(reply)))
+        self.request.sendall(reply)
+        if debug: print 'REPLY: {}'.format(reply)
 
     def do_ls(self):
         """
