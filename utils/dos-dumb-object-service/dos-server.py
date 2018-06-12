@@ -6,8 +6,23 @@ import threading
 import time
 import sys
 
+## Class from
+## https://stackoverflow.com/questions/1312331/using-a-global-dictionary-with-threads-in-python
+
+class ThreadSafeDict(dict) :
+    def __init__(self, * p_arg, ** n_arg) :
+        dict.__init__(self, * p_arg, ** n_arg)
+        self._lock = threading.Lock()
+
+    def __enter__(self) :
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, type, value, traceback) :
+        self._lock.release()
+
 base_dir = ''
-appending = {}
+appending = ThreadSafeDict()
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -37,12 +52,12 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 if len(bytes) < length:
                     break
                 (cmd,) = struct.unpack('>c', bytes[0])
-                if cmd == 'l':
-                    self.do_ls()
+                if cmd == 'a':
+                    self.do_streaming_append(bytes[1:])
                 elif cmd == 'g':
                     self.do_get(bytes[1:])
-                elif cmd == 'P':
-                    self.do_streaming_put(bytes[1:])
+                elif cmd == 'l':
+                    self.do_ls()
                 else:
                     self.do_unknown(cmd)
         except Exception as e:
@@ -51,6 +66,54 @@ class DOS_Server(SocketServer.BaseRequestHandler):
 
     def finish(self):
         print "YO: DOS_Server finish"
+
+    def do_streaming_append(self, request):
+        am_locked = False
+        try:
+            (filename, offset) = request.split("\t")
+            offset = int(offset)
+            with appending as appending_l:
+                # Is file being appended already?
+                if appending_l.has_key(filename):
+                    raise Exception("%s file is locked" % filename)
+
+                # Open the file for append, find the EOF offset & check it
+                f = open(base_dir + '/' + filename, 'a')
+                eof_offset = f.tell()
+                if offset != eof_offset:
+                    raise Exception( \
+                        "%s file requested offset %d but eof_offset %d" % \
+                        (filename, offset, eof_offset))
+
+                # Not appending elsewhere, offset is ok; let's go
+                appending_l[filename] = True
+                am_locked = True
+
+            reply = 'ok\n'.format(filename)
+            self.request.sendall(self.frame_bytes(len(reply)))
+            self.request.sendall(reply)
+            ## DEBUG, bogus: self.request.setdefaulttimeout(1)
+            while True:
+                bytes = self.request.recv(32768)
+                print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
+                if bytes == '':
+                    break
+                # Note: when writing a real server:
+                # "Write a string to the file. There is no return value.""
+                f.write(bytes)
+        except Exception as e:
+            reply = 'ERROR: {}\n'.format(e)
+            self.request.sendall(self.frame_bytes(len(reply)))
+            self.request.sendall(reply)
+            raise e
+        finally:
+            if am_locked:
+                with appending as appending_l:
+                    del appending_l[filename]
+            try:
+                f.close()
+            except:
+                None
 
     def do_get(self, request):
         """
@@ -97,32 +160,6 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             except:
                 None
 
-    def do_streaming_put(self, filename):
-        try:
-            f = open(base_dir + '/' + filename, 'wx')
-            reply = 'ok\n'.format(filename)
-            self.request.sendall(self.frame_bytes(len(reply)))
-            self.request.sendall(reply)
-            self.request.setdefaulttimeout(1)
-            while True:
-                bytes = self.request.recv(32768)
-                print 'DBG: do_streaming_put: got %d bytes' % len(bytes)
-                if bytes == '':
-                    break
-                # Note: when writing a real server:
-                # "Write a string to the file. There is no return value.""
-                f.write(bytes)
-        except Exception as e:
-            reply = 'ERROR: {}\n'.format(e)
-            self.request.sendall(self.frame_bytes(len(reply)))
-            self.request.sendall(reply)
-            raise e
-        finally:
-            try:
-                f.close()
-            except:
-                None
-
     def do_ls(self):
         """
         Output: 0 or more lines of ASCII text:
@@ -135,10 +172,11 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             files.append(file)
         files.sort()
         for file in files:
-            if appending.has_key(file):
-                status = 'yes'
-            else:
-                status = 'no'
+            with appending as appending_l:
+                if appending_l.has_key(file):
+                    status = 'yes'
+                else:
+                    status = 'no'
             stat = os.stat(base_dir + "/" + file)
             reply = reply + '{}\t{}\t{}\n'.format(file, stat.st_size, status)
         self.request.sendall(self.frame_bytes(len(reply)))
