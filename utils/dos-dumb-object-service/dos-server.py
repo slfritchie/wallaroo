@@ -69,6 +69,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
 
     def do_streaming_append(self, request):
         am_locked = False
+        filename = ''
         try:
             (filename, offset) = request.split("\t")
             offset = int(offset)
@@ -93,27 +94,49 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
             ## DEBUG, bogus: self.request.setdefaulttimeout(1)
+            last_now = time.time()
             while True:
-                bytes = self.request.recv(32768)
+                bytes = self.request.recv(64*1024)
                 print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
                 if bytes == '':
+                    f.flush()
+                    os.fsync(f.fileno())
+                    offset = f.tell()
+                    self._send_periodic_append_status(offset, offset) # TODO
                     break
-                # Note: when writing a real server:
-                # "Write a string to the file. There is no return value.""
                 f.write(bytes)
+                now = time.time()
+                if (now - last_now) > 1:
+                    offset = f.tell()
+                    self._send_periodic_append_status(offset, offset) # TODO
+                last_now = now
         except Exception as e:
             reply = 'ERROR: {}\n'.format(e)
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
             raise e
         finally:
+            print 'DBG: do_streaming_append: finally: %s' % filename
             if am_locked:
                 with appending as appending_l:
                     del appending_l[filename]
             try:
+                ## TODO: try harder, like you're supposed to
+                f.flush()
+                os.fsync(f.fileno())
+            except:
+                None
+            try:
                 f.close()
             except:
                 None
+
+    def _send_periodic_append_status(self, offset_w, offset_s):
+        # written offset \t synced offset
+        reply = "{}\t{}".format(offset_w, offset_s)
+        print 'DBG: do_streaming_append: periodic: %s' % reply
+        self.request.sendall(self.frame_bytes(len(reply)))
+        self.request.sendall(reply)
 
     def do_get(self, request):
         """
