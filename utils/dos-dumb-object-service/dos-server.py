@@ -61,6 +61,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     self.do_get(bytes[1:])
                 elif cmd == 'l':
                     self.do_ls()
+                elif cmd == 's':
+                    self.do_streaming_append(bytes[1:] + "\t0", sync_only = True)
                 else:
                     self.do_unknown(cmd)
         except Exception as e:
@@ -71,7 +73,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     def finish(self):
         if debug: print 'YO: DOS_Server finish'
 
-    def do_streaming_append(self, request):
+    def do_streaming_append(self, request, sync_only = False):
         am_locked = False
         filename = ''
         try:
@@ -79,12 +81,25 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             offset = int(offset)
             with appending as appending_l:
                 # Is file being appended already?
-                if appending_l.has_key(filename):
+                if appending_l.has_key(filename) and not sync_only:
                     raise Exception("%s file is locked" % filename)
 
                 # Open the file for append, find the EOF offset & check it
-                f = open(base_dir + '/' + filename, 'a')
+                f = open(base_dir + '/' + filename, 'a', 0)
                 eof_offset = f.tell()
+
+                if sync_only:
+                    # Hack: open a 2nd file descriptor, fsync it it, then close.
+                    # This hack works on OS X and also (93% sure) Linux & FreeBSD.
+                    # In an alternative server implementation where the "only"
+                    # file descriptor fd for the append were easily available,
+                    # then we could try to call flush/whatever and fsync
+                    # and whatnot on that fd.
+                    if debug: print 'DBG: do_streaming_append: sync_only: %d' % eof_offset
+                    self._persist(f, sync_only)
+                    self._send_append_status(eof_offset, eof_offset) # TODO
+                    return
+
                 if offset != eof_offset:
                     raise Exception( \
                         "%s file requested offset %d but eof_offset %d" % \
@@ -105,21 +120,22 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     bytes = self.request.recv(64*1024)
                 except socket.timeout:
                     if eof_offset != self.reported_offset_w:
-                        if debug: print 'DBG: do_streaming_append: QQQ timeout: %d' % eof_offset
+                        if debug: print 'DBG: do_streaming_append: timeout: %d' % eof_offset
+                        ##TODO MAYBE## self._persist(f, sync_only)
                         self._send_append_status(eof_offset, eof_offset) # TODO
                     continue
                 if debug: print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
                 if bytes == '':
-                    f.flush()
-                    os.fsync(f.fileno())
-                    if debug: print 'DBG: do_streaming_append: QQQ socket closed: %d' % eof_offset
+                    if debug: print 'DBG: do_streaming_append: socket closed: %d' % eof_offset
+                    self._persist(f, sync_only)
                     self._send_append_status(eof_offset, eof_offset) # TODO
                     break
                 f.write(bytes)
                 eof_offset += len(bytes)
                 now = time.time()
                 if (now - last_now) > 1:
-                    if debug: print 'DBG: do_streaming_append: QQQ periodic: %d' % eof_offset
+                    if debug: print 'DBG: do_streaming_append: periodic: %d' % eof_offset
+                    ##TODO MAYBE## self._persist(f, sync_only)
                     self._send_append_status(eof_offset, eof_offset) # TODO
                     last_now = now
         except Exception as e:
@@ -129,14 +145,13 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             self.request.sendall(reply)
             raise e
         finally:
-            if debug: print 'DBG: do_streaming_append: finally: %s' % filename
+            if debug: print 'DBG: do_streaming_append: finally: %s sync_only %s' % \
+                (filename, sync_only)
             if am_locked:
                 with appending as appending_l:
                     del appending_l[filename]
             try:
-                ## TODO: try harder, like you're supposed to
-                f.flush()
-                os.fsync(f.fileno())
+                self._persist(f, sync_only)
             except:
                 None
             try:
@@ -151,6 +166,13 @@ class DOS_Server(SocketServer.BaseRequestHandler):
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         self.reported_offset_w = offset_w
+
+    def _persist(self, f, sync_only):
+        ## TODO: try harder, like you're supposed to
+        if not sync_only:
+            # In theory, f is unbuffered so flush is unnecessary.
+            f.flush()
+        os.fsync(f.fileno())
 
     def do_get(self, request):
         """
