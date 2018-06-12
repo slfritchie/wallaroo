@@ -23,6 +23,7 @@ class ThreadSafeDict(dict) :
 
 base_dir = ''
 appending = ThreadSafeDict()
+debug = True
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -33,21 +34,21 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     """
 
     def setup(self):
-        print "YO: DOS_Server setup"
+        if debug: print 'YO: DOS_Server setup'
 
     def handle(self):
-        print "YO: DOS_Server handle top"
+        if debug: print 'YO: DOS_Server handle top'
         # self.request is the TCP socket connected to the client
         try:
             while True:
                 length_bytes = self.request.recv(4, socket.MSG_WAITALL)
                 if len(length_bytes) < 4:
                     break
-                #print 'DBG: bytes %d %d %d %d' % (int(length_bytes[0]), int(length_bytes[1]), int(length_bytes[2]), int(length_bytes[3]))
+                #if debug: print 'DBG: bytes %d %d %d %d' % (int(length_bytes[0]), int(length_bytes[1]), int(length_bytes[2]), int(length_bytes[3]))
                 (c1, c2, c3, c4,) = struct.unpack('>BBBB', length_bytes)
-                print 'DBG: bytes %d %d %d %d' % (c1, c2, c3, c4)
+                if debug: print 'DBG: bytes %d %d %d %d' % (c1, c2, c3, c4)
                 (length,) = struct.unpack('>I', length_bytes)
-                print "DBG: waiting for {} bytes from {}".format(length, self.client_address)
+                if debug: print 'DBG: waiting for {} bytes from {}'.format(length, self.client_address)
                 bytes = self.request.recv(length, socket.MSG_WAITALL)
                 if len(bytes) < length:
                     break
@@ -61,12 +62,12 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 else:
                     self.do_unknown(cmd)
         except Exception as e:
-            print 'DBG: exception for {}: {}'.format(self.client_address, e)
-            print 'DBG: exception for {}: {}'.format(self.client_address, type(e))
+            if debug: print 'DBG: exception for {}: {}'.format(self.client_address, e)
+            if debug: print 'DBG: exception for {}: {}'.format(self.client_address, type(e))
             None
 
     def finish(self):
-        print "YO: DOS_Server finish"
+        if debug: print 'YO: DOS_Server finish'
 
     def do_streaming_append(self, request):
         am_locked = False
@@ -102,31 +103,31 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     bytes = self.request.recv(64*1024)
                 except socket.timeout:
                     if eof_offset != self.reported_offset_w:
-                        print 'DBG: do_streaming_append: QQQ timeout: %d' % eof_offset
+                        if debug: print 'DBG: do_streaming_append: QQQ timeout: %d' % eof_offset
                         self._send_append_status(eof_offset, eof_offset) # TODO
                     continue
-                print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
+                if debug: print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
                 if bytes == '':
                     f.flush()
                     os.fsync(f.fileno())
-                    print 'DBG: do_streaming_append: QQQ socket closed: %d' % eof_offset
+                    if debug: print 'DBG: do_streaming_append: QQQ socket closed: %d' % eof_offset
                     self._send_append_status(eof_offset, eof_offset) # TODO
                     break
                 f.write(bytes)
                 eof_offset += len(bytes)
                 now = time.time()
                 if (now - last_now) > 1:
-                    print 'DBG: do_streaming_append: QQQ periodic: %d' % eof_offset
+                    if debug: print 'DBG: do_streaming_append: QQQ periodic: %d' % eof_offset
                     self._send_append_status(eof_offset, eof_offset) # TODO
                     last_now = now
         except Exception as e:
             reply = 'ERROR: {}\n'.format(e)
-            print 'DBG: do_streaming_append: ERROR: %s' % e
+            if debug: print 'DBG: do_streaming_append: ERROR: %s' % e
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
             raise e
         finally:
-            print 'DBG: do_streaming_append: finally: %s' % filename
+            if debug: print 'DBG: do_streaming_append: finally: %s' % filename
             if am_locked:
                 with appending as appending_l:
                     del appending_l[filename]
@@ -144,7 +145,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
     def _send_append_status(self, offset_w, offset_s):
         # written offset \t synced offset
         reply = "{}\t{}".format(offset_w, offset_s)
-        print 'DBG: do_streaming_append: %s' % reply
+        if debug: print 'DBG: do_streaming_append: %s' % reply
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         self.reported_offset_w = offset_w
@@ -162,7 +163,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             offset = int(offset)
             offset = max(0, offset) # negative offset -> 0
             wanted = int(wanted)
-            print 'DBG: file %s offset %d wanted %d' % (filename, offset, wanted)
+            if debug: print 'DBG: file %s offset %d wanted %d' % (filename, offset, wanted)
             f = open(base_dir + '/' + filename, 'r')
             st = os.fstat(f.fileno())
             file_size = st.st_size
@@ -171,20 +172,20 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             remaining = min(wanted, file_size - offset)
             remaining = max(0, remaining)
             self.request.sendall(self.frame_bytes(remaining))
-            print 'DBG: get file %s frame size %d' % (filename, remaining)
+            if debug: print 'DBG: get file %s frame size %d' % (filename, remaining)
             f.seek(offset)
-            print 'DBG: get file %s offset %d' % (filename, offset)
+            if debug: print 'DBG: get file %s offset %d' % (filename, offset)
             while True:
                 if remaining == 0:
                     break
                 to_read = min(remaining, 32768)
                 bytes = f.read(to_read)
                 if to_read != len(bytes):
-                    print 'HEY, should never happen: wanted %d bytes but got %d' %\
+                    if debug: print 'HEY, should never happen: wanted %d bytes but got %d' %\
                         (to_read, len(bytes))
                     sys.exit(66)
                 self.request.sendall(bytes)
-                print 'DBG: sent %d bytes' % len(bytes)
+                if debug: print 'DBG: sent %d bytes' % len(bytes)
                 remaining -= len(bytes)
         except Exception as e:
             raise e
@@ -215,13 +216,13 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             reply = reply + '{}\t{}\t{}\n'.format(file, stat.st_size, status)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
-        print 'REPLY: {}'.format(reply)
+        if debug: print 'REPLY: {}'.format(reply)
 
     def do_unknown(self, cmd):
         reply = 'ERROR: unknown command "{}"\n'.format(cmd)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
-        print 'REPLY: {}'.format(reply)
+        if debug: print 'REPLY: {}'.format(reply)
 
     def frame_bytes(self, bytes):
         return struct.pack('>I', bytes)
