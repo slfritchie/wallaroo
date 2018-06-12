@@ -24,7 +24,9 @@ actor Main
     dos.do_ls(p0)
 
     let got_a_chunk = {(offset: USize, chunk: DOSreply): Bool =>
-        try @printf[I32](">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
+        ifdef "verbose" then
+          None // try @printf[(">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
+        end
         true
       }
     let failed_a_chunk = {(offset: USize): Bool =>
@@ -44,19 +46,14 @@ actor Main
     let path1 = "bar"
     let notify_get_file_complete = recover val
       {(success: Bool, bs: Array[Bool] val): None =>
-      @printf[I32]("PROMISE: 0x%x: entire file transfer for %s was success %s num_chunks %d\n".cstring(),
-        this, path1.cstring(), success.string().cstring(), bs.size())
-      for i in bs.values() do
-        @printf[I32]("%s,".cstring(), i.string().cstring())
-      end
-      @printf[I32]("\n".cstring())
+      env.out.print("PROMISE: file transfer for " + path1 + " was success " + success.string() + " num_chunks " + bs.size().string())
       }
     end
     dos.do_get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
 
-    @printf[I32]("BEFORE SLEEP\n".cstring())
-    @usleep[None](U32(300_000))
-    @printf[I32]("AFTER SLEEP\n".cstring())
+    env.out.print("BEFORE SLEEP 1")
+    @usleep[None](U32(100_000))
+    env.out.print("AFTER SLEEP 1")
     let p1 = Promise[DOSreply]
     p1.next[None](
       {(a) =>
@@ -70,7 +67,7 @@ actor Main
       {() => env.out.print("PROMISE: 2 BUMMER!")}
     )
     dos.do_ls(p1)
-    @usleep[None](U32(300_000))
+    @usleep[None](U32(100_000))
     dos.dispose()
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
@@ -98,19 +95,25 @@ actor DOSclient
     _reconn()
 
   fun ref _reconn (): None =>
-    @printf[I32]("DOS: calling _reconn\n".cstring())
+    ifdef "verbose" then
+      _out.print("DOS: calling _reconn")
+    end
     try
       _sock = TCPConnection(_auth as AmbientAuth,
         recover DOSnotify(this, _out) end, _host, _port)
     end
 
   be dispose() =>
-    @printf[I32]("DOS: &&&&&dispose\n".cstring())
+    ifdef "verbose" then
+      _out.print("DOS: &&&&&dispose")
+    end
     _do_reconnect = false
     _dispose()
 
   fun ref _dispose() =>
-    @printf[I32]("DOS: _dispose.  NOTE: %d promises to reject\n".cstring(), _waiting_reply.size())
+    ifdef "verbose" then
+      _out.print("DOS: _dispose.  Promises to reject: " + _waiting_reply.size().string())
+    end
     try (_sock as TCPConnection).dispose() end
     _connected = false
     for (op, p) in _waiting_reply.values() do
@@ -124,11 +127,15 @@ actor DOSclient
     _connected = false
 
   be connected() =>
-    @printf[I32]("DOS: connected\n".cstring())
+    ifdef "verbose" then
+      _out.print("DOS: connected")
+    end
     _connected = true
 
   be disconnected() =>
-    @printf[I32]("DOS: disconnected\n".cstring())
+    ifdef "verbose" then
+      _out.print("DOS: disconnected")
+    end
     _dispose()
     if _do_reconnect then
       _reconn()
@@ -138,7 +145,9 @@ actor DOSclient
     let request: String iso = recover String end
 
     if _connected then
-      _out.print("DOSc: do_ls")
+      ifdef "verbose" then
+        _out.print("DOSc: do_ls")
+      end
       request.push(0)
       request.push(0)
       request.push(0)
@@ -150,10 +159,14 @@ actor DOSclient
     else
       match p
       | None =>
-        // _out.print("DOSclient: ERROR: ls not connected, no promise!  TODO")
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: ls not connected, no promise!")
+        end
         None
       | let pp: Promise[DOSreply] =>
-        // _out.print("DOSclient: ERROR: ls not connected, reject!  TODO")
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: ls not connected, reject!  TODO")
+        end
         pp.reject()
       end
     end
@@ -165,7 +178,9 @@ actor DOSclient
 
     if _connected then
       let pdu: String = "g" + filename + "\t" + offset.string() + "\t" + size.string()
-      // _out.print("DOSc: do_get_chunk: " + pdu)
+      ifdef "verbose" then
+        _out.print("DOSc: do_get_chunk: " + pdu)
+      end
 
       request.push(0)
       request.push(0)
@@ -177,10 +192,14 @@ actor DOSclient
     else
       match p
       | None =>
-        // _out.print("DOSclient: ERROR: get_chunk not connected, no promise!  TODO")
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: get_chunk not connected, no promise!  TODO")
+        end
         None
       | let pp: Promise[DOSreply] =>
-        // _out.print("DOSclient: ERROR: get_chunk not connected, reject!  TODO")
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: get_chunk not connected, reject!  TODO")
+        end
         pp.reject()
       end
     end
@@ -219,11 +238,13 @@ actor DOSclient
     let p_all_chunks1 = Promises[T].join(chunk_ps.values())
     p_all_chunks1.next[None](
       {(ts: Array[T] val): None =>
-        @printf[I32]("PROMISE BIG: 0x%lx: yay\n".cstring(), this)
+        ifdef "verbose" then
+          _out.print("PROMISE BIG: yay")
+        end
         notify_get_file_complete(true, ts)
         },
       {(): None =>
-        @printf[I32]("PROMISE BIG: 0x%lx: BOOOOOO\n".cstring(), this)
+        _out.print("PROMISE BIG: BOOOOOO")
         let empty_array: Array[T] val = recover empty_array.create() end
        notify_get_file_complete(false, empty_array)
       })
@@ -231,7 +252,9 @@ actor DOSclient
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
-    // _out.print("DOSclient GOT:" + str)
+    ifdef "verbose" then
+      _out.print("DOSclient GOT:" + str)
+    end
     try
       (let op, let p) = _waiting_reply.shift()?
       match p
@@ -283,10 +306,14 @@ class DOSnotify is TCPConnectionNotify
     _out = out
 
   fun ref connect_failed(conn: TCPConnection ref) =>
-    _out.print("SOCK: connect_failed")
+    ifdef "verbose" then
+      _out.print("SOCK: connect_failed")
+    end
 
   fun ref connected(conn: TCPConnection ref) =>
-    _out.print("SOCK: I am connected.")
+    ifdef "verbose" then
+      _out.print("SOCK: I am connected.")
+    end
     _header = true
     conn.expect(4)
     _client.connected()
@@ -298,17 +325,22 @@ class DOSnotify is TCPConnectionNotify
     : Bool
   =>
     if _header then
-      _out.print("SOCK: received header")
+      ifdef "verbose" then
+        _out.print("SOCK: received header")
+      end
       try
         let expect = Bytes.to_u32(data(0)?, data(1)?, data(2)?, data(3)?).usize()
-        // @printf[I32]("DBG: expecting %d bytes\n".cstring(), expect)
         conn.expect(expect)
         _header = false
       else
-        @printf[I32]("Error reading header on control channel\n".cstring())
+        ifdef "verbose" then
+          _out.print("Error reading header on control channel")
+        end
       end
     else
-      _out.print("SOCK: received payload")
+      ifdef "verbose" then
+        _out.print("SOCK: received payload")
+      end
       _client.response(consume data)
       conn.expect(4)
       _header = true
@@ -316,7 +348,9 @@ class DOSnotify is TCPConnectionNotify
     false
 
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
-    _out.print("SOCK: sent")
+    ifdef "verbose" then
+      _out.print("SOCK: sent")
+    end
     _qqq_crashme = _qqq_crashme - 1
     if _qqq_crashme == 0 then
       conn.close()
@@ -324,11 +358,15 @@ class DOSnotify is TCPConnectionNotify
     data
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
-    _out.print("SOCK: sentv")
+    ifdef "verbose" then
+      _out.print("SOCK: sentv")
+    end
     data
 
   fun ref closed(conn: TCPConnection ref) =>
-    _out.print("SOCK: closed")
+    ifdef "verbose" then
+      _out.print("SOCK: closed")
+    end
     _client.disconnected()
 
 primitive Bytes
