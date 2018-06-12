@@ -62,6 +62,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     self.do_unknown(cmd)
         except Exception as e:
             print 'DBG: exception for {}: {}'.format(self.client_address, e)
+            print 'DBG: exception for {}: {}'.format(self.client_address, type(e))
             None
 
     def finish(self):
@@ -93,25 +94,34 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             reply = 'ok\n'.format(filename)
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
-            ## DEBUG, bogus: self.request.setdefaulttimeout(1)
             last_now = time.time()
+            self.reported_offset_w = eof_offset
             while True:
-                bytes = self.request.recv(64*1024)
+                bytes = ''
+                try:
+                    bytes = self.request.recv(64*1024)
+                except socket.timeout:
+                    if eof_offset != self.reported_offset_w:
+                        print 'DBG: do_streaming_append: QQQ timeout: %d' % eof_offset
+                        self._send_append_status(eof_offset, eof_offset) # TODO
+                    continue
                 print 'DBG: do_streaming_append: got %d bytes' % len(bytes)
                 if bytes == '':
                     f.flush()
                     os.fsync(f.fileno())
-                    offset = f.tell()
-                    self._send_periodic_append_status(offset, offset) # TODO
+                    print 'DBG: do_streaming_append: QQQ socket closed: %d' % eof_offset
+                    self._send_append_status(eof_offset, eof_offset) # TODO
                     break
                 f.write(bytes)
+                eof_offset += len(bytes)
                 now = time.time()
                 if (now - last_now) > 1:
-                    offset = f.tell()
-                    self._send_periodic_append_status(offset, offset) # TODO
-                last_now = now
+                    print 'DBG: do_streaming_append: QQQ periodic: %d' % eof_offset
+                    self._send_append_status(eof_offset, eof_offset) # TODO
+                    last_now = now
         except Exception as e:
             reply = 'ERROR: {}\n'.format(e)
+            print 'DBG: do_streaming_append: ERROR: %s' % e
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
             raise e
@@ -131,12 +141,13 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             except:
                 None
 
-    def _send_periodic_append_status(self, offset_w, offset_s):
+    def _send_append_status(self, offset_w, offset_s):
         # written offset \t synced offset
         reply = "{}\t{}".format(offset_w, offset_s)
-        print 'DBG: do_streaming_append: periodic: %s' % reply
+        print 'DBG: do_streaming_append: %s' % reply
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
+        self.reported_offset_w = offset_w
 
     def do_get(self, request):
         """
@@ -221,6 +232,7 @@ if __name__ == "__main__":
     # Port 0 means to select an arbitrary unused port
     HOST, PORT = "localhost", 9999
 
+    socket.setdefaulttimeout(1)
     server = ThreadedTCPServer((HOST, PORT), DOS_Server)
     server.allow_reuse_address = True
     ip, port = server.server_address
