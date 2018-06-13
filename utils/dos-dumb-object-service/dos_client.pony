@@ -5,8 +5,16 @@ use "net"
 use "promises"
 
 actor Main
+  let _auth: (AmbientAuth | None)
+  let _args: Array[String] val
+  let _dos: DOSclient
+
   new create(env: Env) =>
+    _auth = env.root
+    _args = env.args
     let dos = DOSclient(env, "localhost", "9999")
+    _dos = dos
+
     @usleep[None](U32(100_000))
 
     let p0 = Promise[DOSreply]
@@ -68,7 +76,22 @@ actor Main
     )
     dos.do_ls(p1)
     @usleep[None](U32(100_000))
-    dos.dispose()
+
+    syncer_setup()
+
+  be syncer_setup() =>
+    let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    try
+      let bigfile_h = File(FilePath(_auth as AmbientAuth, _args(1)?)?)
+
+      for i in Range[USize](0, 777) do
+        bigfile_h.write(i.string())
+        bigfile_h.write(abc)
+      end
+      bigfile_h.dispose()
+    end
+
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
