@@ -93,7 +93,7 @@ actor Main
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
       _journal = SimpleJournal(journal_fp)
 
-      SimpleJournalMirror(_auth as AmbientAuth, journal_fp,
+      SimpleJournalMirror(_auth as AmbientAuth, journal_fp, _journal_path,
         _journal as SimpleJournal, dos2)
 
       stage10()
@@ -131,7 +131,7 @@ class ScribbleSome is TimerNotify
       @printf[I32]("TIMER: counter expired, stopping\n".cstring())
       false
     else
-      @printf[I32]("TIMER: counter %d\n".cstring(), c)
+      @printf[I32]("TIMER: counter %d\n".cstring(), _c)
       let goo = recover val [abc] end
       _j.writev("some/file", goo)
       _c = _c + 1 // Bah, the 'c' arg counter is always 1
@@ -153,16 +153,18 @@ actor SimpleJournalMirror
   // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
+  let _journal_path: String
   let _journal: SimpleJournal
   let _dos: DOSclient
   var _local_size: USize = 0
   var _remote_size: USize = 0
 
-  new create(auth: AmbientAuth, journal_fp: FilePath,
+  new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     journal: SimpleJournal, dos: DOSclient
   ) =>
     _auth = auth
     _journal_fp = journal_fp
+    _journal_path = journal_path
     _journal = journal
     _dos = dos
     @printf[I32]("AsyncJournalMirror: create\n".cstring())
@@ -222,14 +224,30 @@ actor SimpleJournalMirror
     @printf[I32]("AsyncJournalMirror: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
     @printf[I32]("AsyncJournalMirror: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
+    let p = Promise[DOSreply]
+    p.next[None](
+      {(reply) =>
+        try
+          @printf[I32]("AsyncJournalMirror: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
+        else
+          Fail()
+        end
+      },
+      {() =>
+        @printf[I32]("AsyncJournalMirror: start_remote_file_append REJECTED\n".cstring())
+      }
+    )
+    _dos.do_streaming_append(_journal_path, _remote_size, p)
+
 /**********************************************************/
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
+primitive DOSappend
 primitive DOSgetchunk
 primitive DOSls
 primitive DOSnoop
-type DOSop is (DOSgetchunk | DOSls | DOSnoop)
+type DOSop is (DOSappend | DOSgetchunk | DOSls | DOSnoop)
 
 actor DOSclient
   let _out: OutStream
@@ -295,6 +313,39 @@ actor DOSclient
     _dispose()
     if _do_reconnect then
       _reconn()
+    end
+
+  be do_streaming_append(filename: String, offset: USize,
+    p: (Promise[DOSreply] | None) = None)
+  =>
+    let request: String iso = recover String end
+
+    if _connected then
+      let pdu: String = "a" + filename + "\t" + offset.string()
+      ifdef "verbose" then
+        _out.print("DOSc: do_streaming_append: " + filename + " offset " +
+          offset.string())
+      end
+      request.push(0)
+      request.push(0)
+      request.push(0)
+      request.push(pdu.size().u8()) // TODO: bogus if request size > 255
+      request.append(pdu)
+      try (_sock as TCPConnection).write(consume request) end
+      _waiting_reply.push((DOSappend, p))
+    else
+      match p
+      | None =>
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: streaming_append not connected, no promise!  TODO")
+        end
+        None
+      | let pp: Promise[DOSreply] =>
+        ifdef "verbose" then
+          _out.print("DOSclient: ERROR: streaming_append not connected, reject!  TODO")
+        end
+        pp.reject()
+      end
     end
 
   be do_ls(p: (Promise[DOSreply] | None) = None) =>
@@ -419,6 +470,8 @@ actor DOSclient
       | let pp: Promise[DOSreply] =>
         try
           match op
+          | DOSappend =>
+            pp(str)
           | DOSls =>
             let lines = recover val str.split("\n") end
             let res: Array[(String, USize, Bool)] iso = recover res.create() end
