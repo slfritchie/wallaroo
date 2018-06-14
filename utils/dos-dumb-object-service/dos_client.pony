@@ -4,104 +4,173 @@ use "collections"
 use "files"
 use "net"
 use "promises"
+use "time"
 
 actor Main
   let _auth: (AmbientAuth | None)
   let _args: Array[String] val
-  let _dos: DOSclient
+  var _dos: (DOSclient | None) = None
+  var _journal_path: String = "/dev/bogus"
+  var _journal: (SimpleJournal | None) = None
 
   new create(env: Env) =>
     _auth = env.root
     _args = env.args
-    let dos = DOSclient(env, "localhost", "9999")
-    _dos = dos
+    try
+/***** This code is racy but it works for prototyping/exploration purposes:
+        _dos = DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
+      let dos = _dos as DOSclient
 
-    @usleep[None](U32(100_000))
+      @usleep[None](U32(100_000))
 
-    let p0 = Promise[DOSreply]
-    p0.next[None](
-      {(a) =>
-        env.out.print("PROMISE: I got array of size " + a.size().string())
-        try
-          for (file, size, appending) in (a as DOSreplyLS).values() do
-            env.out.print("\t" + file + "," + size.string() + "," + appending.string())
+      let p0 = Promise[DOSreply]
+      p0.next[None](
+        {(a) =>
+          env.out.print("PROMISE: I got array of size " + a.size().string())
+          try
+            for (file, size, appending) in (a as DOSreplyLS).values() do
+              env.out.print("\t" + file + "," + size.string() + "," + appending.string())
+            end
           end
-        end
-      },
-      {() => env.out.print("PROMISE: 1 BUMMER!")}
-    )
-    dos.do_ls(p0)
+        },
+        {() => env.out.print("PROMISE: 1 BUMMER!")}
+      )
+      dos.do_ls(p0)
 
-    let got_a_chunk = {(offset: USize, chunk: DOSreply): Bool =>
-        ifdef "verbose" then
-          None // try @printf[(">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
-        end
-        true
-      }
-    let failed_a_chunk = {(offset: USize): Bool =>
-         false
-      }
+      let got_a_chunk = {(offset: USize, chunk: DOSreply): Bool =>
+          ifdef "verbose" then
+            None // try @printf[(">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
+          end
+          true
+        }
+      let failed_a_chunk = {(offset: USize): Bool =>
+           false
+        }
 
-    let offset0: USize = 0
-    let p0b = Promise[DOSreply]
-    // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
-    p0b.next[Bool](
-      {(chunk: DOSreply): Bool =>
-        got_a_chunk.apply(offset0, chunk)
-      },
-      {(): Bool => failed_a_chunk.apply(offset0) })
-    dos.do_get_chunk("bar", offset0, 0, p0b)
+      let offset0: USize = 0
+      let p0b = Promise[DOSreply]
+      // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
+      p0b.next[Bool](
+        {(chunk: DOSreply): Bool =>
+          got_a_chunk.apply(offset0, chunk)
+        },
+        {(): Bool => failed_a_chunk.apply(offset0) })
+      dos.do_get_chunk("bar", offset0, 0, p0b)
 
-    let path1 = "bar"
-    let notify_get_file_complete = recover val
-      {(success: Bool, bs: Array[Bool] val): None =>
-      env.out.print("PROMISE: file transfer for " + path1 + " was success " + success.string() + " num_chunks " + bs.size().string())
-      }
+      let path1 = "bar"
+      let notify_get_file_complete = recover val
+        {(success: Bool, bs: Array[Bool] val): None =>
+        env.out.print("PROMISE: file transfer for " + path1 + " was success " + success.string() + " num_chunks " + bs.size().string())
+        }
+      end
+      dos.do_get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
+
+      env.out.print("BEFORE SLEEP 1")
+      @usleep[None](U32(100_000))
+      env.out.print("AFTER SLEEP 1")
+      let p1 = Promise[DOSreply]
+      p1.next[None](
+        {(a) =>
+          env.out.print("PROMISE: I got array of size " + a.size().string())
+          try
+            for (file, size, appending) in (a as DOSreplyLS).values() do
+              env.out.print("\t" + file + "," + size.string() + "," + appending.string())
+            end
+          end
+        },
+        {() => env.out.print("PROMISE: 2 BUMMER!")}
+      )
+      dos.do_ls(p1)
+      env.out.print("BEFORE 3 second sleep")
+      @usleep[None](U32(3_100_000))
+      dos.dispose()
+
+ *****/
+
+      _dos = DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
+      let dos2 = _dos as DOSclient
+      _journal_path = _args(1)? + ".journal"
+      let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
+      _journal = SimpleJournal(journal_fp)
+
+      SimpleJournalMirror(_auth as AmbientAuth, journal_fp,
+        _journal as SimpleJournal, dos2)
+
+      stage10()
+    else
+      Fail()
     end
-    dos.do_get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
 
-    env.out.print("BEFORE SLEEP 1")
-    @usleep[None](U32(100_000))
-    env.out.print("AFTER SLEEP 1")
-    let p1 = Promise[DOSreply]
-    p1.next[None](
-      {(a) =>
-        env.out.print("PROMISE: I got array of size " + a.size().string())
-        try
-          for (file, size, appending) in (a as DOSreplyLS).values() do
-            env.out.print("\t" + file + "," + size.string() + "," + appending.string())
-          end
-        end
-      },
-      {() => env.out.print("PROMISE: 2 BUMMER!")}
-    )
-    dos.do_ls(p1)
-    @usleep[None](U32(100_000))
+/**********************************************************/
 
-    syncer_setup()
+  be stage10() =>
+    try
+      _stage10(_journal as SimpleJournal, _dos as DOSclient)
+    else
+      Fail()
+    end
 
-  be syncer_setup() =>
+  fun _stage10(j: SimpleJournal, dos_c: DOSclient) =>
+    @usleep[None](U32(100_1000))
+    let ts = Timers
+    let t = Timer(ScribbleSome(j), 0, 50_000_000)
+    ts(consume t)
+    @printf[I32]("STAGE 10: done\n".cstring())
+
+class ScribbleSome is TimerNotify
+  let _j: SimpleJournal
+  var _c: USize = 0
+
+  new iso create(j: SimpleJournal) =>
+    _j = j
+
+  fun ref apply(t: Timer, c: U64): Bool =>
     let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    try
-      let journal_fp = FilePath(_auth as AmbientAuth,
-        _args(1)? + ".journal")?
-      let journal = SimpleJournal(journal_fp)
-
-      let file1_fp = FilePath(_auth as AmbientAuth,
-        _args(1)?)?
-      let file1 = AsyncJournalledFile(file1_fp, journal,
-        _auth as AmbientAuth, false)
-
-      for i in Range[USize](0, 777) do
-        None//file1.writev(recover [i.string()] end)
-        let goo = recover [abc] end
-        // file1.writev()
-      end
-      file1.dispose()
-      // doesn't exist: journal.dispose()
+    if _c > 10 then
+      @printf[I32]("TIMER: counter expired, stopping\n".cstring())
+      false
+    else
+      @printf[I32]("TIMER: counter %d\n".cstring(), c)
+      let goo = recover val [abc] end
+      _j.writev("some/file", goo)
+      _c = _c + 1 // Bah, the 'c' arg counter is always 1
+      true
     end
 
+/**********************************************************/
+
+actor SimpleJournalMirror
+  // TODO not sure which vars we really need
+  let _auth: AmbientAuth
+  let _journal_fp: FilePath
+  let _journal: SimpleJournal
+  let _dos: DOSclient
+
+  new create(auth: AmbientAuth, journal_fp: FilePath,
+    journal: SimpleJournal, dos: DOSclient
+  ) =>
+    _auth = auth
+    _journal_fp = journal_fp
+    _journal = journal
+    _dos = dos
+    @printf[I32]("AsyncJournalMirror: create\n".cstring())
+    local_size_discovery()
+
+  be local_size_discovery() =>
+    @printf[I32]("AsyncJournalMirror: local_size_discovery for %s\n".cstring(),
+      _journal_fp.path.cstring())
+    try
+      let info = FileInfo(_journal_fp)?
+      @printf[I32]("AsyncJournalMirror: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
+    else
+      // We expect that this file will exist very very shortly.  Spinwait.
+      local_size_discovery()
+    end
+
+
+
+/**********************************************************/
 
 type DOSreplyLS is Array[(String, USize, Bool)] val
 type DOSreply is (String val| DOSreplyLS val)
@@ -120,9 +189,9 @@ actor DOSclient
   var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
 
-  new create(env: Env, host: String, port: String) =>
-    _out = env.out
-    try _auth = env.root as AmbientAuth end
+  new create(out: OutStream, auth: AmbientAuth, host: String, port: String) =>
+    _out = out
+    _auth = auth
     _host = host
     _port = port
     _reconn()
