@@ -112,6 +112,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             reply = 'ok\n'.format(filename)
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
+            self.request.settimeout(1.0)
             last_now = time.time()
             self.reported_offset_w = eof_offset
             while True:
@@ -268,7 +269,6 @@ if __name__ == "__main__":
     # Port 0 means to select an arbitrary unused port
     HOST, PORT = "localhost", 9999
 
-    socket.setdefaulttimeout(1)
     server = ThreadedTCPServer((HOST, PORT), DOS_Server)
     server.allow_reuse_address = True
     ip, port = server.server_address
