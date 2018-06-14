@@ -138,6 +138,15 @@ class ScribbleSome is TimerNotify
       true
     end
 
+class DoLater is TimerNotify
+  let _f: {(): Bool} iso
+
+  new iso create(f: {(): Bool} iso) =>
+    _f = consume f
+
+  fun ref apply(t: Timer, c: U64): Bool =>
+    _f()
+
 /**********************************************************/
 
 actor SimpleJournalMirror
@@ -146,6 +155,8 @@ actor SimpleJournalMirror
   let _journal_fp: FilePath
   let _journal: SimpleJournal
   let _dos: DOSclient
+  var _local_size: USize = 0
+  var _remote_size: USize = 0
 
   new create(auth: AmbientAuth, journal_fp: FilePath,
     journal: SimpleJournal, dos: DOSclient
@@ -163,12 +174,53 @@ actor SimpleJournalMirror
     try
       let info = FileInfo(_journal_fp)?
       @printf[I32]("AsyncJournalMirror: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
+      _local_size = info.size
+      remote_size_discovery(1_000_000, 1_000_000_000)
     else
       // We expect that this file will exist very very shortly.  Spinwait.
       local_size_discovery()
     end
 
+  be remote_size_discovery(sleep_time: USize, max_time: USize) =>
+    @printf[I32]("AsyncJournalMirror: remote_size_discovery for %s\n".cstring(),
+      _journal_fp.path.cstring())
+    let rsd = recover tag this end
+    let p = Promise[DOSreply]
+    p.next[None](
+      {(a)(rsd) =>
+        @printf[I32]("PROMISE: I got array of size %d\n".cstring(), a.size())
+        var remote_size: USize = 0
+        try
+          for (file, size, appending) in (a as DOSreplyLS).values() do
+            @printf[I32]("\t %s,%d,%s\n".cstring(),
+              file.cstring(), size, appending.string().cstring())
+            if file == _journal_fp.path then
+              @printf[I32]("\tFound it")
+              remote_size = size
+              break
+            end
+          end
+          rsd.start_remote_file_append(remote_size)
+        end
+      },
+      {()(rsd, sleep_time, max_time) =>
+        @printf[I32]("PROMISE: remote_size_discovery BUMMER!\n".cstring())
 
+        let ts = Timers
+        let later = DoLater(recover
+          {(): Bool =>
+            rsd.remote_size_discovery(sleep_time*2, max_time)
+            false
+          } end)
+        let t = Timer(consume later, U64.from[USize](sleep_time.min(max_time)), 0)
+        ts(consume t)
+      })
+    _dos.do_ls(p)
+
+  be start_remote_file_append(remote_size: USize) =>
+    _remote_size = remote_size
+    @printf[I32]("AsyncJournalMirror: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
+    @printf[I32]("AsyncJournalMirror: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
 /**********************************************************/
 
@@ -229,12 +281,14 @@ actor DOSclient
     _connected = false
 
   be connected() =>
+@printf[I32]("DOS: connected\n".cstring())
     ifdef "verbose" then
       _out.print("DOS: connected")
     end
     _connected = true
 
   be disconnected() =>
+@printf[I32]("DOS: disconnected\n".cstring())
     ifdef "verbose" then
       _out.print("DOS: disconnected")
     end
