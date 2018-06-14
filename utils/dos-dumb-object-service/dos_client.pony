@@ -11,7 +11,7 @@ actor Main
   let _args: Array[String] val
   var _dos: (DOSclient | None) = None
   var _journal_path: String = "/dev/bogus"
-  var _journal: (SimpleJournal | None) = None
+  var _journal: (SimpleJournal2 | None) = None
 
   new create(env: Env) =>
     _auth = env.root
@@ -91,10 +91,10 @@ actor Main
       let dos2 = _dos as DOSclient
       _journal_path = _args(1)? + ".journal"
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
-      _journal = SimpleJournal(journal_fp)
+      _journal = SimpleJournal2(journal_fp)
 
-      SimpleJournalMirror(_auth as AmbientAuth, journal_fp, _journal_path,
-        _journal as SimpleJournal, dos2)
+      RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path,
+        _journal as SimpleJournal2, dos2)
 
       stage10()
     else
@@ -105,12 +105,12 @@ actor Main
 
   be stage10() =>
     try
-      _stage10(_journal as SimpleJournal, _dos as DOSclient)
+      _stage10(_journal as SimpleJournal2, _dos as DOSclient)
     else
       Fail()
     end
 
-  fun _stage10(j: SimpleJournal, dos_c: DOSclient) =>
+  fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
     @usleep[None](U32(100_1000))
     let ts = Timers
     let t = Timer(ScribbleSome(j), 0, 50_000_000)
@@ -118,10 +118,10 @@ actor Main
     @printf[I32]("STAGE 10: done\n".cstring())
 
 class ScribbleSome is TimerNotify
-  let _j: SimpleJournal
+  let _j: SimpleJournal2
   var _c: USize = 0
 
-  new iso create(j: SimpleJournal) =>
+  new iso create(j: SimpleJournal2) =>
     _j = j
 
   fun ref apply(t: Timer, c: U64): Bool =>
@@ -149,33 +149,33 @@ class DoLater is TimerNotify
 
 /**********************************************************/
 
-actor SimpleJournalMirror
+actor RemoteJournalClient
   // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
   let _journal_path: String
-  let _journal: SimpleJournal
+  let _journal: SimpleJournal2
   let _dos: DOSclient
   var _local_size: USize = 0
   var _remote_size: USize = 0
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
-    journal: SimpleJournal, dos: DOSclient
+    journal: SimpleJournal2, dos: DOSclient
   ) =>
     _auth = auth
     _journal_fp = journal_fp
     _journal_path = journal_path
     _journal = journal
     _dos = dos
-    @printf[I32]("AsyncJournalMirror: create\n".cstring())
+    @printf[I32]("RemoteJournalClient: create\n".cstring())
     local_size_discovery()
 
   be local_size_discovery() =>
-    @printf[I32]("AsyncJournalMirror: local_size_discovery for %s\n".cstring(),
+    @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
     try
       let info = FileInfo(_journal_fp)?
-      @printf[I32]("AsyncJournalMirror: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
+      @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
       _local_size = info.size
       remote_size_discovery(1_000_000, 1_000_000_000)
     else
@@ -184,7 +184,7 @@ actor SimpleJournalMirror
     end
 
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
-    @printf[I32]("AsyncJournalMirror: remote_size_discovery for %s\n".cstring(),
+    @printf[I32]("RemoteJournalClient: remote_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
     let rsd = recover tag this end
     let p = Promise[DOSreply]
@@ -221,20 +221,20 @@ actor SimpleJournalMirror
 
   be start_remote_file_append(remote_size: USize) =>
     _remote_size = remote_size
-    @printf[I32]("AsyncJournalMirror: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
-    @printf[I32]("AsyncJournalMirror: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
+    @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
     let p = Promise[DOSreply]
     p.next[None](
       {(reply) =>
         try
-          @printf[I32]("AsyncJournalMirror: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
+          @printf[I32]("RemoteJournalClient: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
         else
           Fail()
         end
       },
       {() =>
-        @printf[I32]("AsyncJournalMirror: start_remote_file_append REJECTED\n".cstring())
+        @printf[I32]("RemoteJournalClient: start_remote_file_append REJECTED\n".cstring())
       }
     )
     _dos.do_streaming_append(_journal_path, _remote_size, p)
@@ -589,13 +589,13 @@ primitive Bytes
 class AsyncJournalledFile
   let _file_path: String
   let _file: File
-  let _journal: SimpleJournal
+  let _journal: SimpleJournal2
   let _auth: AmbientAuth
   var _offset: USize
   let _do_local_file_io: Bool
   var _tag: USize = 1
 
-  new create(filepath: FilePath, journal: SimpleJournal,
+  new create(filepath: FilePath, journal: SimpleJournal2,
     auth: AmbientAuth, do_local_file_io: Bool)
   =>
     _file_path = filepath.path
@@ -722,10 +722,10 @@ class AsyncJournalledFile
     end
 
 trait SimpleJournalAsyncResponseReceiver
-  be async_io_ok(j: SimpleJournal tag, optag: USize)
-  be async_io_error(j: SimpleJournal tag, optag: USize)
+  be async_io_ok(j: SimpleJournal2 tag, optag: USize)
+  be async_io_error(j: SimpleJournal2 tag, optag: USize)
 
-actor SimpleJournal
+actor SimpleJournal2
   var filepath: FilePath
   var _j_file: File
   var _j_file_closed: Bool
@@ -823,6 +823,10 @@ actor SimpleJournal
         o.async_io_ok(this, optag)
       end
     end
+
+trait SimpleJournalBackend
+  fun ref be_append(offset: USize,
+    data: ByteSeqIter val, data_size: USize): Bool
 
 /**********************************************************
 |------+----------------+---------------------------------|
