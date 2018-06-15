@@ -823,7 +823,14 @@ class SimpleJournalBackendLocalFile is SimpleJournalBackend
   fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
   : Bool
   =>
-    _j_file.writev(data)
+    let res1 = _j_file.writev(data)
+    let res2 = _j_file.flush()
+    if not (res1 and res2) then
+      // TODO: The RemoteJournalClient assumes that data written to the
+      // local journal file is always up-to-date and never buffered.
+      Fail()
+    end
+    true
 
 class SimpleJournalBackendRemote is SimpleJournalBackend
   let _rjc: RemoteJournalClient
