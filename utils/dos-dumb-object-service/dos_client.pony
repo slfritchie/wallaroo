@@ -89,11 +89,13 @@ actor Main
 
       _dos = DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
       let dos2 = _dos as DOSclient
+
       _journal_path = _args(1)? + ".journal"
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
-      _journal = SimpleJournal2(journal_fp)
+      let rjc = RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path, dos2)
 
-      RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path, dos2)
+      let zzz = recover iso SimpleJournalBackendLocalFile(journal_fp) end
+      _journal = SimpleJournal2(consume zzz)
 
       stage10()
     else
@@ -722,36 +724,59 @@ trait SimpleJournalAsyncResponseReceiver
   be async_io_ok(j: SimpleJournal2 tag, optag: USize)
   be async_io_error(j: SimpleJournal2 tag, optag: USize)
 
+trait SimpleJournalBackend
+  fun ref be_dispose(): None
+
+  fun ref be_position(): USize
+
+  fun ref be_writev(offset: USize,
+    data: ByteSeqIter val, data_size: USize): Bool
+
+
+class SimpleJournalBackendLocalFile is SimpleJournalBackend
+  let _j_file: File
+
+  new create(filepath: FilePath) =>
+    _j_file = File(filepath)
+    _j_file.seek_end(0)
+
+  fun ref be_dispose() =>
+    _j_file.dispose()
+
+  fun ref be_position(): USize =>
+    _j_file.position()
+
+  fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
+  : Bool
+  =>
+    _j_file.writev(data)
+
 actor SimpleJournal2
-  var filepath: FilePath
-  var _j_file: File
-  var _j_file_closed: Bool
+  var _j_file: SimpleJournalBackend
+  var _j_closed: Bool
   var _j_file_size: USize
   let _encode_io_ops: Bool
   let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
-  new create(filepath': FilePath, encode_io_ops: Bool = true,
+  new create(j_file: SimpleJournalBackend iso, encode_io_ops: Bool = true,
     owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
   =>
-    filepath = filepath'
     _encode_io_ops = encode_io_ops
     _owner = owner
 
-    _j_file = File(filepath)
-    _j_file_closed = false
-    // A newly created file has offset @ start of file, we want the end of file
-    _j_file.seek_end(0)
-    _j_file_size = _j_file.position()
+    _j_file = consume j_file
+    _j_closed = false
+    _j_file_size = _j_file.be_position()
 
   // TODO This method only exists because of prototype hack laziness
   // that does not refactor both RotatingEventLog & SimpleJournal.
   // It is used only by RotatingEventLog.
   be dispose_journal() =>
-    _j_file.dispose()
-    _j_file_closed = true
+    _j_file.be_dispose()
+    _j_closed = true
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
-    if _j_file_closed then
+    if _j_closed then
       Fail()
     end
     if _encode_io_ops then
@@ -764,13 +789,15 @@ actor SimpleJournal2
       end
       wb.u32_be(pdu_size.u32())
       wb.writev(consume pdu)
-      _j_file.writev(wb.done())
+      let wb_size = wb.size()
+      _j_file.be_writev(_j_file_size, wb.done(), wb_size)
+      _j_file_size = _j_file_size + wb_size
     else
       Fail()
     end
 
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
-    if _j_file_closed then
+    if _j_closed then
       Fail()
     end
     let write_res =
@@ -803,9 +830,17 @@ actor SimpleJournal2
         ifdef "journaldbg" then
           @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
         end
-        _j_file.writev(wb.done())
+        let wb_size = wb.size()
+        _j_file_size = _j_file_size + wb_size
+        _j_file.be_writev(_j_file_size, wb.done(), wb_size)
       else
-        _j_file.writev(data)
+        var data_size: USize = 0
+
+        for d in data.values() do
+          data_size = data_size + d.size()
+        end
+        _j_file_size = _j_file_size + data_size
+        _j_file.be_writev(_j_file_size, data, data_size)
       end
     if not write_res then
       // We don't know how many bytes were written.  ^_^
@@ -822,12 +857,6 @@ actor SimpleJournal2
         o.async_io_ok(this, optag)
       end
     end
-
-trait SimpleJournalBackend
-  fun ref be_writev(offset: USize,
-    data: ByteSeqIter val, data_size: USize): Bool
-
-  fun ref be_dispose(): None
 
 /**********************************************************
 |------+----------------+---------------------------------|
