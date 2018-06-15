@@ -92,10 +92,12 @@ actor Main
 
       _journal_path = _args(1)? + ".journal"
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
-      let rjc = RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path, dos2)
+      let rjc = RemoteJournalClient(_auth as AmbientAuth,
+        journal_fp, _journal_path, dos2)
+      let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
 
-      let zzz = recover iso SimpleJournalBackendLocalFile(journal_fp) end
-      _journal = SimpleJournal2(consume zzz /***, rjc***/)
+      let j_file = recover iso SimpleJournalBackendLocalFile(journal_fp) end
+      _journal = SimpleJournal2(consume j_file, consume j_remote)
 
       stage10()
     else
@@ -133,7 +135,7 @@ class ScribbleSome is TimerNotify
       false
     else
       @printf[I32]("TIMER: counter %d\n".cstring(), _c)
-      let goo = recover val [abc] end
+      let goo = recover val [_c.string() + abc] end
       _j.writev("some/file", goo)
       _c = _c + 1 // Bah, the 'c' arg counter is always 1
       true
@@ -260,6 +262,7 @@ actor RemoteJournalClient
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
     @printf[I32]("RemoteJournalClient: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
     // TODO check offset sanity
+    // TODO offset update
     _dos.send_unframed(data)
     _remote_size = _remote_size + data_size
 
@@ -537,7 +540,8 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  var _qqq_crashme: USize = 6
+  let _qqq_crashme: I64 = 777
+  var _qqq_count: I64 = _qqq_crashme
 
   new create(client: DOSclient, out: OutStream) =>
     _client = client
@@ -589,15 +593,23 @@ class DOSnotify is TCPConnectionNotify
     ifdef "verbose" then
       _out.print("SOCK: sent")
     end
-    _qqq_crashme = _qqq_crashme - 1
-    if _qqq_crashme == 0 then
+    _qqq_count = _qqq_count - 1
+_out.print("SOCK: sent @ crashme " + _qqq_count.string())
+    if _qqq_count <= 0 then
       conn.close()
+      _qqq_count = _qqq_crashme
     end
     data
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
     ifdef "verbose" then
       _out.print("SOCK: sentv")
+    end
+    _qqq_count = _qqq_count - 1
+_out.print("SOCK: sentv @ crashme " + _qqq_count.string())
+    if _qqq_count <= 0 then
+      conn.close()
+      _qqq_count = _qqq_crashme
     end
     data
 
@@ -796,17 +808,22 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
   fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
   : Bool
   =>
-    false // TODO : _rjc.yy()
+    // TODO offset sanity check
+    // TODO offset update
+    @printf[I32]("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
+    _rjc.be_writev(offset, data, data_size)
+    true
 
 actor SimpleJournal2
   var _j_file: SimpleJournalBackend
+  var _j_remote: SimpleJournalBackend
   var _j_closed: Bool
   var _j_file_size: USize
   let _encode_io_ops: Bool
   let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
   new create(j_file: SimpleJournalBackend iso,
-/***    j_remote: SimpleJournalBackend iso, ***/
+    j_remote: SimpleJournalBackend iso,
     encode_io_ops: Bool = true,
     owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
   =>
@@ -814,6 +831,7 @@ actor SimpleJournal2
     _owner = owner
 
     _j_file = consume j_file
+    _j_remote = consume j_remote
     _j_closed = false
     _j_file_size = _j_file.be_position()
 
@@ -838,9 +856,15 @@ actor SimpleJournal2
       end
       wb.u32_be(pdu_size.u32())
       wb.writev(consume pdu)
-      let wb_size = wb.size()
-      _j_file_size = _j_file_size + wb_size
-      let ret = _j_file.be_writev(_j_file_size, wb.done(), wb_size)
+      let data_size = wb.size()
+      let data = recover val wb.done() end
+      let ret = _j_file.be_writev(_j_file_size, data, data_size)
+      if ret then
+        _j_remote.be_writev(_j_file_size, data, data_size)
+        _j_file_size = _j_file_size + data_size
+      else
+        Fail() // TODO?
+      end
       ret
     else
       Fail()
@@ -880,17 +904,31 @@ actor SimpleJournal2
         ifdef "journaldbg" then
           @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
         end
-        let wb_size = wb.size()
-        _j_file_size = _j_file_size + wb_size
-        _j_file.be_writev(_j_file_size, wb.done(), wb_size)
+        let data2_size = wb.size()
+        let data2 = recover val wb.done() end
+        let ret = _j_file.be_writev(_j_file_size, data2, data2_size)
+@printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n".cstring(), path.cstring(), bytes_size, pdu_size, optag, ret.string().cstring())
+        if ret then
+          _j_remote.be_writev(_j_file_size, data2, data2_size)
+          _j_file_size = _j_file_size + data2_size
+        else
+          Fail() // TODO?
+        end
+        ret
       else
         var data_size: USize = 0
 
         for d in data.values() do
           data_size = data_size + d.size()
         end
-        _j_file_size = _j_file_size + data_size
-        _j_file.be_writev(_j_file_size, data, data_size)
+        let ret = _j_file.be_writev(_j_file_size, data, data_size)
+        if ret then
+          _j_remote.be_writev(_j_file_size, data, data_size)
+          _j_file_size = _j_file_size + data_size
+        else
+          Fail() // TODO?
+        end
+        ret
       end
     if write_res then
       if optag > 0 then
