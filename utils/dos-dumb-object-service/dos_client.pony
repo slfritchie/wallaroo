@@ -278,8 +278,10 @@ actor RemoteJournalClient
     if _connected then
       if _local_size == _remote_size then
         in_sync_state()
-      else
+      elseif _local_size > _remote_size then
         _catch_up_send_block()
+      else
+        Fail()
       end
     else
       local_size_discovery()
@@ -288,7 +290,7 @@ actor RemoteJournalClient
   fun ref _catch_up_send_block() =>
     let missing_bytes = _local_size - _remote_size
     //let block_size = missing_bytes.min(1024*1024)
-    let block_size = missing_bytes.min(20)
+    let block_size = missing_bytes.min(10)
 
     @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
     with file = File.open(_journal_fp) do
