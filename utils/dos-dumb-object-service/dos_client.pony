@@ -790,8 +790,9 @@ actor SimpleJournal2
       wb.u32_be(pdu_size.u32())
       wb.writev(consume pdu)
       let wb_size = wb.size()
-      _j_file.be_writev(_j_file_size, wb.done(), wb_size)
       _j_file_size = _j_file_size + wb_size
+      let ret = _j_file.be_writev(_j_file_size, wb.done(), wb_size)
+      ret
     else
       Fail()
     end
@@ -842,19 +843,20 @@ actor SimpleJournal2
         _j_file_size = _j_file_size + data_size
         _j_file.be_writev(_j_file_size, data, data_size)
       end
-    if not write_res then
+    if write_res then
+      if optag > 0 then
+        try
+          let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+          o.async_io_ok(this, optag)
+        end
+      end
+    else
       // We don't know how many bytes were written.  ^_^
       // TODO So, I suppose we need to ask the OS about the file size
       // to figure that out so that we can do <TBD> to recover.
       try
         let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
         o.async_io_error(this, optag)
-      end
-    end
-    if optag > 0 then
-      try
-        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
-        o.async_io_ok(this, optag)
       end
     end
 
