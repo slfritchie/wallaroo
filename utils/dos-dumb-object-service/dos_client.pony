@@ -152,23 +152,8 @@ class DoLater is TimerNotify
 
 /**********************************************************/
 
-primitive _RJCstart
-  fun string() => "state: start"
-primitive _RJClocalDiscovery
-  fun string() => "state: local discovery"
-primitive _RJCremoteDiscovery
-  fun string() => "state: remote discovery"
-primitive _RJCstartAppend
-  fun string() => "state: start append"
-primitive _RJCcatchUp
-  fun string() => "state: catch-up"
-primitive _RJCinSync
-  fun string() => "state: in sync"
-type _RJCSTATE is (_RJCstart | _RJClocalDiscovery | _RJCremoteDiscovery |
-                   _RJCstartAppend | _RJCcatchUp | _RJCinSync)
-
 actor RemoteJournalClient
-  var _state: _RJCSTATE = _RJCstart
+  var _state: U8 = 0
   // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
@@ -197,7 +182,7 @@ actor RemoteJournalClient
   be local_size_discovery() =>
     @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
-    _state = _RJClocalDiscovery
+    _state = 10
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
@@ -212,7 +197,7 @@ actor RemoteJournalClient
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
     @printf[I32]("RemoteJournalClient: remote_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
-    _state = _RJCremoteDiscovery
+    _state = 20
     let rsd = recover tag this end
     let p = Promise[DOSreply]
     p.next[None](
@@ -249,7 +234,7 @@ actor RemoteJournalClient
   be start_remote_file_append(remote_size: USize) =>
     @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
-    _state = _RJCstartAppend
+    _state = 30
     _remote_size = remote_size
 
     let rsd = recover tag this end
@@ -277,13 +262,13 @@ actor RemoteJournalClient
 
   be catch_up_state() =>
     @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
-    _state = _RJCcatchUp
+    _state = 40
     // TODO
     in_sync_state()
 
   be in_sync_state() =>
     @printf[I32]("RemoteJournalClient: in_sync_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
-    _state = _RJCinSync
+    _state = 50
     _in_sync = true
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
@@ -295,7 +280,7 @@ actor RemoteJournalClient
 
   be dos_client_connection_status(connected: Bool) =>
     @printf[I32]("RemoteJournalClient: dos_client_connection_status %s\n".cstring(), connected.string().cstring())
-    @printf[I32]("RemoteJournalClient: _state %s\n".cstring(), _state.string().cstring())
+    @printf[I32]("RemoteJournalClient: _state %d\n".cstring(), _state)
     if not connected then
       local_size_discovery()
     end
