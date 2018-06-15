@@ -159,6 +159,7 @@ actor RemoteJournalClient
   let _journal_fp: FilePath
   let _journal_path: String
   let _dos: DOSclient
+  var _connected: Bool = false
   var _in_sync: Bool = false
   var _local_size: USize = 0
   var _remote_size: USize = 0
@@ -183,6 +184,7 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
     _state = 10
+    _connected = false
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
@@ -209,7 +211,16 @@ actor RemoteJournalClient
               @printf[I32]("\tFound it\n".cstring())
               @printf[I32]("\t%s,%d,%s\n".cstring(), file.cstring(), size, appending.string().cstring())
               if appending then
-                Fail()
+                // Hmm, this is hopefully a benign race, with a prior
+                // connection from us that hasn't been closed yet.
+                // (If it's from another cluster member, that should
+                //  never happen!)
+                // So we stop iterating here and go back to the beginning
+                // of the state machine; eventually the old session will
+                // be closed by remote server and the file's appending
+                // state will be false.
+                rsd.local_size_discovery()
+                return
               end              
               remote_size = size
               break
@@ -264,11 +275,30 @@ actor RemoteJournalClient
   be catch_up_state() =>
     @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
     _state = 40
-    if _local_size == _remote_size then
-      in_sync_state()
+    if _connected then
+      if _local_size == _remote_size then
+        in_sync_state()
+      else
+        _catch_up_send_block()
+      end
     else
-      // TODO NEXT LEFT OFF HERE
-      None
+      local_size_discovery()
+    end
+
+  fun ref _catch_up_send_block() =>
+    let missing_bytes = _local_size - _remote_size
+    //let block_size = missing_bytes.min(1024*1024)
+    let block_size = missing_bytes.min(20)
+
+    @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
+    with file = File.open(_journal_fp) do
+      file.seek(_remote_size.isize())
+      let bytes = recover val file.read(block_size) end
+      let goo = recover val [bytes] end
+      @printf[I32]("\t_catch_up_send_block: _remote_size %d bytes size = %d\n".cstring(), _remote_size, bytes.size())
+      _dos.send_unframed(goo)
+      _remote_size = _remote_size + bytes.size()
+      catch_up_state()
     end
 
   be in_sync_state() =>
@@ -292,6 +322,7 @@ actor RemoteJournalClient
   be dos_client_connection_status(connected: Bool) =>
     @printf[I32]("RemoteJournalClient: dos_client_connection_status %s\n".cstring(), connected.string().cstring())
     @printf[I32]("RemoteJournalClient: _state %d\n".cstring(), _state)
+    _connected = connected
     if not connected then
       local_size_discovery()
     end
