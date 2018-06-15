@@ -114,7 +114,7 @@ actor Main
     end
 
   fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
-    @usleep[None](U32(100_1000))
+    @usleep[None](U32(200_1000))
     let ts = Timers
     let t = Timer(ScribbleSome(j), 0, 50_000_000)
     ts(consume t)
@@ -130,12 +130,12 @@ class ScribbleSome is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    if _c > 10 then
+    if _c > 6 then
       @printf[I32]("TIMER: counter expired, stopping\n".cstring())
       false
     else
       @printf[I32]("TIMER: counter %d\n".cstring(), _c)
-      let goo = recover val [_c.string() + abc] end
+      let goo = recover val [_c.string() + "..." + abc] end
       _j.writev("some/file", goo)
       _c = _c + 1 // Bah, the 'c' arg counter is always 1
       true
@@ -152,7 +152,23 @@ class DoLater is TimerNotify
 
 /**********************************************************/
 
+primitive _RJCstart
+  fun string() => "state: start"
+primitive _RJClocalDiscovery
+  fun string() => "state: local discovery"
+primitive _RJCremoteDiscovery
+  fun string() => "state: remote discovery"
+primitive _RJCstartAppend
+  fun string() => "state: start append"
+primitive _RJCcatchUp
+  fun string() => "state: catch-up"
+primitive _RJCinSync
+  fun string() => "state: in sync"
+type _RJCSTATE is (_RJCstart | _RJClocalDiscovery | _RJCremoteDiscovery |
+                   _RJCstartAppend | _RJCcatchUp | _RJCinSync)
+
 actor RemoteJournalClient
+  var _state: _RJCSTATE = _RJCstart
   // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
@@ -170,11 +186,18 @@ actor RemoteJournalClient
     _journal_path = journal_path
     _dos = dos
     @printf[I32]("RemoteJournalClient: create\n".cstring())
+    let rjc = recover tag this end
+    _dos.connection_status_notifier(recover iso
+      {(connected: Bool): None =>
+        @printf[I32]("RemoteJournalClient: lambda notifier = %s\n".cstring(), connected.string().cstring())
+        rjc.dos_client_connection_status(connected)
+      } end)
     local_size_discovery()
 
   be local_size_discovery() =>
     @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
+    _state = _RJClocalDiscovery
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
@@ -189,6 +212,7 @@ actor RemoteJournalClient
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
     @printf[I32]("RemoteJournalClient: remote_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
+    _state = _RJCremoteDiscovery
     let rsd = recover tag this end
     let p = Promise[DOSreply]
     p.next[None](
@@ -223,9 +247,10 @@ actor RemoteJournalClient
     _dos.do_ls(p)
 
   be start_remote_file_append(remote_size: USize) =>
-    _remote_size = remote_size
     @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    _state = _RJCstartAppend
+    _remote_size = remote_size
 
     let rsd = recover tag this end
     let p = Promise[DOSreply]
@@ -252,11 +277,13 @@ actor RemoteJournalClient
 
   be catch_up_state() =>
     @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    _state = _RJCcatchUp
     // TODO
     in_sync_state()
 
   be in_sync_state() =>
     @printf[I32]("RemoteJournalClient: in_sync_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    _state = _RJCinSync
     _in_sync = true
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
@@ -265,6 +292,13 @@ actor RemoteJournalClient
     // TODO offset update
     _dos.send_unframed(data)
     _remote_size = _remote_size + data_size
+
+  be dos_client_connection_status(connected: Bool) =>
+    @printf[I32]("RemoteJournalClient: dos_client_connection_status %s\n".cstring(), connected.string().cstring())
+    @printf[I32]("RemoteJournalClient: _state %s\n".cstring(), _state.string().cstring())
+    if not connected then
+      local_size_discovery()
+    end
 
 /**********************************************************/
 
@@ -285,6 +319,7 @@ actor DOSclient
   var _connected: Bool = false
   var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
+  var _status_notifier: (({(Bool): None}) | None) = None
 
   new create(out: OutStream, auth: AmbientAuth, host: String, port: String) =>
     _out = out
@@ -293,6 +328,9 @@ actor DOSclient
     _port = port
     _reconn()
 
+  be connection_status_notifier(status_notifier: {(Bool): None} iso) =>
+    _status_notifier = consume status_notifier
+
   fun ref _reconn (): None =>
     ifdef "verbose" then
       _out.print("DOS: calling _reconn")
@@ -300,6 +338,7 @@ actor DOSclient
     try
       _sock = TCPConnection(_auth as AmbientAuth,
         recover DOSnotify(this, _out) end, _host, _port)
+@printf[I32]("UUUGLY: _sock = 0x%lx\n".cstring(), _sock)
     end
 
   be dispose() =>
@@ -325,19 +364,27 @@ actor DOSclient
     _waiting_reply.clear()
     _connected = false
 
-  be connected() =>
+  be connected(conn: TCPConnection) =>
 @printf[I32]("DOS: connected\n".cstring())
+@printf[I32]("UUUGLY: connected conn = 0x%lx\n".cstring(), conn)
     ifdef "verbose" then
       _out.print("DOS: connected")
     end
     _connected = true
+    try
+      (_status_notifier as {(Bool): None})(true)
+    end
 
-  be disconnected() =>
+  be disconnected(conn: TCPConnection) =>
 @printf[I32]("DOS: disconnected\n".cstring())
+@printf[I32]("UUUGLY: DISconnected conn = 0x%lx\n".cstring(), conn)
     ifdef "verbose" then
       _out.print("DOS: disconnected")
     end
     _dispose()
+    try
+      (_status_notifier as {(Bool): None})(false)
+    end
     if _do_reconnect then
       _reconn()
     end
@@ -540,7 +587,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  let _qqq_crashme: I64 = 777
+  let _qqq_crashme: I64 = 6
   var _qqq_count: I64 = _qqq_crashme
 
   new create(client: DOSclient, out: OutStream) =>
@@ -558,7 +605,7 @@ class DOSnotify is TCPConnectionNotify
     end
     _header = true
     conn.expect(4)
-    _client.connected()
+    _client.connected(conn)
 
   fun ref received(
     conn: TCPConnection ref,
@@ -617,7 +664,7 @@ _out.print("SOCK: sentv @ crashme " + _qqq_count.string())
     ifdef "verbose" then
       _out.print("SOCK: closed")
     end
-    _client.disconnected()
+    _client.disconnected(conn)
 
 primitive Bytes
   fun to_u32(a: U8, b: U8, c: U8, d: U8): U32 =>
