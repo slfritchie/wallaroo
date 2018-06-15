@@ -93,8 +93,7 @@ actor Main
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
       _journal = SimpleJournal2(journal_fp)
 
-      RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path,
-        _journal as SimpleJournal2, dos2)
+      RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path, dos2)
 
       stage10()
     else
@@ -154,18 +153,16 @@ actor RemoteJournalClient
   let _auth: AmbientAuth
   let _journal_fp: FilePath
   let _journal_path: String
-  let _journal: SimpleJournal2
   let _dos: DOSclient
   var _local_size: USize = 0
   var _remote_size: USize = 0
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
-    journal: SimpleJournal2, dos: DOSclient
-  ) =>
+    dos: DOSclient)
+  =>
     _auth = auth
     _journal_fp = journal_fp
     _journal_path = journal_path
-    _journal = journal
     _dos = dos
     @printf[I32]("RemoteJournalClient: create\n".cstring())
     local_size_discovery()
@@ -729,6 +726,7 @@ actor SimpleJournal2
   var filepath: FilePath
   var _j_file: File
   var _j_file_closed: Bool
+  var _j_file_size: USize
   let _encode_io_ops: Bool
   let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
@@ -743,6 +741,7 @@ actor SimpleJournal2
     _j_file_closed = false
     // A newly created file has offset @ start of file, we want the end of file
     _j_file.seek_end(0)
+    _j_file_size = _j_file.position()
 
   // TODO This method only exists because of prototype hack laziness
   // that does not refactor both RotatingEventLog & SimpleJournal.
@@ -825,8 +824,10 @@ actor SimpleJournal2
     end
 
 trait SimpleJournalBackend
-  fun ref be_append(offset: USize,
+  fun ref be_writev(offset: USize,
     data: ByteSeqIter val, data_size: USize): Bool
+
+  fun ref be_dispose(): None
 
 /**********************************************************
 |------+----------------+---------------------------------|
