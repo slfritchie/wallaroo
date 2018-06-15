@@ -264,8 +264,12 @@ actor RemoteJournalClient
   be catch_up_state() =>
     @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
     _state = 40
-    // TODO
-    in_sync_state()
+    if _local_size == _remote_size then
+      in_sync_state()
+    else
+      // TODO NEXT LEFT OFF HERE
+      None
+    end
 
   be in_sync_state() =>
     @printf[I32]("RemoteJournalClient: in_sync_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
