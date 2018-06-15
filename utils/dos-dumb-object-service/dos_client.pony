@@ -202,14 +202,15 @@ actor RemoteJournalClient
     let p = Promise[DOSreply]
     p.next[None](
       {(a)(rsd) =>
-        @printf[I32]("PROMISE: I got array of size %d\n".cstring(), a.size())
-        var remote_size: USize = 0
+        var remote_size: USize = 0 // Default if remote file doesn't exist
         try
           for (file, size, appending) in (a as DOSreplyLS).values() do
-            @printf[I32]("\t %s,%d,%s\n".cstring(),
-              file.cstring(), size, appending.string().cstring())
-            if file == _journal_fp.path then
-              @printf[I32]("\tFound it")
+            if file == _journal_path then
+              @printf[I32]("\tFound it\n".cstring())
+              @printf[I32]("\t%s,%d,%s\n".cstring(), file.cstring(), size, appending.string().cstring())
+              if appending then
+                Fail()
+              end              
               remote_size = size
               break
             end
@@ -233,9 +234,9 @@ actor RemoteJournalClient
 
   be start_remote_file_append(remote_size: USize) =>
     @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
-    @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
     _state = 30
     _remote_size = remote_size
+    @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
     let rsd = recover tag this end
     let p = Promise[DOSreply]
@@ -275,8 +276,14 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
     // TODO check offset sanity
     // TODO offset update
-    _dos.send_unframed(data)
-    _remote_size = _remote_size + data_size
+    if _in_sync then
+      _dos.send_unframed(data)
+      _remote_size = _remote_size + data_size
+    else
+      // TODO buffering scheme when not in_sync
+      @printf[I32]("RemoveJournalClient: TODO not in_sync, need buffering scheme!\n".cstring())
+      None
+    end
 
   be dos_client_connection_status(connected: Bool) =>
     @printf[I32]("RemoteJournalClient: dos_client_connection_status %s\n".cstring(), connected.string().cstring())
@@ -626,7 +633,7 @@ class DOSnotify is TCPConnectionNotify
       _out.print("SOCK: sent")
     end
     _qqq_count = _qqq_count - 1
-_out.print("SOCK: sent @ crashme " + _qqq_count.string())
+    _out.print("SOCK: sent @ crashme " + _qqq_count.string())
     if _qqq_count <= 0 then
       conn.close()
       _qqq_count = _qqq_crashme
@@ -638,7 +645,7 @@ _out.print("SOCK: sent @ crashme " + _qqq_count.string())
       _out.print("SOCK: sentv")
     end
     _qqq_count = _qqq_count - 1
-_out.print("SOCK: sentv @ crashme " + _qqq_count.string())
+    _out.print("SOCK: sentv @ crashme " + _qqq_count.string())
     if _qqq_count <= 0 then
       conn.close()
       _qqq_count = _qqq_crashme
@@ -650,6 +657,18 @@ _out.print("SOCK: sentv @ crashme " + _qqq_count.string())
       _out.print("SOCK: closed")
     end
     _client.disconnected(conn)
+
+  fun ref throttled(conn: TCPConnection ref) =>
+    ifdef "verbose" then
+      _out.print("SOCK: throttled")
+    end
+    @printf[I32]("SOCK: throttled, TODO\n".cstring())
+
+  fun ref unthrottled(conn: TCPConnection ref) =>
+    ifdef "verbose" then
+      _out.print("SOCK: unthrottled")
+    end
+    @printf[I32]("SOCK: unthrottled, TODO\n".cstring())
 
 primitive Bytes
   fun to_u32(a: U8, b: U8, c: U8, d: U8): U32 =>
