@@ -95,7 +95,7 @@ actor Main
       let rjc = RemoteJournalClient(_auth as AmbientAuth, journal_fp, _journal_path, dos2)
 
       let zzz = recover iso SimpleJournalBackendLocalFile(journal_fp) end
-      _journal = SimpleJournal2(consume zzz)
+      _journal = SimpleJournal2(consume zzz /***, rjc***/)
 
       stage10()
     else
@@ -156,6 +156,7 @@ actor RemoteJournalClient
   let _journal_fp: FilePath
   let _journal_path: String
   let _dos: DOSclient
+  var _in_sync: Bool = false
   var _local_size: USize = 0
   var _remote_size: USize = 0
 
@@ -172,6 +173,7 @@ actor RemoteJournalClient
   be local_size_discovery() =>
     @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
       _journal_fp.path.cstring())
+    _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
       @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
@@ -223,11 +225,19 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
+    let rsd = recover tag this end
     let p = Promise[DOSreply]
     p.next[None](
-      {(reply) =>
+      {(reply)(rsd) =>
         try
           @printf[I32]("RemoteJournalClient: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
+          if (reply as String) == "ok" then
+            rsd.catch_up_state()
+          else
+            @printf[I32]("RemoteJournalClient: start_remote_file_append failure, pause & looping TODO\n".cstring())
+            @sleep[None](U32(1))
+            rsd.local_size_discovery()
+          end
         else
           Fail()
         end
@@ -236,7 +246,22 @@ actor RemoteJournalClient
         @printf[I32]("RemoteJournalClient: start_remote_file_append REJECTED\n".cstring())
       }
     )
-    _dos.do_streaming_append(_journal_path, _remote_size, p)
+    _dos.start_streaming_append(_journal_path, _remote_size, p)
+
+  be catch_up_state() =>
+    @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    // TODO
+    in_sync_state()
+
+  be in_sync_state() =>
+    @printf[I32]("RemoteJournalClient: in_sync_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    _in_sync = true
+
+  be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
+    @printf[I32]("RemoteJournalClient: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
+    // TODO check offset sanity
+    _dos.send_unframed(data)
+    _remote_size = _remote_size + data_size
 
 /**********************************************************/
 
@@ -314,7 +339,12 @@ actor DOSclient
       _reconn()
     end
 
-  be do_streaming_append(filename: String, offset: USize,
+  be send_unframed(data: ByteSeqIter) =>
+    if _connected then
+      try (_sock as TCPConnection).writev(data) end
+    end
+
+  be start_streaming_append(filename: String, offset: USize,
     p: (Promise[DOSreply] | None) = None)
   =>
     let request: String iso = recover String end
@@ -322,7 +352,7 @@ actor DOSclient
     if _connected then
       let pdu: String = "a" + filename + "\t" + offset.string()
       ifdef "verbose" then
-        _out.print("DOSc: do_streaming_append: " + filename + " offset " +
+        _out.print("DOSc: start_streaming_append: " + filename + " offset " +
           offset.string())
       end
       request.push(0)
@@ -751,6 +781,23 @@ class SimpleJournalBackendLocalFile is SimpleJournalBackend
   =>
     _j_file.writev(data)
 
+class SimpleJournalBackendRemote is SimpleJournalBackend
+  let _rjc: RemoteJournalClient
+
+  new create(rjc: RemoteJournalClient) =>
+    _rjc = rjc
+
+  fun ref be_dispose() =>
+    None // TODO : _rjc.dispose()
+
+  fun ref be_position(): USize =>
+    666 // TODO
+
+  fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
+  : Bool
+  =>
+    false // TODO : _rjc.yy()
+
 actor SimpleJournal2
   var _j_file: SimpleJournalBackend
   var _j_closed: Bool
@@ -758,7 +805,9 @@ actor SimpleJournal2
   let _encode_io_ops: Bool
   let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
-  new create(j_file: SimpleJournalBackend iso, encode_io_ops: Bool = true,
+  new create(j_file: SimpleJournalBackend iso,
+/***    j_remote: SimpleJournalBackend iso, ***/
+    encode_io_ops: Bool = true,
     owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
   =>
     _encode_io_ops = encode_io_ops

@@ -109,12 +109,13 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 appending_l[filename] = True
                 am_locked = True
 
-            reply = 'ok\n'.format(filename)
+            reply = 'ok'.format(filename)
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
             self.request.settimeout(1.0)
             last_now = time.time()
             self.reported_offset_w = eof_offset
+            if debug: print 'DBG: do_streaming_append: starting receive loop for %s' % filename
             while True:
                 bytes = ''
                 try:
@@ -140,7 +141,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     self._send_append_status(eof_offset, eof_offset) # TODO
                     last_now = now
         except Exception as e:
-            reply = 'ERROR: {}\n'.format(e)
+            reply = 'ERROR: {}'.format(e)
             if debug: print 'DBG: do_streaming_append: ERROR: %s' % e
             self.request.sendall(self.frame_bytes(len(reply)))
             self.request.sendall(reply)
@@ -255,7 +256,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
         if debug: print 'REPLY: {}'.format(reply)
 
     def do_unknown(self, cmd):
-        reply = 'ERROR: unknown command "{}"\n'.format(cmd)
+        reply = 'ERROR: unknown command "{}"'.format(cmd)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         if debug: print 'REPLY: {}'.format(reply)
