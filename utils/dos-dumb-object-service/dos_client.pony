@@ -291,7 +291,7 @@ actor RemoteJournalClient
   fun ref _catch_up_send_block() =>
     let missing_bytes = _local_size - _remote_size
     //let block_size = missing_bytes.min(1024*1024)
-    let block_size = missing_bytes.min(100)
+    let block_size = missing_bytes.min(10)
 
     @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
     with file = File.open(_journal_fp) do
