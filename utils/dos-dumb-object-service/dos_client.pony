@@ -116,7 +116,8 @@ actor Main
   fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
     @usleep[None](U32(200_1000))
     let ts = Timers
-    let t = Timer(ScribbleSome(j), 0, 50_000_000)
+    // TODO: use initial 0 time for race window with connection: let t = Timer(ScribbleSome(j), 0, 50_000_000)
+    let t = Timer(ScribbleSome(j), 500_000, 50_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
 
@@ -290,7 +291,7 @@ actor RemoteJournalClient
   fun ref _catch_up_send_block() =>
     let missing_bytes = _local_size - _remote_size
     //let block_size = missing_bytes.min(1024*1024)
-    let block_size = missing_bytes.min(10)
+    let block_size = missing_bytes.min(100)
 
     @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
     with file = File.open(_journal_fp) do
@@ -301,6 +302,8 @@ actor RemoteJournalClient
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
       catch_up_state()
+@usleep[None](U32(50_000))
+@usleep[None](U32(888))
     end
 
   be in_sync_state() =>
@@ -317,7 +320,7 @@ actor RemoteJournalClient
       _remote_size = _remote_size + data_size
     else
       // TODO buffering scheme when not in_sync
-      @printf[I32]("RemoveJournalClient: TODO not in_sync, need buffering scheme!\n".cstring())
+      @printf[I32]("\n\n\t\tRemoveJournalClient: TODO not in_sync, need buffering scheme!\n\n".cstring())
       None
     end
 
@@ -422,6 +425,8 @@ actor DOSclient
   be send_unframed(data: ByteSeqIter) =>
     if _connected then
       try (_sock as TCPConnection).writev(data) end
+    else
+      @printf[I32]("\n\n\t\tsend_unframed: not connected\n\n".cstring())
     end
 
   be start_streaming_append(filename: String, offset: USize,
@@ -616,7 +621,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  let _qqq_crashme: I64 = 6
+  let _qqq_crashme: I64 = 9
   var _qqq_count: I64 = _qqq_crashme
 
   new create(client: DOSclient, out: OutStream) =>
@@ -633,6 +638,7 @@ class DOSnotify is TCPConnectionNotify
       @printf[I32]("SOCK: I am connected.\n".cstring())
     end
     _header = true
+    conn.set_nodelay(true)
     conn.expect(4)
     _client.connected(conn)
 
@@ -665,6 +671,9 @@ class DOSnotify is TCPConnectionNotify
     end
     false
 
+  // NOTE: There is *not* a 1-1 correspondence between socket write/writev
+  // and calling sent().  TCPConnection will do its own buffering and
+  // may call sent() more or less frequently.
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
     ifdef "verbose" then
       @printf[I32]("SOCK: sent\n".cstring())
@@ -1069,6 +1078,7 @@ primitive _SJ
   =>
     let wb: Writer = wb.create()
 
+wb.write(">>>_SJ encode>>>")
     wb.u8(0)
     wb.u8(op)
     wb.u8(ints.size().u8())
@@ -1083,7 +1093,9 @@ primitive _SJ
     for bs in bss.values() do
       wb.write(bs)
     end
+wb.write("<<<<<<")
     let size = wb.size()
+    @printf[I32]("_SJ: encode_request size %d\n".cstring(), size)
     (wb.done(), size)
 
 /*************************/

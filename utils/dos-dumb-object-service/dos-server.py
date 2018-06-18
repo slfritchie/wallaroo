@@ -115,7 +115,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             self.request.settimeout(1.0)
             last_now = time.time()
             self.reported_offset_w = eof_offset
-            if debug: print 'DBG: do_streaming_append: starting receive loop for %s' % filename
+            if debug: print 'DBG: do_streaming_append: starting receive loop for %s @ offset %d' % (filename, eof_offset)
             while True:
                 bytes = ''
                 try:
