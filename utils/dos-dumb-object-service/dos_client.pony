@@ -203,6 +203,7 @@ actor RemoteJournalClient
     _state = 20
     let rsd = recover tag this end
     let p = Promise[DOSreply]
+    // TODO add timeout goop
     p.next[None](
       {(a)(rsd) =>
         var remote_size: USize = 0 // Default if remote file doesn't exist
@@ -252,6 +253,7 @@ actor RemoteJournalClient
 
     let rsd = recover tag this end
     let p = Promise[DOSreply]
+    // TODO add timeout goop
     p.next[None](
       {(reply)(rsd) =>
         try
@@ -391,6 +393,7 @@ actor DOSclient
       match p
       | None => None
       | let pp: Promise[DOSreply] =>
+        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
         pp.reject()
       end
     end
@@ -457,6 +460,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: streaming_append not connected, reject!  TODO\n".cstring())
         end
+        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
         pp.reject()
       end
     end
@@ -487,6 +491,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: ls not connected, reject!  TODO\n".cstring())
         end
+        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
         pp.reject()
       end
     end
@@ -520,6 +525,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: get_chunk not connected, reject!  TODO\n".cstring())
         end
+        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
         pp.reject()
       end
     end
@@ -534,6 +540,7 @@ actor DOSclient
 
     for offset in Range[USize](0, file_size, chunk_size) do
       let p0 = Promise[DOSreply]
+      // TODO add timeout goop
       let p1 = p0.next[T](
         {(chunk: DOSreply): T =>
           chunk_success.apply(offset, chunk)
@@ -607,6 +614,7 @@ actor DOSclient
         else
           // Protocol parsing error, e.g., for DOSls.
           // Reject so client can proceed.
+          @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
           pp.reject()
         end
       end
