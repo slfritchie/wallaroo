@@ -115,13 +115,15 @@ actor Main
     end
 
   fun _stage10(j: SimpleJournal2) =>
-    @usleep[None](U32(11_000))
+    // @usleep[None](U32(11_000))
     let ts = Timers
     /////////////////// let t = Timer(ScribbleSome(j, 20), 0, 50_000_000)
     let t = Timer(ScribbleSome(j, 50), 0, 2_000_000)
     ts(consume t)
+    let tick = recover Tick.create(j) end
+    let t2 = Timer(consume tick, 0, 5_000_000)
+    ts(consume t2)
     @printf[I32]("STAGE 10: done\n".cstring())
-    @usleep[None](U32(99_000))
 
 class ScribbleSome is TimerNotify
   let _j: SimpleJournal2
@@ -137,7 +139,6 @@ class ScribbleSome is TimerNotify
 
     if _c >= _limit then
       @printf[I32]("TIMER: counter limit at %d, stopping\n".cstring(), _limit)
-      _j.dispose_journal()
       false
     else
       @printf[I32]("TIMER: counter %d\n".cstring(), _c)
@@ -155,6 +156,23 @@ class DoLater is TimerNotify
 
   fun ref apply(t: Timer, c: U64): Bool =>
     _f()
+
+class Tick is TimerNotify
+  var _c: USize = 0
+  let _j: SimpleJournal2
+
+  new create(j: SimpleJournal2) =>
+    _j = j
+
+  fun ref apply(t: Timer, c: U64): Bool =>
+    @printf[I32]("************************ Tick %d\n".cstring(), _c)
+    _c = _c + 1
+    if _c > 30 then
+      _j.dispose_journal()
+      false
+    else
+      true
+    end
 
 /**********************************************************/
 
@@ -498,6 +516,7 @@ actor DOSclient
     ifdef "verbose" then
       @printf[I32]("DOS: &&&&&dispose\n".cstring())
     end
+@printf[I32]("DOS: &&&&&dispose\n".cstring())
     _do_reconnect = false
     _dispose()
 
@@ -506,6 +525,7 @@ actor DOSclient
       @printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),
         _waiting_reply.size())
     end
+@printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),         _waiting_reply.size())
     try (_sock as TCPConnection).dispose() end
     _connected = false
     for (op, p) in _waiting_reply.values() do
