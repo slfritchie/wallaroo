@@ -118,10 +118,10 @@ actor Main
     @usleep[None](U32(11_000))
     let ts = Timers
     /////////////////// let t = Timer(ScribbleSome(j, 20), 0, 50_000_000)
-    let t = Timer(ScribbleSome(j, 20), 0, 2_000_000)
+    let t = Timer(ScribbleSome(j, 50), 0, 2_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
-    @usleep[None](U32(50_000))
+    @usleep[None](U32(99_000))
 
 class ScribbleSome is TimerNotify
   let _j: SimpleJournal2
@@ -204,7 +204,6 @@ actor RemoteJournalClient
   fun ref _make_new_dos_then_local_size_discovery() =>
     @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state)
     _dos.dispose()
-    _connected = false
     _in_sync = false
     try
       _dos = _make_dos()?
@@ -219,7 +218,6 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state,
       _journal_fp.path.cstring())
     _state = 10
-    _connected = false
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
@@ -299,6 +297,12 @@ actor RemoteJournalClient
     _remote_size = remote_size
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
+    if not _connected then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append not _connected line %d\n".cstring(), _state, __loc.line())
+      _make_new_dos_then_local_size_discovery()
+      return
+    end
+
     let rsd = recover tag this end
     let p = Promise[DOSreply]
     // TODO add timeout goop
@@ -330,20 +334,22 @@ actor RemoteJournalClient
       Fail()
     end
     _state = 40
-    if _connected then
-      if _local_size == _remote_size then
-        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
-        send_buffer_state()
-      elseif _local_size > _remote_size then
-        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
-        _catch_up_send_block()
-      else
-        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
-        Fail()
-      end
+
+    if not _connected then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _connected line %d\n".cstring(), _state, __loc.line())
+      local_size_discovery()
+      return
+    end
+
+    if _local_size == _remote_size then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      send_buffer_state()
+    elseif _local_size > _remote_size then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      _catch_up_send_block()
     else
       @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
-      _make_new_dos_then_local_size_discovery()
+      Fail()
     end
 
   fun ref _catch_up_send_block() =>
@@ -438,7 +444,7 @@ actor RemoteJournalClient
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state, connected.string().cstring())
     _connected = connected
-    if not connected then
+    if not _connected then
       local_size_discovery()
     end
 
