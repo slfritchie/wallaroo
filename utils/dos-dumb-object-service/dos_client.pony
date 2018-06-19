@@ -352,7 +352,7 @@ actor RemoteJournalClient
       _dos.send_unframed(data)
       _remote_size = _remote_size + data_size
     else
-      // TODO buffering scheme when not in_sync
+      // TODO buffering scheme when not in_sync 
       @printf[I32]("\n\n\t\tRemoveJournalClient: TODO not in_sync, need buffering scheme!\n\n".cstring())
       Fail()
     end
