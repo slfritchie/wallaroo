@@ -309,7 +309,8 @@ actor RemoteJournalClient
       @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
       return
     elseif _state > 30 then
-      Fail()
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append TODO hey this seems to happen occasionally, is it truly bad or is ignoring it good enough?\n".cstring(), _state)
+      return
     end
     _state = 30
     _remote_size = remote_size
