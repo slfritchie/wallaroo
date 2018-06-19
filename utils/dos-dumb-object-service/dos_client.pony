@@ -172,7 +172,7 @@ actor RemoteJournalClient
     _journal_fp = journal_fp
     _journal_path = journal_path
     _dos = dos
-    @printf[I32]("RemoteJournalClient: create\n".cstring())
+    @printf[I32]("RemoteJournalClient (last _state=%d): create\n".cstring(), _state)
     let rjc = recover tag this end
     _dos.connection_status_notifier(recover iso
       {(connected: Bool): None =>
@@ -182,7 +182,7 @@ actor RemoteJournalClient
     local_size_discovery()
 
   be local_size_discovery() =>
-    @printf[I32]("RemoteJournalClient: local_size_discovery for %s\n".cstring(),
+    @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state,
       _journal_fp.path.cstring())
     _state = 10
     _connected = false
@@ -198,8 +198,13 @@ actor RemoteJournalClient
     end
 
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
-    @printf[I32]("RemoteJournalClient: remote_size_discovery for %s\n".cstring(),
-      _journal_fp.path.cstring())
+    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state, _journal_fp.path.cstring())
+    if _state > 20 then
+      // We have a race here with an async promise.  We are already
+      // in a more advanced state, so ignore this message.
+      @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
+      return
+    end
     _state = 20
     let rsd = recover tag this end
     let p = Promise[DOSreply]
@@ -237,6 +242,7 @@ actor RemoteJournalClient
         let ts = Timers
         let later = DoLater(recover
           {(): Bool =>
+            @printf[I32]("\n\t\t\t\tDoLater: remote_size_discovery after sleep_time %d\n".cstring(), sleep_time*2)
             rsd.remote_size_discovery(sleep_time*2, max_time)
             false
           } end)
@@ -246,7 +252,10 @@ actor RemoteJournalClient
     _dos.do_ls(p)
 
   be start_remote_file_append(remote_size: USize) =>
-    @printf[I32]("RemoteJournalClient: start_remote_file_append for %s\n".cstring(), _journal_fp.path.cstring())
+    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state, _journal_fp.path.cstring())
+    if _state >= 30 then
+      Fail()
+    end
     _state = 30
     _remote_size = remote_size
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
@@ -276,7 +285,10 @@ actor RemoteJournalClient
     _dos.start_streaming_append(_journal_path, _remote_size, p)
 
   be catch_up_state() =>
-    @printf[I32]("RemoteJournalClient: catch_up_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
+    if _state > 40 then
+      Fail()
+    end
     _state = 40
     if _connected then
       if _local_size == _remote_size then
@@ -309,12 +321,15 @@ actor RemoteJournalClient
     end
 
   be in_sync_state() =>
-    @printf[I32]("RemoteJournalClient: in_sync_state _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
+    if _state != 40 then
+      Fail()
+    end
     _state = 50
     _in_sync = true
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
-    @printf[I32]("RemoteJournalClient: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d\n".cstring(), _state, offset, data_size)
     // TODO check offset sanity
     // TODO offset update
     if _in_sync then
@@ -327,8 +342,7 @@ actor RemoteJournalClient
     end
 
   be dos_client_connection_status(connected: Bool) =>
-    @printf[I32]("RemoteJournalClient: dos_client_connection_status %s\n".cstring(), connected.string().cstring())
-    @printf[I32]("RemoteJournalClient: _state %d\n".cstring(), _state)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state, connected.string().cstring())
     _connected = connected
     if not connected then
       local_size_discovery()
