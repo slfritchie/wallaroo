@@ -114,9 +114,10 @@ actor Main
     end
 
   fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
-    @usleep[None](U32(300_000))
+    @usleep[None](U32(11_000))
     let ts = Timers
-    let t = Timer(ScribbleSome(j, 6), 0, 50_000_000)
+    /////////////////// let t = Timer(ScribbleSome(j, 20), 0, 50_000_000)
+    let t = Timer(ScribbleSome(j, 20), 0, 2_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
 
@@ -132,7 +133,7 @@ class ScribbleSome is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    if _c > _limit then
+    if _c >= _limit then
       @printf[I32]("TIMER: counter limit at %d, stopping\n".cstring(), _limit)
       _j.dispose_journal()
       false
@@ -167,6 +168,8 @@ actor RemoteJournalClient
   var _local_size: USize = 0
   var _remote_size: USize = 0
   var _disposed: Bool = false
+  var _buffer: Array[(USize, ByteSeqIter, USize)] = _buffer.create()
+  var _buffer_size: USize = 0
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     dos: DOSclient)
@@ -308,7 +311,7 @@ actor RemoteJournalClient
     _state = 40
     if _connected then
       if _local_size == _remote_size then
-        in_sync_state()
+        send_buffer_state()
       elseif _local_size > _remote_size then
         _catch_up_send_block()
       else
@@ -321,7 +324,7 @@ actor RemoteJournalClient
   fun ref _catch_up_send_block() =>
     let missing_bytes = _local_size - _remote_size
     //let block_size = missing_bytes.min(1024*1024)
-    let block_size = missing_bytes.min(10)
+    let block_size = missing_bytes.min(50)
 
     @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
     with file = File.open(_journal_fp) do
@@ -334,10 +337,50 @@ actor RemoteJournalClient
       catch_up_state()
     end
 
-  be in_sync_state() =>
+  be send_buffer_state() =>
+    if _disposed then return end
+    @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
+    if _state != 40 then
+      Fail()
+    end
+    _state = 45
+    if _buffer_size == 0 then
+      in_sync_state()
+    else
+      for (offset, data, data_size) in _buffer.values() do
+        if (offset + data_size) <= _remote_size then
+          @printf[I32]("\t======send_buffer_state: skipping offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
+        elseif (offset < _remote_size) and ((offset + data_size) > _remote_size) then
+          // IIRC POSIX says that we shouldn't have to worry about this
+          // case *if* the local file writer is always unbuffered?
+          // TODO But I probably don't remember correctly: what if
+          // the local file writer's writev(2) call was a partial write?
+          // Our local-vs-remote sync protocol then syncs to an offset
+          // that ends at the partial write.  And then we stumble into
+          // this case?
+          //
+          // TODO Investigate this further.
+          @printf[I32]("\t======send_buffer_state: TODO split offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
+          Fail()
+        elseif offset == _remote_size then
+          @printf[I32]("\t======send_buffer_state: send_unframed offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
+          _local_size = _local_size + data_size // keep in sync with _remote_size
+          _dos.send_unframed(data)
+          _remote_size = _remote_size + data_size
+        else
+          Fail()
+        end
+      end
+      _buffer.clear()
+      _buffer_size = 0
+      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
+      in_sync_state()
+    end
+
+  fun /* Yes, fun, not be! */ ref in_sync_state() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
-    if _state != 40 then
+    if _state != 45 then
       Fail()
     end
     _state = 50
@@ -345,16 +388,25 @@ actor RemoteJournalClient
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d\n".cstring(), _state, offset, data_size)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n".cstring(), _state, offset, data_size, _remote_size, _buffer_size)
     // TODO check offset sanity
-    // TODO offset update
+    if _in_sync and (offset != (_remote_size + _buffer_size)) then
+      // WHOA, we have an out-of-order problem, or we're missing
+      // a write, or something else terrible.
+      // TODO Should we go back to local_size_discovery()?
+      Fail()
+    else
+      // We aren't in sync. Do nothing here and wait for offset sanity
+      // checking at buffer flush.
+      None
+    end
     if _in_sync then
       _dos.send_unframed(data)
       _remote_size = _remote_size + data_size
     else
-      // TODO buffering scheme when not in_sync 
-      @printf[I32]("\n\n\t\tRemoveJournalClient: TODO not in_sync, need buffering scheme!\n\n".cstring())
-      Fail()
+      _buffer.push((offset, data, data_size))
+      _buffer_size = _buffer_size + data_size
+      @printf[I32]("\t====be_writev: be_writev new _buffer_size %d\n".cstring(), _buffer_size)
     end
 
   be dos_client_connection_status(connected: Bool) =>
@@ -660,7 +712,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
-  let _qqq_crashme: I64 = 9
+  let _qqq_crashme: I64 = 15
   var _qqq_count: I64 = _qqq_crashme
 
   new create(client: DOSclient, out: OutStream) =>
