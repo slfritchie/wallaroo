@@ -114,10 +114,9 @@ actor Main
     end
 
   fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
-    @usleep[None](U32(200_1000))
+    @usleep[None](U32(300_000))
     let ts = Timers
-    // TODO: use initial 0 time for race window with connection: let t = Timer(ScribbleSome(j), 0, 50_000_000)
-    let t = Timer(ScribbleSome(j), 500_000, 50_000_000)
+    let t = Timer(ScribbleSome(j), 0, 50_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
 
@@ -253,7 +252,10 @@ actor RemoteJournalClient
 
   be start_remote_file_append(remote_size: USize) =>
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state, _journal_fp.path.cstring())
-    if _state >= 30 then
+    if _state == 30 then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
+      return
+    elseif _state > 30 then
       Fail()
     end
     _state = 30
@@ -338,7 +340,7 @@ actor RemoteJournalClient
     else
       // TODO buffering scheme when not in_sync
       @printf[I32]("\n\n\t\tRemoveJournalClient: TODO not in_sync, need buffering scheme!\n\n".cstring())
-      None
+      Fail()
     end
 
   be dos_client_connection_status(connected: Bool) =>

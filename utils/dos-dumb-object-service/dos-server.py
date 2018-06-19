@@ -163,7 +163,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
 
     def _send_append_status(self, offset_w, offset_s):
         # written offset \t synced offset
-        reply = "TODO APPEND STATUS{}\t{}".format(offset_w, offset_s)
+        reply = "{}\t{}".format(offset_w, offset_s)
         if debug: print 'DBG: do_streaming_append: %s' % reply
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
