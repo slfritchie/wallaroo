@@ -116,22 +116,25 @@ actor Main
   fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
     @usleep[None](U32(300_000))
     let ts = Timers
-    let t = Timer(ScribbleSome(j), 0, 50_000_000)
+    let t = Timer(ScribbleSome(j, 6), 0, 50_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
 
 class ScribbleSome is TimerNotify
   let _j: SimpleJournal2
+  let _limit: USize
   var _c: USize = 0
 
-  new iso create(j: SimpleJournal2) =>
+  new iso create(j: SimpleJournal2, limit: USize) =>
     _j = j
+    _limit = limit
 
   fun ref apply(t: Timer, c: U64): Bool =>
     let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    if _c > 6 then
-      @printf[I32]("TIMER: counter expired, stopping\n".cstring())
+    if _c > _limit then
+      @printf[I32]("TIMER: counter limit at %d, stopping\n".cstring(), _limit)
+      _j.dispose_journal()
       false
     else
       @printf[I32]("TIMER: counter %d\n".cstring(), _c)
@@ -163,6 +166,7 @@ actor RemoteJournalClient
   var _in_sync: Bool = false
   var _local_size: USize = 0
   var _remote_size: USize = 0
+  var _disposed: Bool = false
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     dos: DOSclient)
@@ -180,7 +184,14 @@ actor RemoteJournalClient
       } end)
     local_size_discovery()
 
+  be dispose() =>
+    _dos.dispose()
+    _connected = false
+    _in_sync = false
+    _disposed = true
+
   be local_size_discovery() =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state,
       _journal_fp.path.cstring())
     _state = 10
@@ -197,6 +208,7 @@ actor RemoteJournalClient
     end
 
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state, _journal_fp.path.cstring())
     if _state > 20 then
       // We have a race here with an async promise.  We are already
@@ -251,6 +263,7 @@ actor RemoteJournalClient
     _dos.do_ls(p)
 
   be start_remote_file_append(remote_size: USize) =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state, _journal_fp.path.cstring())
     if _state == 30 then
       @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
@@ -287,6 +300,7 @@ actor RemoteJournalClient
     _dos.start_streaming_append(_journal_path, _remote_size, p)
 
   be catch_up_state() =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
     if _state > 40 then
       Fail()
@@ -318,11 +332,10 @@ actor RemoteJournalClient
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
       catch_up_state()
-@usleep[None](U32(50_000))
-@usleep[None](U32(888))
     end
 
   be in_sync_state() =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
     if _state != 40 then
       Fail()
@@ -331,6 +344,7 @@ actor RemoteJournalClient
     _in_sync = true
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d\n".cstring(), _state, offset, data_size)
     // TODO check offset sanity
     // TODO offset update
@@ -344,6 +358,7 @@ actor RemoteJournalClient
     end
 
   be dos_client_connection_status(connected: Bool) =>
+    if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state, connected.string().cstring())
     _connected = connected
     if not connected then
@@ -928,7 +943,7 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
     _rjc = rjc
 
   fun ref be_dispose() =>
-    None // TODO : _rjc.dispose()
+    _rjc.dispose()
 
   fun ref be_position(): USize =>
     666 // TODO
@@ -968,6 +983,7 @@ actor SimpleJournal2
   // It is used only by RotatingEventLog.
   be dispose_journal() =>
     _j_file.be_dispose()
+    _j_remote.be_dispose()
     _j_closed = true
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
