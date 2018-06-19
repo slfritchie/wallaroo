@@ -9,7 +9,6 @@ use "time"
 actor Main
   let _auth: (AmbientAuth | None)
   let _args: Array[String] val
-  var _dos: (DOSclient | None) = None
   var _journal_path: String = "/dev/bogus"
   var _journal: (SimpleJournal2 | None) = None
 
@@ -87,13 +86,15 @@ actor Main
 
  *****/
 
-      _dos = DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
-      let dos2 = _dos as DOSclient
+      let make_dos = recover val
+        {(): DOSclient ? =>
+          DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
+        } end
 
       _journal_path = _args(1)? + ".journal"
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
       let rjc = RemoteJournalClient(_auth as AmbientAuth,
-        journal_fp, _journal_path, dos2)
+        journal_fp, _journal_path, make_dos, make_dos()?)
       let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
 
       let j_file = recover iso SimpleJournalBackendLocalFile(journal_fp) end
@@ -108,18 +109,19 @@ actor Main
 
   be stage10() =>
     try
-      _stage10(_journal as SimpleJournal2, _dos as DOSclient)
+      _stage10(_journal as SimpleJournal2)
     else
       Fail()
     end
 
-  fun _stage10(j: SimpleJournal2, dos_c: DOSclient) =>
+  fun _stage10(j: SimpleJournal2) =>
     @usleep[None](U32(11_000))
     let ts = Timers
     /////////////////// let t = Timer(ScribbleSome(j, 20), 0, 50_000_000)
     let t = Timer(ScribbleSome(j, 20), 0, 2_000_000)
     ts(consume t)
     @printf[I32]("STAGE 10: done\n".cstring())
+    @usleep[None](U32(50_000))
 
 class ScribbleSome is TimerNotify
   let _j: SimpleJournal2
@@ -162,7 +164,8 @@ actor RemoteJournalClient
   let _auth: AmbientAuth
   let _journal_fp: FilePath
   let _journal_path: String
-  let _dos: DOSclient
+  let _make_dos: {(): DOSclient ?} val
+  var _dos: DOSclient
   var _connected: Bool = false
   var _in_sync: Bool = false
   var _local_size: USize = 0
@@ -172,19 +175,15 @@ actor RemoteJournalClient
   var _buffer_size: USize = 0
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
-    dos: DOSclient)
+    make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
   =>
     _auth = auth
     _journal_fp = journal_fp
     _journal_path = journal_path
-    _dos = dos
+    _make_dos = make_dos
+    _dos = initial_dos
     @printf[I32]("RemoteJournalClient (last _state=%d): create\n".cstring(), _state)
-    let rjc = recover tag this end
-    _dos.connection_status_notifier(recover iso
-      {(connected: Bool): None =>
-        @printf[I32]("RemoteJournalClient: lambda notifier = %s\n".cstring(), connected.string().cstring())
-        rjc.dos_client_connection_status(connected)
-      } end)
+    _set_connection_status_notifier()
     local_size_discovery()
 
   be dispose() =>
@@ -192,6 +191,28 @@ actor RemoteJournalClient
     _connected = false
     _in_sync = false
     _disposed = true
+
+  fun ref _set_connection_status_notifier() =>
+    let rjc = recover tag this end
+
+    _dos.connection_status_notifier(recover iso
+      {(connected: Bool): None =>
+        @printf[I32]("RemoteJournalClient: lambda notifier = %s\n".cstring(), connected.string().cstring())
+        rjc.dos_client_connection_status(connected)
+      } end)
+
+  fun ref _make_new_dos_then_local_size_discovery() =>
+    @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state)
+    _dos.dispose()
+    _connected = false
+    _in_sync = false
+    try
+      _dos = _make_dos()?
+      _set_connection_status_notifier()
+    else
+      Fail()
+    end
+    local_size_discovery()
 
   be local_size_discovery() =>
     if _disposed then return end
@@ -311,14 +332,18 @@ actor RemoteJournalClient
     _state = 40
     if _connected then
       if _local_size == _remote_size then
+        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
         send_buffer_state()
       elseif _local_size > _remote_size then
+        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
         _catch_up_send_block()
       else
+        @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
         Fail()
       end
     else
-      local_size_discovery()
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      _make_new_dos_then_local_size_discovery()
     end
 
   fun ref _catch_up_send_block() =>
@@ -447,6 +472,11 @@ actor DOSclient
 
   be connection_status_notifier(status_notifier: {(Bool): None} iso) =>
     _status_notifier = consume status_notifier
+    // Deal with a race where we were connected before the status notifier
+    // lambda arrives here.
+    if _connected then
+      _call_status_notifier()
+    end
 
   fun ref _reconn (): None =>
     ifdef "verbose" then
@@ -490,6 +520,9 @@ actor DOSclient
       @printf[I32]("DOS: connected\n".cstring())
     end
     _connected = true
+    _call_status_notifier()
+
+  fun ref _call_status_notifier() =>
     try
       (_status_notifier as {(Bool): None})(true)
     end
