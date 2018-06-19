@@ -812,6 +812,7 @@ class DOSnotify is TCPConnectionNotify
     @printf[I32]("SOCK: sent @ crashme %d\n".cstring(), _qqq_count)
     if _qqq_count <= 0 then
       conn.close()
+      conn.dispose()
       _qqq_count = _qqq_crashme
     end
     data
@@ -824,6 +825,7 @@ class DOSnotify is TCPConnectionNotify
     @printf[I32]("SOCK: sentv @ crashme %d\n".cstring(), _qqq_count)
     if _qqq_count <= 0 then
       conn.close()
+      conn.dispose()
       _qqq_count = _qqq_crashme
     end
     data
