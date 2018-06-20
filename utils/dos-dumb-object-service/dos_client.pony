@@ -412,7 +412,7 @@ actor RemoteJournalClient
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
     if _state.num() != _SCatchUp.num() then
-      Fail()
+      return
     end
     _state = _SSendBuffer
 
