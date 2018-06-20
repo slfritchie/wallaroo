@@ -167,7 +167,7 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     @printf[I32]("************************ Tick %d\n".cstring(), _c)
     _c = _c + 1
-    if _c > 30 then
+    if _c > 50 then
       _j.dispose_journal()
       false
     else
@@ -344,11 +344,11 @@ actor RemoteJournalClient
         try
           @printf[I32]("RemoteJournalClient: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
           if (reply as String) == "ok" then
-            rsd.catch_up_state()
+            rsd.advise_state_change(_SCatchUp)
           else
             try @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = %s), pause & looping TODO\n".cstring(), (reply as String).cstring()) else @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = NOT-A-STRING), pause & looping TODO\n".cstring()) end
             @sleep[None](U32(1))
-            rsd.local_size_discovery()
+            rsd.advise_state_change(_SLocalSizeDiscovery)
           end
         else
           Fail()
@@ -356,6 +356,7 @@ actor RemoteJournalClient
       },
       {() =>
         @printf[I32]("RemoteJournalClient: start_remote_file_append REJECTED\n".cstring())
+        rsd.advise_state_change(_SLocalSizeDiscovery)
       }
     )
     _dos.start_streaming_append(_journal_path, _remote_size, p)
@@ -491,7 +492,8 @@ actor RemoteJournalClient
     sleep_time: USize = 0, max_time: USize = 0) =>
     match state
     | _SLocalSizeDiscovery =>
-      if _state.num() <= _SRemoteSizeDiscovery.num() then
+      if (_state.num() <= _SRemoteSizeDiscovery.num())
+        or (_state.num() == _SStartRemoteFileAppend.num()) then
         _local_size_discovery()
       end
     | _SRemoteSizeDiscovery =>
@@ -501,6 +503,10 @@ actor RemoteJournalClient
     | _SStartRemoteFileAppend =>
       if _state.num() <= _SRemoteSizeDiscovery.num() then
         _start_remote_file_append(size)
+      end
+    | _SCatchUp =>
+      if _state.num() == _SStartRemoteFileAppend.num() then
+        _catch_up_state()
       end
     end
 
