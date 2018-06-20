@@ -736,6 +736,7 @@ actor DOSclient
           | DOSappend =>
             pp(str)
           | DOSls =>
+            @printf[I32]("DOSclient ls response GOT: %s\n".cstring(), str.cstring())
             let lines = recover val str.split("\n") end
             let res: Array[(String, USize, Bool)] iso = recover res.create() end
 
