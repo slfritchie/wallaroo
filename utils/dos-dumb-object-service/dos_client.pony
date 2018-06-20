@@ -214,7 +214,7 @@ actor RemoteJournalClient
     let rjc = recover tag this end
 
     _dos.connection_status_notifier(recover iso
-      {(connected: Bool): None =>
+      {(connected: Bool): None => 
         @printf[I32]("RemoteJournalClient: lambda notifier = %s\n".cstring(), connected.string().cstring())
         rjc.dos_client_connection_status(connected)
       } end)
