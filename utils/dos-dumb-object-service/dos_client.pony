@@ -486,6 +486,9 @@ actor RemoteJournalClient
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state.num(), connected.string().cstring())
     _connected = connected
+    if not _connected then
+      _in_sync = false
+    end      
     _local_size_discovery()
 
   be advise_state_change(state: _RJCstate, size: USize = 0,
