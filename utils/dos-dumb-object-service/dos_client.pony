@@ -489,6 +489,7 @@ actor RemoteJournalClient
 
   be advise_state_change(state: _RJCstate, size: USize = 0,
     sleep_time: USize = 0, max_time: USize = 0) =>
+    @printf[I32]("RemoteJournalClient (last _state=%d):: advise_state_change %d\n".cstring(), _state.num(), state.num())
     match state
     | _SLocalSizeDiscovery =>
       if (_state.num() <= _SRemoteSizeDiscovery.num())
