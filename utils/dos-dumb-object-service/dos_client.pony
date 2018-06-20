@@ -167,7 +167,7 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     @printf[I32]("************************ Tick %d\n".cstring(), _c)
     _c = _c + 1
-    if _c > 170 then
+    if _c > 270 then
       _j.dispose_journal()
       false
     else
@@ -347,7 +347,6 @@ actor RemoteJournalClient
             rsd.advise_state_change(_SCatchUp)
           else
             try @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = %s), pause & looping TODO\n".cstring(), (reply as String).cstring()) else @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = NOT-A-STRING), pause & looping TODO\n".cstring()) end
-            @sleep[None](U32(1))
             rsd.advise_state_change(_SLocalSizeDiscovery)
           end
         else
@@ -402,7 +401,7 @@ actor RemoteJournalClient
       @printf[I32]("\t_catch_up_send_block: _remote_size %d bytes size = %d\n".cstring(), _remote_size, bytes.size())
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
-      catch_up_state()
+      advise_state_change(_SCatchUp)
     end
 
   be send_buffer_state() =>
@@ -891,7 +890,7 @@ class DOSnotify is TCPConnectionNotify
       @printf[I32]("SOCK: sent\n".cstring())
     end
     _qqq_count = _qqq_count - 1
-    @printf[I32]("SOCK: sent @ crashme %d\n".cstring(), _qqq_count)
+    @printf[I32]("SOCK: sent @ crashme %d conn 0x%lx size %d\n".cstring(), _qqq_count, conn, data.size())
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
@@ -904,7 +903,7 @@ class DOSnotify is TCPConnectionNotify
       @printf[I32]("SOCK: sentv\n".cstring())
     end
     _qqq_count = _qqq_count - 1
-    @printf[I32]("SOCK: sentv @ crashme %d\n".cstring(), _qqq_count)
+    @printf[I32]("SOCK: sentv @ crashme %d conn 0x%lx size %d\n".cstring(), _qqq_count, conn, I32(-6))
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
