@@ -222,6 +222,7 @@ actor RemoteJournalClient
   fun ref _make_new_dos_then_local_size_discovery() =>
     @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state.num())
     _dos.dispose()
+    _connected = false
     _in_sync = false
     try
       _dos = _make_dos()?
@@ -564,10 +565,11 @@ actor DOSclient
       _call_status_notifier()
     end
 
-  fun ref _reconn (): None =>
+  fun ref _reconn(): None =>
     ifdef "verbose" then
       @printf[I32]("DOS: calling _reconn\n".cstring())
     end
+    _connected = false
     try
       _sock = TCPConnection(_auth as AmbientAuth,
         recover DOSnotify(this, _out) end, _host, _port)
@@ -599,7 +601,6 @@ actor DOSclient
       end
     end
     _waiting_reply.clear()
-    _connected = false
 
   be connected(conn: TCPConnection) =>
 @printf[I32]("DOS: connected\n".cstring())
