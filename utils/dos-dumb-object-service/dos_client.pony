@@ -232,6 +232,9 @@ actor RemoteJournalClient
     local_size_discovery()
 
   be local_size_discovery() =>
+    _local_size_discovery()
+
+  fun ref _local_size_discovery() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state,
       _journal_fp.path.cstring())
@@ -248,6 +251,9 @@ actor RemoteJournalClient
     end
 
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
+    _remote_size_discovery(sleep_time, max_time)
+
+  fun ref _remote_size_discovery(sleep_time: USize, max_time: USize) =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state, _journal_fp.path.cstring())
     if _state > 20 then
@@ -303,6 +309,9 @@ actor RemoteJournalClient
     _dos.do_ls(p)
 
   be start_remote_file_append(remote_size: USize) =>
+    _start_remote_file_append(remote_size)
+
+  fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state, _journal_fp.path.cstring())
     if _state == 30 then
@@ -347,6 +356,9 @@ actor RemoteJournalClient
     _dos.start_streaming_append(_journal_path, _remote_size, p)
 
   be catch_up_state() =>
+    _catch_up_state()
+
+  fun ref _catch_up_state() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
     if _state > 40 then
@@ -388,6 +400,9 @@ actor RemoteJournalClient
     end
 
   be send_buffer_state() =>
+    _send_buffer_state()
+
+  fun ref _send_buffer_state() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
     if _state != 40 then
