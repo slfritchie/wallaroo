@@ -177,11 +177,7 @@ class Tick is TimerNotify
 /**********************************************************/
 
 actor RemoteJournalClient
-  // _state as an integer is useful for doing range comparisons; primitives
-  // can't give us that.  As long as the state machine graph is very linear,
-  // the integer ought to serve well?  But if the state machine graph loses
-  // its linear shape, then we ought to use something else.
-  var _state: U8 = 0
+  var _state: _RJCstate = _SLocalSizeDiscovery
   // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
@@ -204,9 +200,9 @@ actor RemoteJournalClient
     _journal_path = journal_path
     _make_dos = make_dos
     _dos = initial_dos
-    @printf[I32]("RemoteJournalClient (last _state=%d): create\n".cstring(), _state)
+    @printf[I32]("RemoteJournalClient (last _state=%d): create\n".cstring(), _state.num())
     _set_connection_status_notifier()
-    local_size_discovery()
+    _local_size_discovery()
 
   be dispose() =>
     _dos.dispose()
@@ -224,7 +220,7 @@ actor RemoteJournalClient
       } end)
 
   fun ref _make_new_dos_then_local_size_discovery() =>
-    @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state.num())
     _dos.dispose()
     _in_sync = false
     try
@@ -240,18 +236,19 @@ actor RemoteJournalClient
 
   fun ref _local_size_discovery() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state,
+    @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state.num(),
       _journal_fp.path.cstring())
-    _state = RJCstate.local_size_discovery()
+    _state = _SLocalSizeDiscovery
 
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
       @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
       _local_size = info.size
-      remote_size_discovery(1_000_000, 1_000_000_000)
+      _remote_size_discovery(1_000_000, 1_000_000_000)
     else
-      // We expect that this file will exist very very shortly.  Spinwait.
+      // We expect that this file will exist very very shortly.
+      // Yield to the scheduler.
       local_size_discovery()
     end
 
@@ -260,14 +257,14 @@ actor RemoteJournalClient
 
   fun ref _remote_size_discovery(sleep_time: USize, max_time: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state, _journal_fp.path.cstring())
-    if _state > RJCstate.remote_size_discovery() then
+    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    if _state.num() > _SRemoteSizeDiscovery.num() then
       // We have a race here with an async promise.  We are already
       // in a more advanced state, so ignore this message.
-      @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery, ignoring message for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
       return
     end
-    _state = RJCstate.remote_size_discovery()
+    _state = _SRemoteSizeDiscovery
 
     let rsd = recover tag this end
     let p = Promise[DOSreply]
@@ -289,14 +286,14 @@ actor RemoteJournalClient
                 // of the state machine; eventually the old session will
                 // be closed by remote server and the file's appending
                 // state will be false.
-                rsd.local_size_discovery()
+                rsd.advise_state_change(_SLocalSizeDiscovery)
                 return
               end              
               remote_size = size
               break
             end
           end
-          rsd.start_remote_file_append(remote_size)
+          rsd.advise_state_change(_SStartRemoteFileAppend, remote_size)
         end
       },
       {()(rsd, sleep_time, max_time) =>
@@ -306,7 +303,8 @@ actor RemoteJournalClient
         let later = DoLater(recover
           {(): Bool =>
             @printf[I32]("\n\t\t\t\tDoLater: remote_size_discovery after sleep_time %d\n".cstring(), sleep_time*2)
-            rsd.remote_size_discovery(sleep_time*2, max_time)
+            rsd.advise_state_change(_SRemoteSizeDiscovery
+              where sleep_time = sleep_time*2, max_time = max_time)
             false
           } end)
         let t = Timer(consume later, U64.from[USize](sleep_time.min(max_time)), 0)
@@ -319,21 +317,21 @@ actor RemoteJournalClient
 
   fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state, _journal_fp.path.cstring())
-    if _state == RJCstate.start_remote_file_append() then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state, _journal_fp.path.cstring())
+    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    if _state.num() == _SStartRemoteFileAppend.num() then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
       return
-    elseif _state > RJCstate.start_remote_file_append() then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append TODO hey this seems to happen occasionally, is it truly bad or is ignoring it good enough?\n".cstring(), _state)
+    elseif _state.num() > _SStartRemoteFileAppend.num() then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append TODO hey this seems to happen occasionally, is it truly bad or is ignoring it good enough?\n".cstring(), _state.num())
       return
     end
-    _state = RJCstate.start_remote_file_append()
+    _state = _SStartRemoteFileAppend
 
     _remote_size = remote_size
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
 
     if not _connected then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append not _connected line %d\n".cstring(), _state, __loc.line())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append not _connected line %d\n".cstring(), _state.num(), __loc.line())
       _make_new_dos_then_local_size_discovery()
       return
     end
@@ -367,26 +365,26 @@ actor RemoteJournalClient
 
   fun ref _catch_up_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
-    if _state > RJCstate.catch_up_state() then
+    @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    if _state.num() > _SCatchUp.num() then
       Fail()
     end
-    _state = RJCstate.catch_up_state()
+    _state = _SCatchUp
 
     if not _connected then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _connected line %d\n".cstring(), _state, __loc.line())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _connected line %d\n".cstring(), _state.num(), __loc.line())
       local_size_discovery()
       return
     end
 
     if _local_size == _remote_size then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
       send_buffer_state()
     elseif _local_size > _remote_size then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
       _catch_up_send_block()
     else
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state, __loc.line())
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
       Fail()
     end
 
@@ -411,11 +409,11 @@ actor RemoteJournalClient
 
   fun ref _send_buffer_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
-    if _state != RJCstate.catch_up_state() then
+    @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    if _state.num() != _SCatchUp.num() then
       Fail()
     end
-    _state = RJCstate.send_buffer_state()
+    _state = _SSendBuffer
 
     if _buffer_size == 0 then
       in_sync_state()
@@ -446,23 +444,23 @@ actor RemoteJournalClient
       end
       _buffer.clear()
       _buffer_size = 0
-      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
+      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
       in_sync_state()
     end
 
   fun /* Yes, fun, not be! */ ref in_sync_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state, _local_size, _remote_size)
-    if _state != RJCstate.send_buffer_state() then
+    @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    if _state.num() != _SSendBuffer.num() then
       Fail()
     end
-    _state = RJCstate.in_sync_state()
+    _state = _SInSync
 
     _in_sync = true
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n".cstring(), _state, offset, data_size, _remote_size, _buffer_size)
+    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n".cstring(), _state.num(), offset, data_size, _remote_size, _buffer_size)
     // TODO check offset sanity
     if _in_sync and (offset != (_remote_size + _buffer_size)) then
       // WHOA, we have an out-of-order problem, or we're missing
@@ -485,28 +483,43 @@ actor RemoteJournalClient
 
   be dos_client_connection_status(connected: Bool) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state, connected.string().cstring())
+    @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state.num(), connected.string().cstring())
     _connected = connected
-    if not _connected then
-      _local_size_discovery()
+    _local_size_discovery()
+
+  be advise_state_change(state: _RJCstate, size: USize = 0,
+    sleep_time: USize = 0, max_time: USize = 0) =>
+    match state
+    | _SLocalSizeDiscovery =>
+      if _state.num() <= _SRemoteSizeDiscovery.num() then
+        _local_size_discovery()
+      end
+    | _SRemoteSizeDiscovery =>
+      if _state.num() == _SRemoteSizeDiscovery.num() then
+        _remote_size_discovery(sleep_time, max_time)
+      end
+    | _SStartRemoteFileAppend =>
+      if _state.num() <= _SRemoteSizeDiscovery.num() then
+        _start_remote_file_append(size)
+      end
     end
 
-  be advise_state_change(state: U8) =>
-    None
+type _RJCstate is
+  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SStartRemoteFileAppend |
+   _SCatchUp | _SSendBuffer | _SInSync)
 
-primitive RJCstate
-  fun local_size_discovery(): U8 =>
-    10
-  fun remote_size_discovery(): U8 =>
-    20
-  fun start_remote_file_append(): U8 =>
-    30
-  fun catch_up_state(): U8 =>
-    40
-  fun send_buffer_state(): U8 =>
-    50
-  fun in_sync_state(): U8 =>
-    60
+primitive _SLocalSizeDiscovery
+  fun num(): U8 => 0
+primitive _SRemoteSizeDiscovery
+  fun num(): U8 => 1
+primitive _SStartRemoteFileAppend
+  fun num(): U8 => 2
+primitive _SCatchUp
+  fun num(): U8 => 3
+primitive _SSendBuffer
+  fun num(): U8 => 4
+primitive _SInSync
+  fun num(): U8 => 5
 
 /**********************************************************/
 
