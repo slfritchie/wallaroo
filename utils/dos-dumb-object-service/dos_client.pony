@@ -504,7 +504,8 @@ actor RemoteJournalClient
         _start_remote_file_append(size)
       end
     | _SCatchUp =>
-      if _state.num() == _SStartRemoteFileAppend.num() then
+      if (_state.num() == _SStartRemoteFileAppend.num())
+        or (_state.num() == _SCatchUp.num())then
         _catch_up_state()
       end
     end
