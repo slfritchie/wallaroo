@@ -246,7 +246,7 @@ actor RemoteJournalClient
 
     if _appending then
       @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery _appending true\n".cstring(), _state.num())
-      return
+      _make_new_dos_then_local_size_discovery()
     end
     _in_sync = false
     try
@@ -413,7 +413,7 @@ actor RemoteJournalClient
 
     if not _connected then
       @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _connected line %d\n".cstring(), _state.num(), __loc.line())
-      local_size_discovery()
+      _make_new_dos_then_local_size_discovery()
       return
     end
 
