@@ -573,6 +573,7 @@ actor DOSclient
   let _port: String
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
+  var _appending: Bool = false
   var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
   var _status_notifier: (({(Bool): None}) | None) = None
@@ -597,6 +598,7 @@ actor DOSclient
       @printf[I32]("DOS: calling _reconn\n".cstring())
     end
     _connected = false
+    _appending = false
     try
       _sock = TCPConnection(_auth as AmbientAuth,
         recover DOSnotify(this, _out) end, _host, _port)
@@ -619,6 +621,7 @@ actor DOSclient
 @printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),         _waiting_reply.size())
     try (_sock as TCPConnection).dispose() end
     _connected = false
+    _appending = false
     for (op, p) in _waiting_reply.values() do
       match p
       | None => None
@@ -658,10 +661,10 @@ actor DOSclient
     end
 
   be send_unframed(data: ByteSeqIter) =>
-    if _connected then
+    if _connected and _appending then
       try (_sock as TCPConnection).writev(data) end
     else
-      @printf[I32]("\n\n\t\tsend_unframed: not connected\n\n".cstring())
+      @printf[I32]("\n\n\t\tsend_unframed: not (connected && appending)\n\n".cstring())
     end
 
   be start_streaming_append(filename: String, offset: USize,
@@ -669,7 +672,7 @@ actor DOSclient
   =>
     let request: String iso = recover String end
 
-    if _connected then
+    if _connected and (not _appending) then
       let pdu: String = "a" + filename + "\t" + offset.string()
       ifdef "verbose" then
         @printf[I32]("DOSc: start_streaming_append: %s offset %d\n".cstring(), filename.cstring(), offset)
@@ -700,7 +703,7 @@ actor DOSclient
   be do_ls(p: (Promise[DOSreply] | None) = None) =>
     let request: String iso = recover String end
 
-    if _connected then
+    if _connected and (not _appending) then
       ifdef "verbose" then
         @printf[I32]("DOSc: do_ls\n".cstring())
       end
@@ -733,7 +736,7 @@ actor DOSclient
   =>
     let request: String iso = recover String end
 
-    if _connected then
+    if _connected and (not _appending) then
       let pdu: String = "g" + filename + "\t" + offset.string() + "\t" + size.string()
       ifdef "verbose" then
         @printf[I32]("DOSc: do_get_chunk: %s\n".cstring(), pdu.cstring())
@@ -823,6 +826,9 @@ actor DOSclient
         try
           match op
           | DOSappend =>
+            if str == "ok" then
+              _appending = true
+            end
             pp(str)
           | DOSls =>
             @printf[I32]("DOSclient ls response GOT: %s\n".cstring(), str.cstring())
