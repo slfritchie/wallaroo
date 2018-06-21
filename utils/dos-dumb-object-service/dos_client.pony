@@ -167,7 +167,7 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     @printf[I32]("************************ Tick %d\n".cstring(), _c)
     _c = _c + 1
-    if _c > 270 then
+    if _c > 70 then
       _j.dispose_journal()
       false
     else
@@ -532,8 +532,10 @@ actor RemoteJournalClient
     if not _connected then
       _appending = false
       _in_sync = false
-    end      
-    _local_size_discovery()
+    end
+    if _connected then
+      _local_size_discovery()
+    end
 
   be advise_state_change(state: _RJCstate, size: USize = 0,
     sleep_time: USize = 0, max_time: USize = 0, set_appending: Bool = false)
