@@ -192,6 +192,8 @@ actor RemoteJournalClient
   var _disposed: Bool = false
   var _buffer: Array[(USize, ByteSeqIter, USize)] = _buffer.create()
   var _buffer_size: USize = 0
+  // Beware of races if we ever change _buffer_max_size dynamically
+  let _buffer_max_size: USize = 200 // (4*1024*1024)
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
@@ -250,15 +252,18 @@ actor RemoteJournalClient
     end
     _in_sync = false
     try
-      let info = FileInfo(_journal_fp)?
-      @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
-      _local_size = info.size
+      _find_local_file_size()?
       _remote_size_discovery(1_000_000, 1_000_000_000)
     else
       // We expect that this file will exist very very shortly.
       // Yield to the scheduler.
       local_size_discovery()
     end
+
+  fun ref _find_local_file_size() ? =>
+    let info = FileInfo(_journal_fp)?
+    @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
+    _local_size = info.size
 
   be remote_size_discovery(sleep_time: USize, max_time: USize) =>
     _remote_size_discovery(sleep_time, max_time)
@@ -457,6 +462,20 @@ actor RemoteJournalClient
       @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state not _appending, returning\n".cstring(), _state.num())
       return
     end
+    if _buffer_size > _buffer_max_size then
+      // We know the size of the remote file: we have been through
+      // 0 or more catch-up cycles.  So, let's update our knowledge of
+      // the local file size, then go through another catch-up cycle.
+      try
+        _find_local_file_size()?
+        _buffer.clear()
+        _buffer_size = 0
+      else
+        Fail()
+      end
+      _catch_up_state()
+      return
+    end
     _state = _SSendBuffer
 
     if _buffer_size == 0 then
@@ -523,7 +542,16 @@ actor RemoteJournalClient
       _dos.send_unframed(data)
       _remote_size = _remote_size + data_size
     else
-      _buffer.push((offset, data, data_size))
+      if _buffer_size < _buffer_max_size then
+        _buffer.push((offset, data, data_size))
+      else
+        // We're over the max size. Clear buffer if it's full, but
+        // keep counting buffered bytes.
+        if _buffer.size() > 0 then
+          @printf[I32]("\t====be_writev: be_writev CLEAR _buffer\n".cstring())
+          _buffer.clear()
+        end
+      end
       _buffer_size = _buffer_size + data_size
       @printf[I32]("\t====be_writev: be_writev new _buffer_size %d\n".cstring(), _buffer_size)
     end
