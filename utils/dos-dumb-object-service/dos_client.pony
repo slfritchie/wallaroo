@@ -319,6 +319,18 @@ actor RemoteJournalClient
         ts(consume t)
       })
     _dos.do_ls(p)
+    _remote_size_discovery_reply()
+
+  be remote_size_discovery_reply() =>
+    _remote_size_discovery_reply()
+
+  fun ref _remote_size_discovery_reply() =>
+    if _disposed then return end
+    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_reply for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    if _state.num() != _SRemoteSizeDiscovery.num() then
+      return
+    end
+    _state = _SRemoteSizeDiscoveryReply
 
   be start_remote_file_append(remote_size: USize) =>
     _start_remote_file_append(remote_size)
@@ -373,6 +385,8 @@ actor RemoteJournalClient
     _start_remote_file_append_reply()
 
   fun ref _start_remote_file_append_reply() =>
+    if _disposed then return end
+    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append_reply for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
     if _state.num() != _SStartRemoteFileAppend.num() then
       return
     end
@@ -527,16 +541,16 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: advise_state_change %d\n".cstring(), _state.num(), state.num())
     match state
     | _SLocalSizeDiscovery =>
-      if (_state.num() <= _SRemoteSizeDiscovery.num())
-        or (_state.num() == _SStartRemoteFileAppend.num()) then
+      if (_state.num() <= _SRemoteSizeDiscoveryReply.num())
+        or (_state.num() == _SStartRemoteFileAppendReply.num()) then
         _local_size_discovery()
       end
     | _SRemoteSizeDiscovery =>
-      if _state.num() == _SRemoteSizeDiscovery.num() then
+      if _state.num() == _SRemoteSizeDiscoveryReply.num() then
         _remote_size_discovery(sleep_time, max_time)
       end
     | _SStartRemoteFileAppend =>
-      if _state.num() == _SRemoteSizeDiscovery.num() then
+      if _state.num() == _SRemoteSizeDiscoveryReply.num() then
         _start_remote_file_append(size)
       end
     | _SCatchUp =>
