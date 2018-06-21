@@ -529,10 +529,22 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n".cstring(), _state.num(), offset, data_size, _remote_size, _buffer_size)
     // TODO check offset sanity
     if _in_sync and (offset != (_remote_size + _buffer_size)) then
-      // WHOA, we have an out-of-order problem, or we're missing
-      // a write, or something else terrible.
-      // TODO Should we go back to local_size_discovery()?
-      Fail()
+      if (offset + data_size) <= _remote_size then
+        // During a catch-up phase, we copied a bunch of the missing
+        // data from the local file -> remote file.  Due to asynchrony,
+        // it's possible for the local file to be at size/offset B but
+        // writev ops are delayed and only arrive here up to an
+        // earlier offset A (where A < B).  The catchup phase has
+        // already copied 100% of the bytes that are in this writev op.
+        // We need to do nothing in this case.
+        @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d hey got old/delayed writev op for offset %d data_size %d\n".cstring(), _state.num(), offset, data_size, _remote_size, offset, data_size)
+        None
+      else
+        // WHOA, we have an out-of-order problem, or we're missing
+        // a write, or something else terrible.
+        // TODO Should we go back to local_size_discovery()?
+        Fail()
+      end
     else
       // We aren't in sync. Do nothing here and wait for offset sanity
       // checking at buffer flush.
