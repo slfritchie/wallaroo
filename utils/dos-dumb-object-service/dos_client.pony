@@ -367,6 +367,16 @@ actor RemoteJournalClient
       }
     )
     _dos.start_streaming_append(_journal_path, _remote_size, p)
+    _start_remote_file_append_reply()
+
+  be start_remote_file_append_reply() =>
+    _start_remote_file_append_reply()
+
+  fun ref _start_remote_file_append_reply() =>
+    if _state.num() != _SStartRemoteFileAppend.num() then
+      return
+    end
+    _state = _SStartRemoteFileAppendReply
 
   be catch_up_state() =>
     _catch_up_state()
@@ -530,7 +540,7 @@ actor RemoteJournalClient
         _start_remote_file_append(size)
       end
     | _SCatchUp =>
-      if (_state.num() == _SStartRemoteFileAppend.num())
+      if (_state.num() == _SStartRemoteFileAppendReply.num())
         or (_state.num() == _SCatchUp.num()) then
         if set_appending then
           _appending = true
@@ -540,21 +550,26 @@ actor RemoteJournalClient
     end
 
 type _RJCstate is
-  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SStartRemoteFileAppend |
-   _SCatchUp | _SSendBuffer | _SInSync)
+  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryReply |
+   _SStartRemoteFileAppend | _SStartRemoteFileAppendReply | _SCatchUp |
+   _SSendBuffer | _SInSync)
 
 primitive _SLocalSizeDiscovery
   fun num(): U8 => 0
 primitive _SRemoteSizeDiscovery
   fun num(): U8 => 1
-primitive _SStartRemoteFileAppend
+primitive _SRemoteSizeDiscoveryReply
   fun num(): U8 => 2
-primitive _SCatchUp
+primitive _SStartRemoteFileAppend
   fun num(): U8 => 3
-primitive _SSendBuffer
+primitive _SStartRemoteFileAppendReply
   fun num(): U8 => 4
-primitive _SInSync
+primitive _SCatchUp
   fun num(): U8 => 5
+primitive _SSendBuffer
+  fun num(): U8 => 6
+primitive _SInSync
+  fun num(): U8 => 7
 
 /**********************************************************/
 
