@@ -465,6 +465,7 @@ actor RemoteJournalClient
       for (offset, data, data_size) in _buffer.values() do
         if (offset + data_size) <= _remote_size then
           @printf[I32]("\t======send_buffer_state: skipping offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
+          None
         elseif (offset < _remote_size) and ((offset + data_size) > _remote_size) then
           // IIRC POSIX says that we shouldn't have to worry about this
           // case *if* the local file writer is always unbuffered?
@@ -474,9 +475,11 @@ actor RemoteJournalClient
           // that ends at the partial write.  And then we stumble into
           // this case?
           //
-          // TODO Investigate this further.
+          // This case is very rare but does happen.  TODO is it worth
+          // splitting the data here? and procedding forward?
           @printf[I32]("\t======send_buffer_state: TODO split offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
-          Fail()
+          _make_new_dos_then_local_size_discovery()
+          return
         elseif offset == _remote_size then
           @printf[I32]("\t======send_buffer_state: send_unframed offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
           _local_size = _local_size + data_size // keep in sync with _remote_size
