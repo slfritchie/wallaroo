@@ -185,6 +185,7 @@ actor RemoteJournalClient
   let _make_dos: {(): DOSclient ?} val
   var _dos: DOSclient
   var _connected: Bool = false
+  var _appending: Bool = false
   var _in_sync: Bool = false
   var _local_size: USize = 0
   var _remote_size: USize = 0
@@ -207,6 +208,7 @@ actor RemoteJournalClient
   be dispose() =>
     _dos.dispose()
     _connected = false
+    _appending = false
     _in_sync = false
     _disposed = true
 
@@ -223,6 +225,7 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state.num())
     _dos.dispose()
     _connected = false
+    _appending = false
     _in_sync = false
     try
       _dos = _make_dos()?
@@ -241,6 +244,10 @@ actor RemoteJournalClient
       _journal_fp.path.cstring())
     _state = _SLocalSizeDiscovery
 
+    if _appending then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery _appending true\n".cstring(), _state.num())
+      return
+    end
     _in_sync = false
     try
       let info = FileInfo(_journal_fp)?
@@ -345,7 +352,7 @@ actor RemoteJournalClient
         try
           @printf[I32]("RemoteJournalClient: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
           if (reply as String) == "ok" then
-            rsd.advise_state_change(_SCatchUp)
+            rsd.advise_state_change(_SCatchUp where set_appending = true)
           else
             try @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = %s), pause & looping TODO\n".cstring(), (reply as String).cstring()) else @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = NOT-A-STRING), pause & looping TODO\n".cstring()) end
             rsd.advise_state_change(_SLocalSizeDiscovery)
@@ -369,6 +376,14 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
     if _state.num() > _SCatchUp.num() then
       Fail()
+    end
+    if _state.num() < _SRemoteSizeDiscovery.num() then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state wrong state, returning\n".cstring(), _state.num())
+      return
+    end
+    if not _appending then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _appending, returning\n".cstring(), _state.num())
+      return
     end
     _state = _SCatchUp
 
@@ -412,6 +427,10 @@ actor RemoteJournalClient
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
     if _state.num() != _SCatchUp.num() then
+      return
+    end
+    if not _appending then
+      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state not _appending, returning\n".cstring(), _state.num())
       return
     end
     _state = _SSendBuffer
@@ -487,12 +506,14 @@ actor RemoteJournalClient
     @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state.num(), connected.string().cstring())
     _connected = connected
     if not _connected then
+      _appending = false
       _in_sync = false
     end      
     _local_size_discovery()
 
   be advise_state_change(state: _RJCstate, size: USize = 0,
-    sleep_time: USize = 0, max_time: USize = 0) =>
+    sleep_time: USize = 0, max_time: USize = 0, set_appending: Bool = false)
+  =>
     @printf[I32]("RemoteJournalClient (last _state=%d):: advise_state_change %d\n".cstring(), _state.num(), state.num())
     match state
     | _SLocalSizeDiscovery =>
@@ -510,7 +531,10 @@ actor RemoteJournalClient
       end
     | _SCatchUp =>
       if (_state.num() == _SStartRemoteFileAppend.num())
-        or (_state.num() == _SCatchUp.num())then
+        or (_state.num() == _SCatchUp.num()) then
+        if set_appending then
+          _appending = true
+        end
         _catch_up_state()
       end
     end
