@@ -16,76 +16,6 @@ actor Main
     _auth = env.root
     _args = env.args
     try
-/***** This code is racy but it works for prototyping/exploration purposes:
-        _dos = DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
-      let dos = _dos as DOSclient
-
-      @usleep[None](U32(100_000))
-
-      let p0 = Promise[DOSreply]
-      p0.next[None](
-        {(a) =>
-          env.out.print("PROMISE: I got array of size " + a.size().string())
-          try
-            for (file, size, appending) in (a as DOSreplyLS).values() do
-              env.out.print("\t" + file + "," + size.string() + "," + appending.string())
-            end
-          end
-        },
-        {() => env.out.print("PROMISE: 1 BUMMER!")}
-      )
-      dos.do_ls(p0)
-
-      let got_a_chunk = {(offset: USize, chunk: DOSreply): Bool =>
-          ifdef "verbose" then
-            None // try @printf[(">>>%s<<<\n".cstring(), (chunk as String).cstring()) end
-          end
-          true
-        }
-      let failed_a_chunk = {(offset: USize): Bool =>
-           false
-        }
-
-      let offset0: USize = 0
-      let p0b = Promise[DOSreply]
-      // Fulfill needs an iso, so we can't use got_a_chunk directly as an arg.
-      p0b.next[Bool](
-        {(chunk: DOSreply): Bool =>
-          got_a_chunk.apply(offset0, chunk)
-        },
-        {(): Bool => failed_a_chunk.apply(offset0) })
-      dos.do_get_chunk("bar", offset0, 0, p0b)
-
-      let path1 = "bar"
-      let notify_get_file_complete = recover val
-        {(success: Bool, bs: Array[Bool] val): None =>
-        env.out.print("PROMISE: file transfer for " + path1 + " was success " + success.string() + " num_chunks " + bs.size().string())
-        }
-      end
-      dos.do_get_file[Bool](path1, 47, 10, got_a_chunk, failed_a_chunk, notify_get_file_complete)
-
-      env.out.print("BEFORE SLEEP 1")
-      @usleep[None](U32(100_000))
-      env.out.print("AFTER SLEEP 1")
-      let p1 = Promise[DOSreply]
-      p1.next[None](
-        {(a) =>
-          env.out.print("PROMISE: I got array of size " + a.size().string())
-          try
-            for (file, size, appending) in (a as DOSreplyLS).values() do
-              env.out.print("\t" + file + "," + size.string() + "," + appending.string())
-            end
-          end
-        },
-        {() => env.out.print("PROMISE: 2 BUMMER!")}
-      )
-      dos.do_ls(p1)
-      env.out.print("BEFORE 3 second sleep")
-      @usleep[None](U32(3_100_000))
-      dos.dispose()
-
- *****/
-
       let make_dos = recover val
         {(): DOSclient ? =>
           DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
@@ -115,9 +45,7 @@ actor Main
     end
 
   fun _stage10(j: SimpleJournal2) =>
-    // @usleep[None](U32(11_000))
     let ts = Timers
-    /////////////////// let t = Timer(ScribbleSome(j, 20), 0, 50_000_000)
     let t = Timer(ScribbleSome(j, 50), 0, 2_000_000)
     ts(consume t)
     let tick = recover Tick.create(j) end
@@ -272,14 +200,6 @@ actor RemoteJournalClient
   fun ref _remote_size_discovery() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-/***
-    if _state.num() > _SRemoteSizeDiscovery.num() then
-      // We have a race here with an async promise.  We are already
-      // in a more advanced state, so ignore this message.
-      @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery, ignoring message for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-      return
-    end
- ***/
     _state = _SRemoteSizeDiscovery
 
     if not _connected then
@@ -326,11 +246,6 @@ actor RemoteJournalClient
   fun ref _remote_size_discovery_waiting() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_waiting for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-/***
-    if _state.num() != _SRemoteSizeDiscovery.num() then
-      return
-    end
- ***/
     _state = _SRemoteSizeDiscoveryWaiting
 
   be remote_size_discovery_reply(success: Bool, remote_size: USize = 0) =>
@@ -360,34 +275,13 @@ actor RemoteJournalClient
     if _state.num() == _SRemoteSizeDiscovery.num() then
       _remote_size_discovery()
     end
-/***
-  be start_remote_file_append(remote_size: USize) =>
-    _start_remote_file_append(remote_size)
- ***/
   fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-/***
-    if _state.num() == _SStartRemoteFileAppend.num() then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append, ignoring message for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-      return
-    elseif _state.num() > _SStartRemoteFileAppend.num() then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append TODO hey this seems to happen occasionally, is it truly bad or is ignoring it good enough?\n".cstring(), _state.num())
-      return
-    end
- ***/
     _state = _SStartRemoteFileAppend
 
     _remote_size = remote_size
     @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
-
-/***
-    if not _connected then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append not _connected line %d\n".cstring(), _state.num(), __loc.line())
-      _make_new_dos_then_local_size_discovery()
-      return
-    end
- ***/
 
     if not _connected then
       _local_size_discovery()
@@ -425,11 +319,6 @@ actor RemoteJournalClient
   fun ref _start_remote_file_append_waiting() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append_waiting for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
-/***
-    if _state.num() != _SStartRemoteFileAppend.num() then
-      return
-    end
- ***/
     _state = _SStartRemoteFileAppendWaiting
 
   be start_remote_file_append_reply(success: Bool) =>
@@ -447,28 +336,8 @@ actor RemoteJournalClient
   fun ref _catch_up_state() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
-/***
-    if _state.num() > _SCatchUp.num() then
-      Fail()
-    end
-    if _state.num() < _SRemoteSizeDiscovery.num() then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state wrong state, returning\n".cstring(), _state.num())
-      return
-    end
-    if not _appending then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _appending, returning\n".cstring(), _state.num())
-      return
-    end
- ***/
     _state = _SCatchUp
 
-/***
-    if not _connected then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state not _connected line %d\n".cstring(), _state.num(), __loc.line())
-      _make_new_dos_then_local_size_discovery()
-      return
-    end
-***/
     if not _connected then
       _local_size_discovery()
       return
@@ -636,36 +505,6 @@ actor RemoteJournalClient
     if _connected then
       _local_size_discovery()
     end
-
-/***
-  be advise_state_change(state: _RJCstate, size: USize = 0,
-    sleep_time: USize = 0, max_time: USize = 0, set_appending: Bool = false)
-  =>
-    @printf[I32]("RemoteJournalClient (last _state=%d):: advise_state_change %d\n".cstring(), _state.num(), state.num())
-    match state
-    | _SLocalSizeDiscovery =>
-      if (_state.num() <= _SRemoteSizeDiscoveryWaiting.num())
-        or (_state.num() == _SStartRemoteFileAppendWaiting.num()) then
-        _local_size_discovery()
-      end
-    | _SRemoteSizeDiscovery =>
-      if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
-        _remote_size_discovery(sleep_time, max_time)
-      end
-    | _SStartRemoteFileAppend =>
-      if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
-        _start_remote_file_append(size)
-      end
-    | _SCatchUp =>
-      if (_state.num() == _SStartRemoteFileAppendWaiting.num())
-        or (_state.num() == _SCatchUp.num()) then
-        if set_appending then
-          _appending = true
-        end
-        _catch_up_state()
-      end
-    end
- ***/
 
 type _RJCstate is
   (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryWaiting |
