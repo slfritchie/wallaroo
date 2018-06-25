@@ -252,22 +252,24 @@ actor RemoteJournalClient
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_reply: success %s remote_size %d\n".cstring(), _state.num(), success.string().cstring(), remote_size)
 
-    if success then
-      _start_remote_file_append(remote_size)
-    else
-      _remote_size_discovery_sleep = _remote_size_discovery_sleep * 2
-      _remote_size_discovery_sleep =
-        _remote_size_discovery_sleep.min(_remote_size_discovery_max_sleep)
-      let rsd = recover tag this end
-      let later = DoLater(recover
-        {(): Bool =>
-          @printf[I32]("\n\t\t\t\tDoLater: remote_size_discovery after sleep_time %d\n".cstring(), _remote_size_discovery_sleep)
-          rsd.remote_size_discovery_retry()
-          false
-        } end)
-      let t = Timer(consume later, U64.from[USize](_remote_size_discovery_sleep))
-      _timers(consume t)
-      _state = _SRemoteSizeDiscovery
+    if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
+      if success then
+        _start_remote_file_append(remote_size)
+      else
+        _remote_size_discovery_sleep = _remote_size_discovery_sleep * 2
+        _remote_size_discovery_sleep =
+          _remote_size_discovery_sleep.min(_remote_size_discovery_max_sleep)
+        let rsd = recover tag this end
+        let later = DoLater(recover
+          {(): Bool =>
+            @printf[I32]("\n\t\t\t\tDoLater: remote_size_discovery after sleep_time %d\n".cstring(), _remote_size_discovery_sleep)
+            rsd.remote_size_discovery_retry()
+            false
+          } end)
+        let t = Timer(consume later, U64.from[USize](_remote_size_discovery_sleep))
+        _timers(consume t)
+        _state = _SRemoteSizeDiscovery
+      end
     end
 
   be remote_size_discovery_retry() =>
@@ -275,6 +277,7 @@ actor RemoteJournalClient
     if _state.num() == _SRemoteSizeDiscovery.num() then
       _remote_size_discovery()
     end
+
   fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
