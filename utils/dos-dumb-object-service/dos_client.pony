@@ -50,7 +50,7 @@ actor Main
     let tick = recover Tick.create(j) end
     let t2 = Timer(consume tick, 0, 5_000_000)
     ts(consume t2)
-    @printf[I32]("STAGE 10: done\n".cstring())
+    _D.d("STAGE 10: done\n")
 
 class ScribbleSome is TimerNotify
   let _j: SimpleJournal2
@@ -65,10 +65,10 @@ class ScribbleSome is TimerNotify
     let abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
     if _c >= _limit then
-      @printf[I32]("TIMER: counter limit at %d, stopping\n".cstring(), _limit)
+      _D.d6("TIMER: counter limit at %d, stopping\n", _limit)
       false
     else
-      @printf[I32]("TIMER: counter %d\n".cstring(), _c)
+      _D.d6("TIMER: counter %d\n", _c)
       let goo = recover val [_c.string() + "..." + abc] end
       _j.writev("some/file", goo)
       _c = _c + 1 // Bah, the 'c' arg counter is always 1
@@ -92,7 +92,7 @@ class Tick is TimerNotify
     _j = j
 
   fun ref apply(t: Timer, c: U64): Bool =>
-    @printf[I32]("************************ Tick %d\n".cstring(), _c)
+    _D.d6("************************ Tick %d\n", _c)
     _c = _c + 1
     if _c > 234 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
       _j.dispose_journal()
@@ -102,6 +102,82 @@ class Tick is TimerNotify
     end
 
 /**********************************************************/
+
+primitive _D
+  fun d(fmt: String) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt)
+    end
+
+  fun d6(fmt: String, a1: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1)
+    end
+
+  fun d8(fmt: String, a1: U8) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1)
+    end
+
+  fun ds(fmt: String, a1s: String) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1s.cstring())
+    end
+
+  fun d66(fmt: String, a1: USize, a2: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2)
+    end
+
+  fun d86(fmt: String, a1: U8, a2: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2)
+    end
+
+  fun d8s(fmt: String, a1: U8, a2: String) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2.cstring())
+    end
+
+  fun dsa(fmt: String, a1s: String, a1a: Any) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1s.cstring(), a1a)
+    end
+
+  fun ds6s(fmt: String, a1: String, a2: USize, a3: String) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1.cstring(), a2, a3.cstring())
+    end
+
+  fun d666(fmt: String, a1: USize, a2: USize, a3: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2, a3)
+    end
+
+  fun d866(fmt: String, a1: U8, a2: USize, a3: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2, a3)
+    end
+
+  fun d8s6(fmt: String, a1: U8, a2: String, a3: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2.cstring(), a3)
+    end
+
+  fun ds666s(fmt: String, a1: String, a2: USize, a3: USize, a4: USize, a5: String) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1.cstring(), a2, a3, a4, a5.cstring())
+    end
+
+  fun d86666(fmt: String, a1: U8, a2: USize, a3: USize, a4: USize, a5: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2, a3, a4, a5)
+    end
+
+  fun d866666(fmt: String, a1: U8, a2: USize, a3: USize, a4: USize, a5: USize, a6: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1, a2, a3, a4, a5, a6)
+    end
 
 actor RemoteJournalClient
   var _state: _RJCstate = _SLocalSizeDiscovery
@@ -133,7 +209,7 @@ actor RemoteJournalClient
     _journal_path = journal_path
     _make_dos = make_dos
     _dos = initial_dos
-    @printf[I32]("RemoteJournalClient (last _state=%d): create\n".cstring(), _state.num())
+    _D.d8("RemoteJournalClient (last _state=%d): create\n", _state.num())
     _set_connection_status_notifier()
     _local_size_discovery()
 
@@ -149,12 +225,13 @@ actor RemoteJournalClient
 
     _dos.connection_status_notifier(recover iso
       {(connected: Bool): None => 
-        @printf[I32]("RemoteJournalClient: lambda notifier = %s\n".cstring(), connected.string().cstring())
+        _D.ds("RemoteJournalClient: lambda connected %s\n", connected.string())
         rjc.dos_client_connection_status(connected)
       } end)
 
   fun ref _make_new_dos_then_local_size_discovery() =>
-    @printf[I32]("RemoteJournalClient (last _state=%d):: _make_new_dos_then_local_size_discovery\n\n\n".cstring(), _state.num())
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "_make_new_dos_then_local_size_discovery\n\n\n", _state.num())
     _dos.dispose()
     _connected = false
     _appending = false
@@ -172,12 +249,13 @@ actor RemoteJournalClient
 
   fun ref _local_size_discovery() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery for %s\n".cstring(), _state.num(),
-      _journal_fp.path.cstring())
+      _D.d8("RemoteJournalClient (last _state=%d):: " +
+        "local_size_discovery\n", _state.num())
     _state = _SLocalSizeDiscovery
 
     if _appending then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: local_size_discovery _appending true\n".cstring(), _state.num())
+      _D.d8("RemoteJournalClient (last _state=%d):: " +
+        "local_size_discovery _appending true\n", _state.num())
       _make_new_dos_then_local_size_discovery()
     end
     _in_sync = false
@@ -193,12 +271,13 @@ actor RemoteJournalClient
 
   fun ref _find_local_file_size() ? =>
     let info = FileInfo(_journal_fp)?
-    @printf[I32]("RemoteJournalClient: %s size %d\n".cstring(), _journal_fp.path.cstring(), info.size)
+    _D.dsa("RemoteJournalClient: %s size %d\n", _journal_fp.path, info.size)
     _local_size = info.size
 
   fun ref _remote_size_discovery() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    _D.d8("RemoteJournalClient (last _state=%d):: remote_size_discovery\n",
+      _state.num())
     _state = _SRemoteSizeDiscovery
 
     if not _connected then
@@ -214,8 +293,8 @@ actor RemoteJournalClient
         try
           for (file, size, appending) in (a as DOSreplyLS).values() do
             if file == _journal_path then
-              @printf[I32]("\tFound it\n".cstring())
-              @printf[I32]("\t%s,%d,%s\n".cstring(), file.cstring(), size, appending.string().cstring())
+              _D.d("\tFound it\n")
+              _D.ds6s("\t%s,%d,%s\n", file, size, appending.string())
               if appending then
                 // Hmm, this is hopefully a benign race, with a prior
                 // connection from us that hasn't been closed yet.
@@ -236,7 +315,7 @@ actor RemoteJournalClient
         end
       },
       {()(rsd) =>
-        @printf[I32]("PROMISE: remote_size_discovery BUMMER!\n".cstring())
+        _D.d("PROMISE: remote_size_discovery BUMMER!\n")
         rsd.remote_size_discovery_reply(false)
       })
     _dos.do_ls(p)
@@ -244,12 +323,15 @@ actor RemoteJournalClient
 
   fun ref _remote_size_discovery_waiting() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_waiting for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "remote_size_discovery_waiting", _state.num())
     _state = _SRemoteSizeDiscoveryWaiting
 
   be remote_size_discovery_reply(success: Bool, remote_size: USize = 0) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_reply: success %s remote_size %d\n".cstring(), _state.num(), success.string().cstring(), remote_size)
+    _D.d8s6("RemoteJournalClient (last _state=%d):: " +
+      "remote_size_discovery_reply: success %s remote_size %d\n",
+      _state.num(), success.string(), remote_size)
 
     if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
       if success then
@@ -261,7 +343,8 @@ actor RemoteJournalClient
         let rsd = recover tag this end
         let later = DoLater(recover
           {(): Bool =>
-            @printf[I32]("\n\t\t\t\tDoLater: remote_size_discovery after sleep_time %d\n".cstring(), _remote_size_discovery_sleep)
+            _D.d6("\n\t\t\t\tDoLater: remote_size_discovery " +
+              " after sleep_time %d\n", _remote_size_discovery_sleep)
             rsd.remote_size_discovery_retry()
             false
           } end)
@@ -272,18 +355,21 @@ actor RemoteJournalClient
     end
 
   be remote_size_discovery_retry() =>
-    @printf[I32]("RemoteJournalClient (last _state=%d):: remote_size_discovery_retry: \n".cstring(), _state.num())
+    _D.d8("RemoteJournalClient (last _state=%d):: " + 
+      "remote_size_discovery_retry: \n", _state.num())
     if _state.num() == _SRemoteSizeDiscovery.num() then
       _remote_size_discovery()
     end
 
   fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "start_remote_file_append\n", _state.num())
     _state = _SStartRemoteFileAppend
 
     _remote_size = remote_size
-    @printf[I32]("RemoteJournalClient: start_remote_file_append _local_size %d _remote_size %d\n".cstring(), _local_size, _remote_size)
+    _D.d66("RemoteJournalClient: start_remote_file_append " +
+      "_local_size %d _remote_size %d\n", _local_size, _remote_size)
 
     if not _connected then
       _local_size_discovery()
@@ -296,19 +382,23 @@ actor RemoteJournalClient
     p.next[None](
       {(reply)(rsd) =>
         try
-          @printf[I32]("RemoteJournalClient: start_remote_file_append RES %s\n".cstring(), (reply as String).cstring())
+          _D.ds("RemoteJournalClient: start_remote_file_append RES %s\n",
+            (reply as String))
           if (reply as String) == "ok" then
             rsd.start_remote_file_append_reply(true)
           else
-            try @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = %s), pause & looping TODO\n".cstring(), (reply as String).cstring()) else @printf[I32]("RemoteJournalClient: start_remote_file_append failure (reason = NOT-A-STRING), pause & looping TODO\n".cstring()) end
-            rsd.start_remote_file_append_reply(false)
+            try
+              _D.ds("RemoteJournalClient: start_remote_file_append failure " +
+                "(reason = %s), pause & looping TODO\n", (reply as String))
+            end
+           rsd.start_remote_file_append_reply(false)
           end
         else
           Fail()
         end
       },
       {() =>
-        @printf[I32]("RemoteJournalClient: start_remote_file_append REJECTED\n".cstring())
+        _D.d("RemoteJournalClient: start_remote_file_append REJECTED\n")
         rsd.start_remote_file_append_reply(false)
       }
     )
@@ -320,12 +410,15 @@ actor RemoteJournalClient
 
   fun ref _start_remote_file_append_waiting() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append_waiting for %s\n".cstring(), _state.num(), _journal_fp.path.cstring())
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "start_remote_file_append_waiting\n", _state.num())
     _state = _SStartRemoteFileAppendWaiting
 
   be start_remote_file_append_reply(success: Bool) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: start_remote_file_append_reply: success %s\n".cstring(), _state.num(), success.string().cstring())
+    _D.d8s("RemoteJournalClient (last _state=%d):: " + 
+      "start_remote_file_append_reply: success %s\n", _state.num(),
+      success.string())
     if _state.num() == _SStartRemoteFileAppendWaiting.num() then
       if success then
         _appending = true
@@ -337,7 +430,9 @@ actor RemoteJournalClient
 
   fun ref _catch_up_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    _D.d866("RemoteJournalClient (last _state=%d):: " +
+      "catch_up_state _local_size %d _remote_size %d\n", _state.num(),
+      _local_size, _remote_size)
     _state = _SCatchUp
 
     if not _connected then
@@ -346,13 +441,16 @@ actor RemoteJournalClient
     end
 
     if _local_size == _remote_size then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
+      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
+        _state.num(), __loc.line())
       send_buffer_state()
     elseif _local_size > _remote_size then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
+      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
+        _state.num(), __loc.line())
       _catch_up_send_block()
     else
-      @printf[I32]("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n".cstring(), _state.num(), __loc.line())
+      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
+        _state.num(), __loc.line())
       Fail()
     end
 
@@ -361,12 +459,13 @@ actor RemoteJournalClient
     //let block_size = missing_bytes.min(1024*1024)
     let block_size = missing_bytes.min(50)
 
-    @printf[I32]("\t_catch_up_send_block: block_size = %d\n".cstring(), block_size)
+    _D.d6("\t_catch_up_send_block: block_size = %d\n", block_size)
     with file = File.open(_journal_fp) do
       file.seek(_remote_size.isize())
       let bytes = recover val file.read(block_size) end
       let goo = recover val [bytes] end
-      @printf[I32]("\t_catch_up_send_block: _remote_size %d bytes size = %d\n".cstring(), _remote_size, bytes.size())
+      _D.d66("\t_catch_up_send_block: _remote_size %d bytes size = %d\n",
+        _remote_size, bytes.size())
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
       _catch_up_state()
@@ -377,12 +476,15 @@ actor RemoteJournalClient
 
   fun ref _send_buffer_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    _D.d866("RemoteJournalClient (last _state=%d):: send_buffer_state " +
+      "_local_size %d _remote_size %d\n", _state.num(),
+      _local_size, _remote_size)
     if _state.num() != _SCatchUp.num() then
       return
     end
     if not _appending then
-      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state not _appending, returning\n".cstring(), _state.num())
+      _D.d8("RemoteJournalClient (last _state=%d):: send_buffer_state " +
+        "not _appending, returning\n", _state.num())
       return
     end
     if not _connected then
@@ -411,9 +513,11 @@ actor RemoteJournalClient
     else
       for (offset, data, data_size) in _buffer.values() do
         if (offset + data_size) <= _remote_size then
-          @printf[I32]("\t======send_buffer_state: skipping offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
-          None
-        elseif (offset < _remote_size) and ((offset + data_size) > _remote_size) then
+          _D.d666("\t======send_buffer_state: " +
+            "skipping offset %d data_size %d remote_size %d\n",
+            offset, data_size, _remote_size)
+        elseif (offset < _remote_size) and
+          ((offset + data_size) > _remote_size) then
           // IIRC POSIX says that we shouldn't have to worry about this
           // case *if* the local file writer is always unbuffered?
           // TODO But I probably don't remember correctly: what if
@@ -424,12 +528,17 @@ actor RemoteJournalClient
           //
           // This case is very rare but does happen.  TODO is it worth
           // splitting the data here? and procedding forward?
-          @printf[I32]("\t======send_buffer_state: TODO split offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
+          _D.d666("\t======send_buffer_state: " +
+            "TODO split offset %d data_size %d remote_size %d\n", offset,
+            data_size, _remote_size)
           _make_new_dos_then_local_size_discovery()
           return
         elseif offset == _remote_size then
-          @printf[I32]("\t======send_buffer_state: send_unframed offset %d data_size %d remote_size %d\n".cstring(), offset, data_size, _remote_size)
-          _local_size = _local_size + data_size // keep in sync with _remote_size
+          _D.d666("\t======send_buffer_state: " +
+            "send_unframed offset %d data_size %d remote_size %d\n", offset,
+            data_size, _remote_size)
+          // keep _local_size in sync with _remote_size
+          _local_size = _local_size + data_size
           _dos.send_unframed(data)
           _remote_size = _remote_size + data_size
         else
@@ -438,13 +547,17 @@ actor RemoteJournalClient
       end
       _buffer.clear()
       _buffer_size = 0
-      @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+      _D.d866("RemoteJournalClient (last _state=%d):: " +
+        "send_buffer_state _local_size %d _remote_size %d\n", _state.num(),
+        _local_size, _remote_size)
       _in_sync_state()
     end
 
   fun ref _in_sync_state() =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
+    _D.d866("RemoteJournalClient (last _state=%d):: " +
+      "in_sync_state _local_size %d _remote_size %d\n", _state.num(),
+      _local_size, _remote_size)
     if _state.num() != _SSendBuffer.num() then
       Fail()
     end
@@ -454,7 +567,9 @@ actor RemoteJournalClient
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n".cstring(), _state.num(), offset, data_size, _remote_size, _buffer_size)
+    _D.d86666("RemoteJournalClient (last _state=%d):: " +
+      "be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n",
+      _state.num(), offset, data_size, _remote_size, _buffer_size)
     // TODO check offset sanity
     if _in_sync and (offset != (_remote_size + _buffer_size)) then
       if (offset + data_size) <= _remote_size then
@@ -465,7 +580,10 @@ actor RemoteJournalClient
         // earlier offset A (where A < B).  The catchup phase has
         // already copied 100% of the bytes that are in this writev op.
         // We need to do nothing in this case.
-        @printf[I32]("RemoteJournalClient (last _state=%d):: be_writev offset %d data_size %d, _remote_size %d hey got old/delayed writev op for offset %d data_size %d\n".cstring(), _state.num(), offset, data_size, _remote_size, offset, data_size)
+        _D.d866666("RemoteJournalClient (last _state=%d):: " +
+          "be_writev offset %d data_size %d, _remote_size %d " +
+          "hey got old/delayed writev op for offset %d data_size %d\n",
+          _state.num(), offset, data_size, _remote_size, offset, data_size)
         None
       else
         // WHOA, we have an out-of-order problem, or we're missing
@@ -488,17 +606,18 @@ actor RemoteJournalClient
         // We're over the max size. Clear buffer if it's full, but
         // keep counting buffered bytes.
         if _buffer.size() > 0 then
-          @printf[I32]("\t====be_writev: be_writev CLEAR _buffer\n".cstring())
+          _D.d("\t====be_writev: be_writev CLEAR _buffer\n")
           _buffer.clear()
         end
       end
       _buffer_size = _buffer_size + data_size
-      @printf[I32]("\t====be_writev: be_writev new _buffer_size %d\n".cstring(), _buffer_size)
+      _D.d6("\t====be_writev: be_writev new _buffer_size %d\n", _buffer_size)
     end
 
   be dos_client_connection_status(connected: Bool) =>
     if _disposed then return end
-    @printf[I32]("RemoteJournalClient (last _state=%d):: dos_client_connection_status %s\n".cstring(), _state.num(), connected.string().cstring())
+    _D.d8s("RemoteJournalClient (last _state=%d):: " +
+      "dos_client_connection_status %s\n", _state.num(), connected.string())
     _connected = connected
     if not _connected then
       _appending = false
@@ -576,14 +695,12 @@ actor DOSclient
     try
       _sock = TCPConnection(_auth as AmbientAuth,
         recover DOSnotify(this, _out) end, _host, _port)
-@printf[I32]("UUUGLY: _sock = 0x%lx\n".cstring(), _sock)
     end
 
   be dispose() =>
     ifdef "verbose" then
       @printf[I32]("DOS: &&&&&dispose\n".cstring())
     end
-@printf[I32]("DOS: &&&&&dispose\n".cstring())
     _do_reconnect = false
     _dispose()
 
@@ -592,7 +709,7 @@ actor DOSclient
       @printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),
         _waiting_reply.size())
     end
-@printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),         _waiting_reply.size())
+    _D.d6("DOS: _dispose.  Promises to reject: %d\n", _waiting_reply.size())
     try (_sock as TCPConnection).dispose() end
     _connected = false
     _appending = false
@@ -600,15 +717,14 @@ actor DOSclient
       match p
       | None => None
       | let pp: Promise[DOSreply] =>
-        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
+        _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
       end
     end
     _waiting_reply.clear()
 
   be connected(conn: TCPConnection) =>
-@printf[I32]("DOS: connected\n".cstring())
-@printf[I32]("UUUGLY: connected conn = 0x%lx\n".cstring(), conn)
+    _D.d("DOS: connected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: connected\n".cstring())
     end
@@ -621,8 +737,7 @@ actor DOSclient
     end
 
   be disconnected(conn: TCPConnection) =>
-@printf[I32]("DOS: disconnected\n".cstring())
-@printf[I32]("UUUGLY: DISconnected conn = 0x%lx\n".cstring(), conn)
+    _D.d("DOS: disconnected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: disconnected\n".cstring())
     end
@@ -638,7 +753,7 @@ actor DOSclient
     if _connected and _appending then
       try (_sock as TCPConnection).writev(data) end
     else
-      @printf[I32]("\n\n\t\tsend_unframed: not (connected && appending)\n\n".cstring())
+      _D.d("\n\n\t\tsend_unframed: not (connected && appending)\n\n")
     end
 
   be start_streaming_append(filename: String, offset: USize,
@@ -649,7 +764,7 @@ actor DOSclient
     if _connected and (not _appending) then
       let pdu: String = "a" + filename + "\t" + offset.string()
       ifdef "verbose" then
-        @printf[I32]("DOSc: start_streaming_append: %s offset %d\n".cstring(), filename.cstring(), offset)
+        @printf[I32]("DOSc: start_streaming_append: %s offset %d\n", filename.cstring(), offset)
       end
       request.push(0)
       request.push(0)
@@ -669,7 +784,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: streaming_append not connected, reject!  TODO\n".cstring())
         end
-        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
+        _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
       end
     end
@@ -679,7 +794,7 @@ actor DOSclient
 
     if _connected and (not _appending) then
       ifdef "verbose" then
-        @printf[I32]("DOSc: do_ls\n".cstring())
+        @printf[I32]("DOSc: do_ls\n")
       end
       request.push(0)
       request.push(0)
@@ -700,7 +815,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: ls not connected, reject!  TODO\n".cstring())
         end
-        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
+        _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
       end
     end
@@ -734,7 +849,7 @@ actor DOSclient
         ifdef "verbose" then
           @printf[I32]("DOSclient: ERROR: get_chunk not connected, reject!  TODO\n".cstring())
         end
-        @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
+        _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
       end
     end
@@ -780,7 +895,7 @@ actor DOSclient
         notify_get_file_complete(true, ts)
         },
       {(): None =>
-        @printf[I32]("PROMISE BIG: BOOOOOO\n".cstring())
+        _D.d("PROMISE BIG: BOOOOOO\n")
         let empty_array: Array[T] val = recover empty_array.create() end
        notify_get_file_complete(false, empty_array)
       })
@@ -805,7 +920,7 @@ actor DOSclient
             end
             pp(str)
           | DOSls =>
-            @printf[I32]("DOSclient ls response GOT: %s\n".cstring(), str.cstring())
+            _D.ds("DOSclient ls response GOT: %s\n", str)
             let lines = recover val str.split("\n") end
             let res: Array[(String, USize, Bool)] iso = recover res.create() end
 
@@ -827,7 +942,7 @@ actor DOSclient
         else
           // Protocol parsing error, e.g., for DOSls.
           // Reject so client can proceed.
-          @printf[I32]("@@@@@@@@@@@@@@@@@@@@@@@@ promise reject, line %d\n".cstring(), __loc.line())
+          _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
           pp.reject()
         end
       end
@@ -900,7 +1015,8 @@ class DOSnotify is TCPConnectionNotify
       @printf[I32]("SOCK: sent\n".cstring())
     end
     _qqq_count = _qqq_count - 1
-    @printf[I32]("SOCK: sent @ crashme %d conn 0x%lx size %d\n".cstring(), _qqq_count, conn, data.size())
+    _D.d66("SOCK: sent @ crashme %d size %d\n",
+      USize.from[I64](_qqq_count), data.size())
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
@@ -913,7 +1029,8 @@ class DOSnotify is TCPConnectionNotify
       @printf[I32]("SOCK: sentv\n".cstring())
     end
     _qqq_count = _qqq_count - 1
-    @printf[I32]("SOCK: sentv @ crashme %d conn 0x%lx size %d\n".cstring(), _qqq_count, conn, I32(-6))
+    _D.d66("SOCK: sent @ crashme %d size %d\n",
+      USize.from[I64](_qqq_count), USize(-6))
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
@@ -931,13 +1048,13 @@ class DOSnotify is TCPConnectionNotify
     ifdef "verbose" then
       @printf[I32]("SOCK: throttled\n".cstring())
     end
-    @printf[I32]("SOCK: throttled, TODO\n".cstring())
+    _D.d("SOCK: throttled, TODO\n")
 
   fun ref unthrottled(conn: TCPConnection ref) =>
     ifdef "verbose" then
       @printf[I32]("SOCK: unthrottled\n".cstring())
     end
-    @printf[I32]("SOCK: unthrottled, TODO\n".cstring())
+    _D.d("SOCK: unthrottled, TODO\n")
 
 primitive Bytes
   fun to_u32(a: U8, b: U8, c: U8, d: U8): U32 =>
@@ -1137,7 +1254,8 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
   =>
     // TODO offset sanity check
     // TODO offset update
-    @printf[I32]("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n".cstring(), offset, data_size)
+    _D.d66("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n",
+       offset, data_size)
     _rjc.be_writev(offset, data, data_size)
     true
 
@@ -1235,7 +1353,7 @@ actor SimpleJournal2
         let data2_size = wb.size()
         let data2 = recover val wb.done() end
         let ret = _j_file.be_writev(_j_file_size, data2, data2_size)
-@printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n".cstring(), path.cstring(), bytes_size, pdu_size, optag, ret.string().cstring())
+        _D.ds666s("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n", path, bytes_size, pdu_size, optag, ret.string())
         if ret then
           _j_remote.be_writev(_j_file_size, data2, data2_size)
           _j_file_size = _j_file_size + data2_size
@@ -1319,7 +1437,7 @@ wb.write(">>>_SJ encode>>>")
     end
 wb.write("<<<<<<")
     let size = wb.size()
-    @printf[I32]("_SJ: encode_request size %d\n".cstring(), size)
+    _D.d6("_SJ: encode_request size %d\n", size)
     (wb.done(), size)
 
 /*************************/
