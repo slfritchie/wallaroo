@@ -95,7 +95,7 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     @printf[I32]("************************ Tick %d\n".cstring(), _c)
     _c = _c + 1
-    if _c > 70 then
+    if _c > 234 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
       _j.dispose_journal()
       false
     else
