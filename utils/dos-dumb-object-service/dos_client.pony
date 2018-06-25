@@ -1,4 +1,3 @@
-
 use "buffered" // DEBUG for embedded AsyncJournal
 use "collections"
 use "files"
@@ -408,7 +407,7 @@ actor RemoteJournalClient
     _state = _SSendBuffer
 
     if _buffer_size == 0 then
-      in_sync_state()
+      _in_sync_state()
     else
       for (offset, data, data_size) in _buffer.values() do
         if (offset + data_size) <= _remote_size then
@@ -440,10 +439,10 @@ actor RemoteJournalClient
       _buffer.clear()
       _buffer_size = 0
       @printf[I32]("RemoteJournalClient (last _state=%d):: send_buffer_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
-      in_sync_state()
+      _in_sync_state()
     end
 
-  fun /* Yes, fun, not be! */ ref in_sync_state() =>
+  fun ref _in_sync_state() =>
     if _disposed then return end
     @printf[I32]("RemoteJournalClient (last _state=%d):: in_sync_state _local_size %d _remote_size %d\n".cstring(), _state.num(), _local_size, _remote_size)
     if _state.num() != _SSendBuffer.num() then
