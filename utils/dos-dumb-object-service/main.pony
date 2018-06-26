@@ -8,6 +8,7 @@ use "time"
 actor Main
   let _auth: (AmbientAuth | None)
   let _args: Array[String] val
+  var _usedir_name: String = "bogus/bogus"
   var _journal_path: String = "/dev/bogus"
   var _journal: (SimpleJournal2 | None) = None
 
@@ -19,11 +20,21 @@ actor Main
         {(): DOSclient ? =>
           DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
         } end
+      _usedir_name = _args(1)?
+      if _usedir_name == "" then
+        Fail()
+      end
+      try
+        _usedir_name.find("/")?
+        Fail()
+      else
+        None
+      end
+      _journal_path = _args(2)? + ".journal"
 
-      _journal_path = _args(1)? + ".journal"
       let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
       let rjc = RemoteJournalClient(_auth as AmbientAuth,
-        journal_fp, _journal_path, make_dos, make_dos()?)
+        journal_fp, _journal_path, _usedir_name, make_dos, make_dos()?)
       let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
 
       let j_file = recover iso SimpleJournalBackendLocalFile(journal_fp) end
@@ -94,7 +105,7 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     _D.d6("************************ Tick %d\n", _c)
     _c = _c + 1
-    if _c > 70 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
+    if _c > 234 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
       _j.dispose_journal()
       false
     else

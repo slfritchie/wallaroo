@@ -3,26 +3,32 @@ use "promises"
 use "time"
 
 type _RJCstate is
-  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryWaiting |
-   _SStartRemoteFileAppend | _SStartRemoteFileAppendWaiting | _SCatchUp |
-   _SSendBuffer | _SInSync)
+  (_SLocalSizeDiscovery |
+    _SRemoteUseDir | _SRemoteUseDirWaiting |
+    _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryWaiting |
+   _SStartRemoteFileAppend | _SStartRemoteFileAppendWaiting |
+   _SCatchUp | _SSendBuffer | _SInSync)
 
 primitive _SLocalSizeDiscovery
   fun num(): U8 => 0
-primitive _SRemoteSizeDiscovery
+primitive _SRemoteUseDir
   fun num(): U8 => 1
-primitive _SRemoteSizeDiscoveryWaiting
+primitive _SRemoteUseDirWaiting
   fun num(): U8 => 2
-primitive _SStartRemoteFileAppend
+primitive _SRemoteSizeDiscovery
   fun num(): U8 => 3
-primitive _SStartRemoteFileAppendWaiting
+primitive _SRemoteSizeDiscoveryWaiting
   fun num(): U8 => 4
-primitive _SCatchUp
+primitive _SStartRemoteFileAppend
   fun num(): U8 => 5
-primitive _SSendBuffer
+primitive _SStartRemoteFileAppendWaiting
   fun num(): U8 => 6
-primitive _SInSync
+primitive _SCatchUp
   fun num(): U8 => 7
+primitive _SSendBuffer
+  fun num(): U8 => 8
+primitive _SInSync
+  fun num(): U8 => 9
 
 actor RemoteJournalClient
   var _state: _RJCstate = _SLocalSizeDiscovery
@@ -30,9 +36,11 @@ actor RemoteJournalClient
   let _auth: AmbientAuth
   let _journal_fp: FilePath
   let _journal_path: String
+  let _usedir_name: String
   let _make_dos: {(): DOSclient ?} val
   var _dos: DOSclient
   var _connected: Bool = false
+  var _usedir_sent: Bool = false
   var _appending: Bool = false
   var _in_sync: Bool = false
   var _local_size: USize = 0
@@ -48,11 +56,13 @@ actor RemoteJournalClient
   let _timeout_nanos: U64 = 1_000_000_000
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
+    usedir_name: String,
     make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
   =>
     _auth = auth
     _journal_fp = journal_fp
     _journal_path = journal_path
+    _usedir_name = usedir_name
     _make_dos = make_dos
     _dos = initial_dos
     _D.d8("RemoteJournalClient (last _state=%d): create\n", _state.num())
@@ -63,6 +73,7 @@ actor RemoteJournalClient
     _D.d8("RemoteJournalClient (last _state=%d): DISPOSE\n", _state.num())
     _dos.dispose()
     _connected = false
+    _usedir_sent = false
     _appending = false
     _in_sync = false
     _disposed = true
@@ -81,6 +92,7 @@ actor RemoteJournalClient
       "_make_new_dos_then_local_size_discovery\n\n\n", _state.num())
     _dos.dispose()
     _connected = false
+    _usedir_sent = false
     _appending = false
     _in_sync = false
     try
@@ -109,7 +121,7 @@ actor RemoteJournalClient
     _remote_size_discovery_sleep = 1_000_000
     try
       _find_local_file_size()?
-      _remote_size_discovery()
+      _remote_usedir()
     else
       // We expect that this file will exist very very shortly.
       // Yield to the scheduler.
@@ -120,6 +132,66 @@ actor RemoteJournalClient
     let info = FileInfo(_journal_fp)?
     _D.ds6("RemoteJournalClient: %s size %d\n", _journal_fp.path, info.size)
     _local_size = info.size
+
+  fun ref _remote_usedir() =>
+    if _disposed then return end
+    _D.d8s("RemoteJournalClient (last _state=%d):: " +
+      "remote_usedir %s\n", _state.num(), _usedir_name)
+    _state = _SRemoteUseDir
+
+    if not _connected then
+      None // Wait for connected status to provoke action
+    elseif _usedir_sent then
+      _remote_size_discovery()
+    else
+      let rsd = recover tag this end
+      let p = Promise[DOSreply]
+      p.timeout(_timeout_nanos)
+      p.next[None](
+        {(reply)(rsd) =>
+          try
+            _D.ds("RemoteJournalClient: remote_usedir RES %s\n",
+              (reply as String))
+            if (reply as String) == "ok" then
+              rsd.remote_usedir_reply(true)
+            else
+              rsd.remote_usedir_reply(false)
+            end
+          else
+            Fail()
+          end
+        },
+        {() =>
+          _D.d("RemoteJournalClient: remote_usedir REJECTED\n")
+          rsd.remote_usedir_reply(false)
+        }
+      )
+      _dos.do_usedir(_usedir_name, p)
+      _remote_usedir_waiting()
+    end
+
+  fun ref _remote_usedir_waiting() =>
+    if _disposed then return end
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "remote_usedir_waiting\n", _state.num())
+    _state = _SRemoteUseDirWaiting
+
+  be remote_usedir_reply(success: Bool) =>
+    if _disposed then return end
+    _D.d8s("RemoteJournalClient (last _state=%d):: " + 
+      "remote_usedir_reply: success %s\n", _state.num(),
+      success.string())
+    if _state.num() == _SRemoteUseDirWaiting.num() then
+      if success then
+        _usedir_sent = true
+        _remote_size_discovery()
+      else
+        // Either failure: protocol was live but said not ok, or else
+        // timeout/closed/other means that we should disconnect and
+        // make a new connection in a known good state.
+        _make_new_dos_then_local_size_discovery()
+      end
+    end
 
   fun ref _remote_size_discovery() =>
     if _disposed then return end

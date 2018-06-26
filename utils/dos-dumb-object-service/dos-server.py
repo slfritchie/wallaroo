@@ -36,6 +36,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
 
     def setup(self):
         if debug: print 'YO: DOS_Server setup'
+        self.usedir = ""
 
     def handle(self):
         if debug: print 'YO: DOS_Server handle top'
@@ -64,6 +65,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     self.do_ls()
                 elif cmd == 's':
                     self.do_streaming_append(bytes[1:] + "\t0", sync_only = True)
+                elif cmd == 'u':
+                    self.do_usedir(bytes[1:])
                 else:
                     self.do_unknown(cmd)
         except Exception as e:
@@ -86,7 +89,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     raise Exception("%s file is locked" % filename)
 
                 # Open the file for append, find the EOF offset & check it
-                f = open(base_dir + '/' + filename, 'a', 0)
+                f = open(base_dir + '/' + self.usedir + '/' + filename, 'a', 0)
                 eof_offset = f.tell()
 
                 if sync_only:
@@ -191,7 +194,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             offset = max(0, offset) # negative offset -> 0
             wanted = int(wanted)
             if debug: print 'DBG: file %s offset %d wanted %d' % (filename, offset, wanted)
-            f = open(base_dir + '/' + filename, 'r')
+            f = open(base_dir + '/' + self.usedir + '/' + filename, 'r')
             st = os.fstat(f.fileno())
             file_size = st.st_size
             if wanted == 0:
@@ -223,7 +226,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                 None
 
     def do_delete(self, filename):
-        path = base_dir + '/' + filename
+        path = base_dir + '/' + self.usedir + '/' + filename
         try:
             os.unlink(path)
             reply = 'ok'
@@ -246,7 +249,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
         #    time.sleep(2.0)
         files = []
         reply = ''
-        for file in os.listdir(base_dir):
+        if debug: print 'LS*****LS: usedir = %s' % self.usedir
+        for file in os.listdir(base_dir + '/' + self.usedir):
             files.append(file)
         files.sort()
         for file in files:
@@ -255,8 +259,27 @@ class DOS_Server(SocketServer.BaseRequestHandler):
                     status = 'yes'
                 else:
                     status = 'no'
-            stat = os.stat(base_dir + "/" + file)
+            stat = os.stat(base_dir + '/' + self.usedir + '/' + file)
             reply = reply + '{}\t{}\t{}\n'.format(file, stat.st_size, status)
+        self.request.sendall(self.frame_bytes(len(reply)))
+        self.request.sendall(reply)
+        if debug: print 'REPLY: {} files: {}'.format(len(files), reply)
+
+    def do_usedir(self, request):
+        """
+        Input: directory-name
+        Output: ok
+        """
+        self.usedir = request
+        global base_dir
+        dirpath = base_dir + '/' + self.usedir
+        try:
+            os.mkdir(dirpath)
+        except:
+            True
+
+        reply = 'ok'
+        if debug: print 'DBG: do_usedir: usedir %s: %s' % (self.usedir, reply)
         self.request.sendall(self.frame_bytes(len(reply)))
         self.request.sendall(reply)
         if debug: print 'REPLY: {}'.format(reply)

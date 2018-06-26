@@ -11,7 +11,8 @@ primitive DOSappend
 primitive DOSgetchunk
 primitive DOSls
 primitive DOSnoop
-type DOSop is (DOSappend | DOSgetchunk | DOSls | DOSnoop)
+primitive DOSusedir
+type DOSop is (DOSappend | DOSgetchunk | DOSls | DOSnoop | DOSusedir)
 
 actor DOSclient
   let _out: OutStream
@@ -137,6 +138,8 @@ actor DOSclient
       @printf[I32]("DOS: throttled_check last_episode %d\n".cstring(), last_episode)
     end
     if last_episode <= _last_episode then
+      // The connection's throttled status has not changed since
+      // the timer started. Disconnect and (perhaps) reconnect.
       _disconnected()
     end
 
@@ -291,9 +294,42 @@ actor DOSclient
        notify_get_file_complete(false, empty_array)
       })
 
+  be do_usedir(name: String, p: (Promise[DOSreply] | None) = None)
+  =>
+    let request: String iso = recover String end
+
+    if _connected and (not _appending) then
+      let pdu: String = "u" + name
+      ifdef "verbose" then
+        @printf[I32]("DOSc: do_usedir: %s\n", name.cstring())
+      end
+      request.push(0)
+      request.push(0)
+      request.push(0)
+      request.push(pdu.size().u8()) // TODO: bogus if request size > 255
+      request.append(pdu)
+      try (_sock as TCPConnection).write(consume request) end
+      _waiting_reply.push((DOSusedir, p))
+    else
+      match p
+      | None =>
+        ifdef "verbose" then
+          @printf[I32]("DOSclient: ERROR: do_usedir not connected, no promise!  TODO\n".cstring())
+        end
+        None
+      | let pp: Promise[DOSreply] =>
+        ifdef "verbose" then
+          @printf[I32]("DOSclient: ERROR: do_usedir not connected, reject!  TODO\n".cstring())
+        end
+        _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
+        pp.reject()
+      end
+    end
+
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
+@printf[I32]("DOSclient GOT: %s\n".cstring(), str.cstring())
     ifdef "verbose" then
       @printf[I32]("DOSclient GOT: %s\n".cstring(), str.cstring())
     end
@@ -328,6 +364,8 @@ actor DOSclient
             end
             pp(consume res)
           | DOSgetchunk =>
+            pp(str)
+          | DOSusedir =>
             pp(str)
           end
         else
