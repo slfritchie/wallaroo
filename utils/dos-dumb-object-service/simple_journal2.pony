@@ -1,6 +1,16 @@
 use "buffered"
 
 actor SimpleJournal2
+  """
+  This actor is similar to the SimpleJournal actor in the
+  slf-file-io-redirector branch.  The difference is that this
+  actor writes both to a local journal and to a remote journal.
+
+  TODO adding multiple remote journal backends should be straightforward.
+
+  TODO The slf-file-io-redirector branch should have a refactoring to
+  add an interface to allow easy substitution of the journal?
+  """
   var _j_file: SimpleJournalBackend
   var _j_remote: SimpleJournalBackend
   var _j_closed: Bool

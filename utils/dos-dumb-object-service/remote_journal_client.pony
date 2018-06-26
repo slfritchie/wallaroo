@@ -2,6 +2,28 @@ use "files"
 use "promises"
 use "time"
 
+type _RJCstate is
+  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryWaiting |
+   _SStartRemoteFileAppend | _SStartRemoteFileAppendWaiting | _SCatchUp |
+   _SSendBuffer | _SInSync)
+
+primitive _SLocalSizeDiscovery
+  fun num(): U8 => 0
+primitive _SRemoteSizeDiscovery
+  fun num(): U8 => 1
+primitive _SRemoteSizeDiscoveryWaiting
+  fun num(): U8 => 2
+primitive _SStartRemoteFileAppend
+  fun num(): U8 => 3
+primitive _SStartRemoteFileAppendWaiting
+  fun num(): U8 => 4
+primitive _SCatchUp
+  fun num(): U8 => 5
+primitive _SSendBuffer
+  fun num(): U8 => 6
+primitive _SInSync
+  fun num(): U8 => 7
+
 actor RemoteJournalClient
   var _state: _RJCstate = _SLocalSizeDiscovery
   // TODO not sure which vars we really need
@@ -23,6 +45,7 @@ actor RemoteJournalClient
   let _timers: Timers = Timers
   var _remote_size_discovery_sleep: USize = 1_000_000
   let _remote_size_discovery_max_sleep: USize = 1_000_000_000
+  let _timeout_nanos: U64 = 2_000_000_000
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
@@ -140,7 +163,7 @@ actor RemoteJournalClient
       {()(rsd) =>
         _D.d("PROMISE: remote_size_discovery BUMMER!\n")
         rsd.remote_size_discovery_reply(false)
-      })
+      }).timeout(_timeout_nanos)
     _dos.do_ls(p)
     _remote_size_discovery_waiting()
 
@@ -224,7 +247,7 @@ actor RemoteJournalClient
         _D.d("RemoteJournalClient: start_remote_file_append REJECTED\n")
         rsd.start_remote_file_append_reply(false)
       }
-    )
+    ).timeout(_timeout_nanos)
     _dos.start_streaming_append(_journal_path, _remote_size, p)
     _start_remote_file_append_waiting()
 
@@ -449,26 +472,3 @@ actor RemoteJournalClient
     if _connected then
       _local_size_discovery()
     end
-
-type _RJCstate is
-  (_SLocalSizeDiscovery | _SRemoteSizeDiscovery | _SRemoteSizeDiscoveryWaiting |
-   _SStartRemoteFileAppend | _SStartRemoteFileAppendWaiting | _SCatchUp |
-   _SSendBuffer | _SInSync)
-
-primitive _SLocalSizeDiscovery
-  fun num(): U8 => 0
-primitive _SRemoteSizeDiscovery
-  fun num(): U8 => 1
-primitive _SRemoteSizeDiscoveryWaiting
-  fun num(): U8 => 2
-primitive _SStartRemoteFileAppend
-  fun num(): U8 => 3
-primitive _SStartRemoteFileAppendWaiting
-  fun num(): U8 => 4
-primitive _SCatchUp
-  fun num(): U8 => 5
-primitive _SSendBuffer
-  fun num(): U8 => 6
-primitive _SInSync
-  fun num(): U8 => 7
-
