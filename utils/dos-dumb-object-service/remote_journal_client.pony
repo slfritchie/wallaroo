@@ -45,7 +45,7 @@ actor RemoteJournalClient
   let _timers: Timers = Timers
   var _remote_size_discovery_sleep: USize = 1_000_000
   let _remote_size_discovery_max_sleep: USize = 1_000_000_000
-  let _timeout_nanos: U64 = 2_000_000_000
+  let _timeout_nanos: U64 = 1_000_000_000
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
@@ -60,6 +60,7 @@ actor RemoteJournalClient
     _local_size_discovery()
 
   be dispose() =>
+    _D.d8("RemoteJournalClient (last _state=%d): DISPOSE\n", _state.num())
     _dos.dispose()
     _connected = false
     _appending = false
@@ -132,7 +133,7 @@ actor RemoteJournalClient
     end
     let rsd = recover tag this end
     let p = Promise[DOSreply]
-    // TODO add timeout goop
+    p.timeout(_timeout_nanos)
     p.next[None](
       {(a)(rsd) =>
         var remote_size: USize = 0 // Default if remote file doesn't exist
@@ -162,8 +163,8 @@ actor RemoteJournalClient
       },
       {()(rsd) =>
         _D.d("PROMISE: remote_size_discovery BUMMER!\n")
-        rsd.remote_size_discovery_reply(false)
-      }).timeout(_timeout_nanos)
+        rsd.remote_size_discovery_failed()
+      })
     _dos.do_ls(p)
     _remote_size_discovery_waiting()
 
@@ -200,6 +201,15 @@ actor RemoteJournalClient
       end
     end
 
+  be remote_size_discovery_failed() =>
+    if _disposed then return end
+    _D.d8("RemoteJournalClient (last _state=%d):: " +
+      "remote_size_discovery_failed\n", _state.num())
+
+    if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
+      _make_new_dos_then_local_size_discovery()
+    end
+
   be remote_size_discovery_retry() =>
     _D.d8("RemoteJournalClient (last _state=%d):: " + 
       "remote_size_discovery_retry: \n", _state.num())
@@ -224,7 +234,7 @@ actor RemoteJournalClient
 
     let rsd = recover tag this end
     let p = Promise[DOSreply]
-    // TODO add timeout goop
+    p.timeout(_timeout_nanos)
     p.next[None](
       {(reply)(rsd) =>
         try
@@ -247,7 +257,7 @@ actor RemoteJournalClient
         _D.d("RemoteJournalClient: start_remote_file_append REJECTED\n")
         rsd.start_remote_file_append_reply(false)
       }
-    ).timeout(_timeout_nanos)
+    )
     _dos.start_streaming_append(_journal_path, _remote_size, p)
     _start_remote_file_append_waiting()
 
@@ -270,7 +280,10 @@ actor RemoteJournalClient
         _appending = true
         _catch_up_state()
       else
-        _local_size_discovery()
+        // Either failure: protocol was live but said not ok, or else
+        // timeout/closed/other means that we should disconnect and
+        // make a new connection in a known good state.
+        _make_new_dos_then_local_size_discovery()
       end
     end
 

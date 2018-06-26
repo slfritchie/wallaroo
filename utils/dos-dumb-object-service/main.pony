@@ -94,7 +94,9 @@ class Tick is TimerNotify
   fun ref apply(t: Timer, c: U64): Bool =>
     _D.d6("************************ Tick %d\n", _c)
     _c = _c + 1
-    if _c > 234 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
+    if _c > 70 then // 70 seems enough for OS X, but 234 for Linux weird TODO?
+      _D.d("I am going to sleep for a few seconds before dispose()\n")
+      @sleep[None](U32(10))
       _j.dispose_journal()
       false
     else

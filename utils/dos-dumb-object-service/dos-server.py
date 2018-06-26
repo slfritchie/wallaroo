@@ -24,6 +24,7 @@ class ThreadSafeDict(dict) :
 base_dir = ''
 appending = ThreadSafeDict()
 debug = True
+zzz = 0
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -238,6 +239,11 @@ class DOS_Server(SocketServer.BaseRequestHandler):
 
         file-name\tfile-size\tstatus-currently-appending-yes-or-no\n
         """
+        global zzz
+        zzz = zzz + 1
+        if zzz % 3 == 0:
+            print '\n\nYOYO: I am sleeping crazy\n\n'
+            time.sleep(2.0)
         files = []
         reply = ''
         for file in os.listdir(base_dir):

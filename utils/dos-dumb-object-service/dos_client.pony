@@ -55,6 +55,7 @@ actor DOSclient
     ifdef "verbose" then
       @printf[I32]("DOS: &&&&&dispose\n".cstring())
     end
+    _D.d("DOS: &&&&&dispose\n")
     _do_reconnect = false
     _dispose()
 
