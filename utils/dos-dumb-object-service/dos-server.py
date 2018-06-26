@@ -262,6 +262,7 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             stat = os.stat(base_dir + '/' + self.usedir + '/' + file)
             reply = reply + '{}\t{}\t{}\n'.format(file, stat.st_size, status)
         self.request.sendall(self.frame_bytes(len(reply)))
+        if debug: print 'REPLY: len(reply): {}, len frame_bytes: {}'.format(len(reply), len(self.frame_bytes(len(reply))))
         self.request.sendall(reply)
         if debug: print 'REPLY: {} files: {}'.format(len(files), reply)
 
@@ -274,7 +275,9 @@ class DOS_Server(SocketServer.BaseRequestHandler):
         global base_dir
         dirpath = base_dir + '/' + self.usedir
         try:
+            if debug: print 'DBG: do_usedir: dirpath %s' % (dirpath)
             os.mkdir(dirpath)
+            if debug: print 'DBG: do_usedir: dirpath %s' % (dirpath)
         except:
             True
 

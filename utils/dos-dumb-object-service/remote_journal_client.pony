@@ -558,6 +558,7 @@ actor RemoteJournalClient
       "dos_client_connection_status %s\n", _state.num(), connected.string())
     _connected = connected
     if not _connected then
+      _usedir_sent = false
       _appending = false
       _in_sync = false
     end

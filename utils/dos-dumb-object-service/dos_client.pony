@@ -422,7 +422,14 @@ class DOSnotify is TCPConnectionNotify
       try
         let expect = Bytes.to_u32(data(0)?, data(1)?, data(2)?, data(3)?).usize()
         conn.expect(expect)
-        _header = false
+        @printf[I32]("SOCK: received header, expect = %d\n".cstring(), expect)
+        if expect > 0 then
+          _header = false
+        else
+          _client.response(recover [] end)
+          conn.expect(4)
+          _header = true
+        end
       else
         ifdef "verbose" then
           @printf[I32]("Error reading header on control channel\n".cstring())
@@ -432,6 +439,7 @@ class DOSnotify is TCPConnectionNotify
       ifdef "verbose" then
         @printf[I32]("SOCK: received payload\n".cstring())
       end
+      @printf[I32]("SOCK: received payload of size %d\n".cstring(), data.size())
       _client.response(consume data)
       conn.expect(4)
       _header = true
