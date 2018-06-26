@@ -277,6 +277,13 @@ actor RemoteJournalClient
       success.string())
     if _state.num() == _SStartRemoteFileAppendWaiting.num() then
       if success then
+        // From this point forward, we're in append mode.  We will
+        // rely on the following for failure recovery: backpressure
+        // (short-term remote failures e.g. TCP backpressure) and
+        // TCP keepalive failure to close the connection (on remote
+        // host failure).  We assume all short-term backpressure
+        // events really are short-term; if a TCP backpressure event
+        // is long-term, then we will get stuck.
         _appending = true
         _catch_up_state()
       else

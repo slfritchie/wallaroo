@@ -24,6 +24,8 @@ actor DOSclient
   var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
   var _status_notifier: (({(Bool): None}) | None) = None
+  let _timers: Timers = Timers
+  var _last_episode: USize = 0
 
   new create(out: OutStream, auth: AmbientAuth, host: String, port: String) =>
     _out = out
@@ -78,7 +80,7 @@ actor DOSclient
     end
     _waiting_reply.clear()
 
-  be connected(conn: TCPConnection) =>
+  be connected() =>
     _D.d("DOS: connected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: connected\n".cstring())
@@ -91,7 +93,10 @@ actor DOSclient
       (_status_notifier as {(Bool): None})(true)
     end
 
-  be disconnected(conn: TCPConnection) =>
+  be disconnected() =>
+    _disconnected()
+
+  fun ref _disconnected() =>
     _D.d("DOS: disconnected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: disconnected\n".cstring())
@@ -102,6 +107,37 @@ actor DOSclient
     end
     if _do_reconnect then
       _reconn()
+    end
+
+  be throttled(episode: USize) =>
+    _D.d6("DOS: throttled episode %d\n", episode)
+    ifdef "verbose" then
+      @printf[I32]("DOS: throttled episode %d\n".cstring(), episode)
+    end
+    _last_episode = episode
+    let dos = recover tag this end
+    let later = DoLater(recover
+      {(): Bool =>
+        dos.throttled_check(_last_episode)
+        false
+      } end)
+    let t = Timer(consume later, 2_000_000_000)
+    _timers(consume t)
+
+  be unthrottled(episode: USize) =>
+    _D.d6("DOS: unthrottled episode %d\n", episode)
+    ifdef "verbose" then
+      @printf[I32]("DOS: unthrottled episode %d\n".cstring(), episode)
+    end
+    _last_episode = episode
+
+  be throttled_check(last_episode: USize) =>
+    _D.d6("DOS: throttled_check last_episode %d\n", last_episode)
+    ifdef "verbose" then
+      @printf[I32]("DOS: throttled_check last_episode %d\n".cstring(), last_episode)
+    end
+    if last_episode <= _last_episode then
+      _disconnected()
     end
 
   be send_unframed(data: ByteSeqIter) =>
@@ -312,6 +348,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   let _out: OutStream
   var _header: Bool = true
+  var _episode: USize = 0
   let _qqq_crashme: I64 = 15
   var _qqq_count: I64 = _qqq_crashme
 
@@ -330,8 +367,9 @@ class DOSnotify is TCPConnectionNotify
     end
     _header = true
     conn.set_nodelay(true)
+    conn.set_keepalive(10)
     conn.expect(4)
-    _client.connected(conn)
+    _client.connected()
 
   fun ref received(
     conn: TCPConnection ref,
@@ -397,19 +435,21 @@ class DOSnotify is TCPConnectionNotify
     ifdef "verbose" then
       @printf[I32]("SOCK: closed\n".cstring())
     end
-    _client.disconnected(conn)
+    _client.disconnected()
 
   fun ref throttled(conn: TCPConnection ref) =>
     ifdef "verbose" then
       @printf[I32]("SOCK: throttled\n".cstring())
     end
-    _D.d("SOCK: throttled, TODO\n")
+    _client.throttled(_episode)
+    _episode = _episode + 1
 
   fun ref unthrottled(conn: TCPConnection ref) =>
     ifdef "verbose" then
       @printf[I32]("SOCK: unthrottled\n".cstring())
     end
-    _D.d("SOCK: unthrottled, TODO\n")
+    _client.unthrottled(_episode)
+    _episode = _episode + 1
 
 primitive Bytes
   fun to_u32(a: U8, b: U8, c: U8, d: U8): U32 =>
