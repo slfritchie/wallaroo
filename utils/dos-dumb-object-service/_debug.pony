@@ -1,7 +1,7 @@
 primitive _D
   fun d(fmt: String) =>
     ifdef "dos-verbose" then
-      @printf[I32](fmt)
+      @printf[I32](fmt.cstring())
     end
 
   fun d6(fmt: String, a1: USize) =>
@@ -34,7 +34,7 @@ primitive _D
       @printf[I32](fmt.cstring(), a1, a2.cstring())
     end
 
-  fun dsa(fmt: String, a1s: String, a1a: Any) =>
+  fun ds6(fmt: String, a1s: String, a1a: USize) =>
     ifdef "dos-verbose" then
       @printf[I32](fmt.cstring(), a1s.cstring(), a1a)
     end

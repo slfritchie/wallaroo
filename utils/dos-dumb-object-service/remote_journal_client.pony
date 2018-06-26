@@ -117,7 +117,7 @@ actor RemoteJournalClient
 
   fun ref _find_local_file_size() ? =>
     let info = FileInfo(_journal_fp)?
-    _D.dsa("RemoteJournalClient: %s size %d\n", _journal_fp.path, info.size)
+    _D.ds6("RemoteJournalClient: %s size %d\n", _journal_fp.path, info.size)
     _local_size = info.size
 
   fun ref _remote_size_discovery() =>
@@ -170,7 +170,7 @@ actor RemoteJournalClient
   fun ref _remote_size_discovery_waiting() =>
     if _disposed then return end
     _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "remote_size_discovery_waiting", _state.num())
+      "remote_size_discovery_waiting\n", _state.num())
     _state = _SRemoteSizeDiscoveryWaiting
 
   be remote_size_discovery_reply(success: Bool, remote_size: USize = 0) =>
