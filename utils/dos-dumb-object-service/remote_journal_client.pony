@@ -69,7 +69,7 @@ actor RemoteJournalClient
     _local_size_discovery()
 
   be dispose() =>
-    _D.d8("RemoteJournalClient (last _state=%d): DISPOSE\n", _state.num())
+    _D.ds("RJC %s: DISPOSE\n", _dl())
     _dos.dispose()
     _connected = false
     _usedir_sent = false
@@ -77,18 +77,25 @@ actor RemoteJournalClient
     _in_sync = false
     _disposed = true
 
+  // _dl = _debug_label
+  fun _dl(): String =>
+    ifdef "dos-verbose" then
+      _usedir_name + "@" + _state.num().string()
+    else
+      ""
+    end
+
   fun ref _set_connection_status_notifier() =>
     let rjc = recover tag this end
 
     _dos.connection_status_notifier(recover iso
       {(connected: Bool): None => 
-        _D.ds("RemoteJournalClient: lambda connected %s\n", connected.string())
+        _D.dss("RJC %s: lambda connected %s\n", _usedir_name, connected.string())
         rjc.dos_client_connection_status(connected)
       } end)
 
   fun ref _make_new_dos_then_local_size_discovery() =>
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "_make_new_dos_then_local_size_discovery\n\n\n", _state.num())
+    _D.ds("RJC %s: _make_new_dos_then_local_size_discovery\n\n\n", _dl())
     _dos.dispose()
     _connected = false
     _usedir_sent = false
@@ -107,13 +114,11 @@ actor RemoteJournalClient
 
   fun ref _local_size_discovery() =>
     if _disposed then return end
-      _D.d8("RemoteJournalClient (last _state=%d):: " +
-        "local_size_discovery\n", _state.num())
+      _D.ds("RJC %s: local_size_discovery\n", _dl())
     _state = _SLocalSizeDiscovery
 
     if _appending then
-      _D.d8("RemoteJournalClient (last _state=%d):: " +
-        "local_size_discovery _appending true\n", _state.num())
+      _D.ds("RJC %s: local_size_discovery _appending true\n", _dl())
       _make_new_dos_then_local_size_discovery()
     end
     _in_sync = false
@@ -134,8 +139,7 @@ actor RemoteJournalClient
 
   fun ref _remote_usedir() =>
     if _disposed then return end
-    _D.d8s("RemoteJournalClient (last _state=%d):: " +
-      "remote_usedir %s\n", _state.num(), _usedir_name)
+    _D.dss("RJC %s: remote_usedir %s\n", _dl(), _usedir_name)
     _state = _SRemoteUseDir
 
     if not _connected then
@@ -171,15 +175,12 @@ actor RemoteJournalClient
 
   fun ref _remote_usedir_waiting() =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "remote_usedir_waiting\n", _state.num())
+    _D.ds("RJC %s: remote_usedir_waiting\n", _dl())
     _state = _SRemoteUseDirWaiting
 
   be remote_usedir_reply(success: Bool) =>
     if _disposed then return end
-    _D.d8s("RemoteJournalClient (last _state=%d):: " + 
-      "remote_usedir_reply: success %s\n", _state.num(),
-      success.string())
+    _D.dss("RJC %s: remote_usedir_reply: success %s\n", _dl(), success.string())
     if _state.num() == _SRemoteUseDirWaiting.num() then
       if success then
         _usedir_sent = true
@@ -194,8 +195,7 @@ actor RemoteJournalClient
 
   fun ref _remote_size_discovery() =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: remote_size_discovery\n",
-      _state.num())
+    _D.ds("RJC %s: remote_size_discovery\n", _dl())
     _state = _SRemoteSizeDiscovery
 
     if not _connected then
@@ -241,15 +241,13 @@ actor RemoteJournalClient
 
   fun ref _remote_size_discovery_waiting() =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "remote_size_discovery_waiting\n", _state.num())
+    _D.ds("RJC %s: remote_size_discovery_waiting\n", _dl())
     _state = _SRemoteSizeDiscoveryWaiting
 
   be remote_size_discovery_reply(success: Bool, remote_size: USize = 0) =>
     if _disposed then return end
-    _D.d8s6("RemoteJournalClient (last _state=%d):: " +
-      "remote_size_discovery_reply: success %s remote_size %d\n",
-      _state.num(), success.string(), remote_size)
+    _D.dss6("RJC %s: remote_size_discovery_reply: success %s remote_size %d\n",
+      _dl(), success.string(), remote_size)
 
     if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
       if success then
@@ -274,24 +272,21 @@ actor RemoteJournalClient
 
   be remote_size_discovery_failed() =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "remote_size_discovery_failed\n", _state.num())
+    _D.ds("RJC %s: remote_size_discovery_failed\n", _dl())
 
     if _state.num() == _SRemoteSizeDiscoveryWaiting.num() then
       _make_new_dos_then_local_size_discovery()
     end
 
   be remote_size_discovery_retry() =>
-    _D.d8("RemoteJournalClient (last _state=%d):: " + 
-      "remote_size_discovery_retry: \n", _state.num())
+    _D.ds("RJC %s: remote_size_discovery_retry: \n", _dl())
     if _state.num() == _SRemoteSizeDiscovery.num() then
       _remote_size_discovery()
     end
 
   fun ref _start_remote_file_append(remote_size: USize) =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "start_remote_file_append\n", _state.num())
+    _D.ds("RJC %s: start_remote_file_append\n", _dl())
     _state = _SStartRemoteFileAppend
 
     _remote_size = remote_size
@@ -337,15 +332,13 @@ actor RemoteJournalClient
 
   fun ref _start_remote_file_append_waiting() =>
     if _disposed then return end
-    _D.d8("RemoteJournalClient (last _state=%d):: " +
-      "start_remote_file_append_waiting\n", _state.num())
+    _D.ds("RJC %s: start_remote_file_append_waiting\n", _dl())
     _state = _SStartRemoteFileAppendWaiting
 
   be start_remote_file_append_reply(success: Bool) =>
     if _disposed then return end
-    _D.d8s("RemoteJournalClient (last _state=%d):: " + 
-      "start_remote_file_append_reply: success %s\n", _state.num(),
-      success.string())
+    _D.dss("RJC %s: start_remote_file_append_reply: success %s\n",
+      _dl(), success.string())
     if _state.num() == _SStartRemoteFileAppendWaiting.num() then
       if success then
         // From this point forward, we're in append mode.  We will
@@ -367,9 +360,8 @@ actor RemoteJournalClient
 
   fun ref _catch_up_state() =>
     if _disposed then return end
-    _D.d866("RemoteJournalClient (last _state=%d):: " +
-      "catch_up_state _local_size %d _remote_size %d\n", _state.num(),
-      _local_size, _remote_size)
+    _D.ds66("RJC %s: catch_up_state _local_size %d _remote_size %d\n",
+      _dl(), _local_size, _remote_size)
     _state = _SCatchUp
 
     if not _connected then
@@ -378,16 +370,13 @@ actor RemoteJournalClient
     end
 
     if _local_size == _remote_size then
-      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
-        _state.num(), __loc.line())
+      _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       send_buffer_state()
     elseif _local_size > _remote_size then
-      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
-        _state.num(), __loc.line())
+      _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       _catch_up_send_block()
     else
-      _D.d86("RemoteJournalClient (last _state=%d):: catch_up_state line %d\n",
-        _state.num(), __loc.line())
+      _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       Fail()
     end
 
@@ -413,15 +402,13 @@ actor RemoteJournalClient
 
   fun ref _send_buffer_state() =>
     if _disposed then return end
-    _D.d866("RemoteJournalClient (last _state=%d):: send_buffer_state " +
-      "_local_size %d _remote_size %d\n", _state.num(),
-      _local_size, _remote_size)
+    _D.ds66("RJC %s: send_buffer_state _local_size %d _remote_size %d\n",
+      _dl(), _local_size, _remote_size)
     if _state.num() != _SCatchUp.num() then
       return
     end
     if not _appending then
-      _D.d8("RemoteJournalClient (last _state=%d):: send_buffer_state " +
-        "not _appending, returning\n", _state.num())
+      _D.ds("RJC %s: send_buffer_state not _appending, returning\n", _dl())
       return
     end
     if not _connected then
@@ -484,17 +471,15 @@ actor RemoteJournalClient
       end
       _buffer.clear()
       _buffer_size = 0
-      _D.d866("RemoteJournalClient (last _state=%d):: " +
-        "send_buffer_state _local_size %d _remote_size %d\n", _state.num(),
-        _local_size, _remote_size)
+      _D.ds66("RJC %s: send_buffer_state _local_size %d _remote_size %d\n",
+        _dl(), _local_size, _remote_size)
       _in_sync_state()
     end
 
   fun ref _in_sync_state() =>
     if _disposed then return end
-    _D.d866("RemoteJournalClient (last _state=%d):: " +
-      "in_sync_state _local_size %d _remote_size %d\n", _state.num(),
-      _local_size, _remote_size)
+    _D.ds66("RJC %s: in_sync_state _local_size %d _remote_size %d\n",
+      _dl(), _local_size, _remote_size)
     if _state.num() != _SSendBuffer.num() then
       Fail()
     end
@@ -504,9 +489,9 @@ actor RemoteJournalClient
 
   be be_writev(offset: USize, data: ByteSeqIter, data_size: USize) =>
     if _disposed then return end
-    _D.d86666("RemoteJournalClient (last _state=%d):: " +
-      "be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n",
-      _state.num(), offset, data_size, _remote_size, _buffer_size)
+    _D.ds6666("RJC %s: be_writev offset %d data_size %d, " +
+      "_remote_size %d _buffer_size %d\n",
+      _dl(), offset, data_size, _remote_size, _buffer_size)
     if _in_sync and (offset != (_remote_size + _buffer_size)) then
       if (offset + data_size) <= _remote_size then
         // During a catch-up phase, we copied a bunch of the missing
@@ -516,10 +501,9 @@ actor RemoteJournalClient
         // earlier offset A (where A < B).  The catchup phase has
         // already copied 100% of the bytes that are in this writev op.
         // We need to do nothing in this case.
-        _D.d866666("RemoteJournalClient (last _state=%d):: " +
-          "be_writev offset %d data_size %d, _remote_size %d " +
+        _D.ds66666("RJC %s: be_writev offset %d data_size %d, _remote_size %d " +
           "hey got old/delayed writev op for offset %d data_size %d\n",
-          _state.num(), offset, data_size, _remote_size, offset, data_size)
+          _dl(), offset, data_size, _remote_size, offset, data_size)
         None
       else
         // WHOA, we have an out-of-order problem, or we're missing
@@ -552,8 +536,8 @@ actor RemoteJournalClient
 
   be dos_client_connection_status(connected: Bool) =>
     if _disposed then return end
-    _D.d8s("RemoteJournalClient (last _state=%d):: " +
-      "dos_client_connection_status %s\n", _state.num(), connected.string())
+    _D.dss("RJC %s: dos_client_connection_status %s\n",
+      _dl(), connected.string())
     _connected = connected
     if not _connected then
       _usedir_sent = false
