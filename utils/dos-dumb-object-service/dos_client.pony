@@ -172,12 +172,12 @@ actor DOSclient
       match p
       | None =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: streaming_append not connected, no promise!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: streaming_append not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: streaming_append not connected, reject!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: streaming_append not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -203,12 +203,12 @@ actor DOSclient
       match p
       | None =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: ls not connected, no promise!\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: ls not connected, no promise!\n".cstring(), _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: ls not connected, reject!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: ls not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -237,12 +237,12 @@ actor DOSclient
       match p
       | None =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: get_chunk not connected, no promise!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: get_chunk not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: get_chunk not connected, reject!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: get_chunk not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -315,12 +315,12 @@ actor DOSclient
       match p
       | None =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: do_usedir not connected, no promise!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: do_usedir not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
         ifdef "verbose" then
-          @printf[I32]("DOSclient: ERROR: do_usedir not connected, reject!  TODO\n".cstring())
+          @printf[I32]("DOSclient: %s: ERROR: do_usedir not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -330,9 +330,9 @@ actor DOSclient
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
-@printf[I32]("DOSclient GOT: %s\n".cstring(), str.cstring())
+    @printf[I32]("DOSclient: %s: GOT: %s\n".cstring(), _usedir_name.cstring(), str.cstring())
     ifdef "verbose" then
-      @printf[I32]("DOSclient GOT: %s\n".cstring(), str.cstring())
+      @printf[I32]("DOSclient: %s GOT: %s\n".cstring(), _usedir_name.cstring(), str.cstring())
     end
     try
       (let op, let p) = _waiting_reply.shift()?
@@ -343,12 +343,13 @@ actor DOSclient
         try
           match op
           | DOSappend =>
+            _D.dss("DOSclient: %s: append response GOT: %s\n", _usedir_name, str)
             if str == "ok" then
               _appending = true
             end
             pp(str)
           | DOSls =>
-            _D.ds("DOSclient ls response GOT: %s\n", str)
+            _D.dss("DOSclient: %s: ls response GOT: %s\n", _usedir_name, str)
             let lines = recover val str.split("\n") end
             let res: Array[(String, USize, Bool)] iso = recover res.create() end
 
@@ -365,14 +366,16 @@ actor DOSclient
             end
             pp(consume res)
           | DOSgetchunk =>
+            _D.dss("DOSclient: %s: get response GOT: %s\n", _usedir_name, str)
             pp(str)
           | DOSusedir =>
+            _D.dss("DOSclient: %s: usedir response GOT: %s\n", _usedir_name, str)
             pp(str)
           end
         else
           // Protocol parsing error, e.g., for DOSls.
           // Reject so client can proceed.
-          _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
+          _D.ds6("DOSclient: %s: promise reject, line %d\n", _usedir_name, __loc.line())
           pp.reject()
         end
       end
