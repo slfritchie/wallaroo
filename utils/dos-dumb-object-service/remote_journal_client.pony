@@ -53,7 +53,7 @@ actor RemoteJournalClient
   let _timers: Timers = Timers
   var _remote_size_discovery_sleep: USize = 1_000_000
   let _remote_size_discovery_max_sleep: USize = 1_000_000_000
-  let _timeout_nanos: U64 = 1_000_000_000
+  let _timeout_nanos: U64 = 200_000_000 // TODO too small for "real"?
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     usedir_name: String,
