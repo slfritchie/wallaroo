@@ -32,7 +32,6 @@ primitive _SInSync
 
 actor RemoteJournalClient
   var _state: _RJCstate = _SLocalSizeDiscovery
-  // TODO not sure which vars we really need
   let _auth: AmbientAuth
   let _journal_fp: FilePath
   let _journal_path: String
@@ -317,7 +316,7 @@ actor RemoteJournalClient
           else
             try
               _D.ds("RemoteJournalClient: start_remote_file_append failure " +
-                "(reason = %s), pause & looping TODO\n", (reply as String))
+                "(reason = %s), pause & looping\n", (reply as String))
             end
            rsd.start_remote_file_append_reply(false)
           end
@@ -458,7 +457,7 @@ actor RemoteJournalClient
           ((offset + data_size) > _remote_size) then
           // IIRC POSIX says that we shouldn't have to worry about this
           // case *if* the local file writer is always unbuffered?
-          // TODO But I probably don't remember correctly: what if
+          // But I probably don't remember correctly: what if
           // the local file writer's writev(2) call was a partial write?
           // Our local-vs-remote sync protocol then syncs to an offset
           // that ends at the partial write.  And then we stumble into
@@ -508,7 +507,6 @@ actor RemoteJournalClient
     _D.d86666("RemoteJournalClient (last _state=%d):: " +
       "be_writev offset %d data_size %d, _remote_size %d _buffer_size %d\n",
       _state.num(), offset, data_size, _remote_size, _buffer_size)
-    // TODO check offset sanity
     if _in_sync and (offset != (_remote_size + _buffer_size)) then
       if (offset + data_size) <= _remote_size then
         // During a catch-up phase, we copied a bunch of the missing
