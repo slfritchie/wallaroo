@@ -376,10 +376,24 @@ actor DOSclient
         end
       end
     else
-      // If the error is due to the socket being closed, then
-      // all promises that are still in_waiting_reply will
-      // be rejected by our disconnected() behavior.
-      None
+      if _appending then
+        // We are appending.  Let's send these stats to our local Pony client.
+        try
+          let fs = str.split("\t")
+          let written = fs(0)?.usize()?
+          let synced = fs(1)?.usize()?
+          _D.ds66("RJC: %s appending stats: written %d synced %d\n",
+            "moo", written, synced)
+          // TODO: Next, where the hell to send this info to?
+        else
+          Fail()
+        end
+      else
+        // If the error is due to the socket being closed, then
+        // all promises that are still in_waiting_reply will
+        // be rejected by our disconnected() behavior.
+        None
+      end
     end
 
 class DOSnotify is TCPConnectionNotify
