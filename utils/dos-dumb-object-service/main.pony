@@ -6,19 +6,18 @@ use "promises"
 use "time"
 
 actor Main
-  let _auth: (AmbientAuth | None)
   let _args: Array[String] val
   var _usedir_name: String = "bogus/bogus"
   var _journal_path: String = "/dev/bogus"
   var _journal: (SimpleJournal2 | None) = None
 
   new create(env: Env) =>
-    _auth = env.root
     _args = env.args
     try
+      let auth = env.root as AmbientAuth
       let make_dos = recover val
-        {(): DOSclient ? =>
-          DOSclient(env.out, env.root as AmbientAuth, "localhost", "9999")
+        {(rjc: RemoteJournalClient, usedir_name: String): DOSclient =>
+          DOSclient(auth, "localhost", "9999", rjc, usedir_name)
         } end
       _usedir_name = _args(1)?
       if _usedir_name == "" then
@@ -32,9 +31,9 @@ actor Main
       end
       _journal_path = _args(2)? + ".journal"
 
-      let journal_fp = FilePath(_auth as AmbientAuth, _journal_path)?
-      let rjc = RemoteJournalClient(_auth as AmbientAuth,
-        journal_fp, _journal_path, _usedir_name, make_dos, make_dos()?)
+      let journal_fp = FilePath(env.root as AmbientAuth, _journal_path)?
+      let rjc = RemoteJournalClient(env.root as AmbientAuth,
+        journal_fp, _journal_path, _usedir_name, make_dos)
       let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
 
       let j_file = recover iso SimpleJournalBackendLocalFile(journal_fp) end

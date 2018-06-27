@@ -36,7 +36,7 @@ actor RemoteJournalClient
   let _journal_fp: FilePath
   let _journal_path: String
   let _usedir_name: String
-  let _make_dos: {(): DOSclient ?} val
+  let _make_dos: {(RemoteJournalClient, String): DOSclient} val
   var _dos: DOSclient
   var _connected: Bool = false
   var _usedir_sent: Bool = false
@@ -56,14 +56,14 @@ actor RemoteJournalClient
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
     usedir_name: String,
-    make_dos: {(): DOSclient ?} val, initial_dos: DOSclient)
+    make_dos: {(RemoteJournalClient, String): DOSclient} val)
   =>
     _auth = auth
     _journal_fp = journal_fp
     _journal_path = journal_path
     _usedir_name = usedir_name
     _make_dos = make_dos
-    _dos = initial_dos
+    _dos = make_dos(recover tag this end, usedir_name)
     _D.d8("RemoteJournalClient (last _state=%d): create\n", _state.num())
     _set_connection_status_notifier()
     _local_size_discovery()
@@ -101,12 +101,8 @@ actor RemoteJournalClient
     _usedir_sent = false
     _appending = false
     _in_sync = false
-    try
-      _dos = _make_dos()?
-      _set_connection_status_notifier()
-    else
-      Fail()
-    end
+    _dos = _make_dos(recover tag this end, _usedir_name)
+    _set_connection_status_notifier()
     _local_size_discovery()
 
   be local_size_discovery() =>
@@ -547,3 +543,9 @@ actor RemoteJournalClient
     if _connected then
       _local_size_discovery()
     end
+
+  be notify_written_synced(usedir_name: String,
+    written: USize, synced: USize)
+  =>
+    _D.dss66("RJC %s: usedir_name %s written %d synced %d\n",
+      _dl(), usedir_name, written, synced)

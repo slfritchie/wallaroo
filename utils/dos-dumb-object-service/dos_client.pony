@@ -15,10 +15,11 @@ primitive DOSusedir
 type DOSop is (DOSappend | DOSgetchunk | DOSls | DOSnoop | DOSusedir)
 
 actor DOSclient
-  let _out: OutStream
-  var _auth: (AmbientAuth | None) = None
+  var _auth: AmbientAuth
   let _host: String
   let _port: String
+  let _rjc: (RemoteJournalClient | None)
+  let _usedir_name: String
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
   var _appending: Bool = false
@@ -28,11 +29,14 @@ actor DOSclient
   let _timers: Timers = Timers
   var _last_episode: USize = 0
 
-  new create(out: OutStream, auth: AmbientAuth, host: String, port: String) =>
-    _out = out
+  new create(auth: AmbientAuth, host: String, port: String,
+    rjc: (RemoteJournalClient | None) = None, usedir_name: String = "{none}")
+  =>
     _auth = auth
     _host = host
     _port = port
+    _rjc = rjc
+    _usedir_name = usedir_name
     _reconn()
 
   be connection_status_notifier(status_notifier: {(Bool): None} iso) =>
@@ -49,10 +53,7 @@ actor DOSclient
     end
     _connected = false
     _appending = false
-    try
-      _sock = TCPConnection(_auth as AmbientAuth,
-        recover DOSnotify(this, _out) end, _host, _port)
-    end
+    _sock = TCPConnection(_auth, recover DOSnotify(this) end, _host, _port)
 
   be dispose() =>
     ifdef "verbose" then
@@ -383,8 +384,11 @@ actor DOSclient
           let written = fs(0)?.usize()?
           let synced = fs(1)?.usize()?
           _D.ds66("RJC: %s appending stats: written %d synced %d\n",
-            "moo", written, synced)
-          // TODO: Next, where the hell to send this info to?
+            _usedir_name, written, synced)
+          try
+            (_rjc as RemoteJournalClient).notify_written_synced(
+              _usedir_name, written, synced)
+          end
         else
           Fail()
         end
@@ -398,15 +402,13 @@ actor DOSclient
 
 class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
-  let _out: OutStream
   var _header: Bool = true
   var _episode: USize = 0
   let _qqq_crashme: I64 = 15
   var _qqq_count: I64 = _qqq_crashme
 
-  new create(client: DOSclient, out: OutStream) =>
+  new create(client: DOSclient) =>
     _client = client
-    _out = out
 
   fun ref connect_failed(conn: TCPConnection ref) =>
     ifdef "verbose" then
