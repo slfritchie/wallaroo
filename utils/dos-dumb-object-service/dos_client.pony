@@ -386,7 +386,7 @@ actor DOSclient
           let fs = str.split("\t")
           let written = fs(0)?.usize()?
           let synced = fs(1)?.usize()?
-          _D.ds66("RJC: %s appending stats: written %d synced %d\n",
+          _D.ds66("DOSclient: %s appending stats: written %d synced %d\n",
             _usedir_name, written, synced)
           try
             (_rjc as RemoteJournalClient).notify_written_synced(

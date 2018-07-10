@@ -130,7 +130,7 @@ actor RemoteJournalClient
 
   fun ref _find_local_file_size() ? =>
     let info = FileInfo(_journal_fp)?
-    _D.ds6("RemoteJournalClient: %s size %d\n", _journal_fp.path, info.size)
+    _D.dss6("RJC %s: %s size %d\n", _dl(), _journal_fp.path, info.size)
     _local_size = info.size
 
   fun ref _remote_usedir() =>
@@ -144,13 +144,13 @@ actor RemoteJournalClient
       _remote_size_discovery()
     else
       let rsd = recover tag this end
+      let dl = _dl()
       let p = Promise[DOSreply]
       p.timeout(_timeout_nanos)
       p.next[None](
         {(reply)(rsd) =>
           try
-            _D.ds("RemoteJournalClient: remote_usedir RES %s\n",
-              (reply as String))
+            _D.dss("RJC %s: remote_usedir RES %s\n", dl, (reply as String))
             if (reply as String) == "ok" then
               rsd.remote_usedir_reply(true)
             else
@@ -161,7 +161,7 @@ actor RemoteJournalClient
           end
         },
         {() =>
-          _D.d("RemoteJournalClient: remote_usedir REJECTED\n")
+          _D.ds("RJC %s: remote_usedir REJECTED\n", dl)
           rsd.remote_usedir_reply(false)
         }
       )
@@ -286,8 +286,8 @@ actor RemoteJournalClient
     _state = _SStartRemoteFileAppend
 
     _remote_size = remote_size
-    _D.d66("RemoteJournalClient: start_remote_file_append " +
-      "_local_size %d _remote_size %d\n", _local_size, _remote_size)
+    _D.ds66("RJC %s: start_remote_file_append " +
+      "_local_size %d _remote_size %d\n", _dl(), _local_size, _remote_size)
 
     if not _connected then
       _local_size_discovery()
@@ -295,19 +295,20 @@ actor RemoteJournalClient
     end
 
     let rsd = recover tag this end
+    let dl = _dl()
     let p = Promise[DOSreply]
     p.timeout(_timeout_nanos)
     p.next[None](
       {(reply)(rsd) =>
         try
-          _D.ds("RemoteJournalClient: start_remote_file_append RES %s\n",
-            (reply as String))
+          _D.dss("RJC %s: start_remote_file_append RES %s\n",
+            dl, (reply as String))
           if (reply as String) == "ok" then
             rsd.start_remote_file_append_reply(true)
           else
             try
-              _D.ds("RemoteJournalClient: start_remote_file_append failure " +
-                "(reason = %s), pause & looping\n", (reply as String))
+              _D.dss("RJC %s: start_remote_file_append failure " +
+                "(reason = %s), pause & looping\n", dl, (reply as String))
             end
            rsd.start_remote_file_append_reply(false)
           end
@@ -316,7 +317,7 @@ actor RemoteJournalClient
         end
       },
       {() =>
-        _D.d("RemoteJournalClient: start_remote_file_append REJECTED\n")
+        _D.ds("RJC %s: start_remote_file_append REJECTED\n", dl)
         rsd.start_remote_file_append_reply(false)
       }
     )
