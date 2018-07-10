@@ -372,7 +372,7 @@ class RotatingFileBackend is Backend
     let p = _base_name + "-" + HexOffset(_offset) + _suffix
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
+    let local_journal = SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
@@ -419,7 +419,7 @@ class RotatingFileBackend is Backend
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-      let local_journal = SimpleJournal(local_journal_filepath, false, _event_log)
+      let local_journal = SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync
@@ -568,7 +568,22 @@ trait SimpleJournalAsyncResponseReceiver
   be async_io_ok(j: SimpleJournal tag, optag: USize)
   be async_io_error(j: SimpleJournal tag, optag: USize)
 
-actor SimpleJournal
+trait tag SimpleJournal
+  be dispose_journal()
+  be set_length(path: String, len: USize, optag: USize = 0)
+  be writev(path: String, data: ByteSeqIter val, optag: USize = 0)
+
+actor SimpleJournalNoop is SimpleJournal
+  new create() =>
+    None
+  be dispose_journal() =>
+    None
+  be set_length(path: String, len: USize, optag: USize = 0) =>
+    None
+  be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+    None
+
+actor SimpleJournalLocalFile is SimpleJournal
   var filepath: FilePath
   var _j_file: File
   var _j_file_closed: Bool

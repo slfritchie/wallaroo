@@ -204,7 +204,7 @@ actor Startup
 
       var is_recovering: Bool = false
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
-      _the_journal = SimpleJournal(_the_journal_filepath as FilePath)
+      _the_journal = _start_journal()?
 
       // check to see if we can recover
       // Use Set to make the logic explicit and clear
@@ -453,7 +453,7 @@ actor Startup
         end
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
-      _the_journal = SimpleJournal(_the_journal_filepath as FilePath)
+      _the_journal = _start_journal()?
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
           EventLog(_the_journal as SimpleJournal, auth,
@@ -698,6 +698,13 @@ actor Startup
   =>
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.int())
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.term())
+
+  fun _start_journal(): SimpleJournal ? =>
+    if _startup_options.use_io_journal then
+      SimpleJournalLocalFile(_the_journal_filepath as FilePath)
+    else
+      SimpleJournalNoop
+    end
 
 class WallarooShutdownHandler is SignalNotify
   """

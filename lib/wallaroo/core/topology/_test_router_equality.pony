@@ -54,8 +54,8 @@ class iso _TestLocalPartitionRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
-    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
+    let event_log = EventLog(SimpleJournalNoop, auth)
+    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -111,8 +111,8 @@ class iso _TestOmniRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
-    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
+    let event_log = EventLog(SimpleJournalNoop, auth)
+    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -182,8 +182,8 @@ class iso _TestDataRouterEqualityAfterRemove is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
-    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
+    let event_log = EventLog(SimpleJournalNoop, auth)
+    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -215,8 +215,8 @@ class iso _TestDataRouterEqualityAfterAdd is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog(SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?), auth)
-    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)?
+    let event_log = EventLog(SimpleJournalNoop, auth)
+    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -289,26 +289,26 @@ primitive _BoundaryGenerator
       MetricsReporter("", "", _NullMetricsSink), "", "")
 
 primitive _RouterRegistryGenerator
-  fun apply(env: Env, auth: AmbientAuth): RouterRegistry ? =>
-    RouterRegistry(auth, "", _DataReceiversGenerator(env, auth)?,
-      _ConnectionsGenerator(env, auth)?, _DummyRecoveryFileCleaner, 0,
+  fun apply(env: Env, auth: AmbientAuth): RouterRegistry =>
+    RouterRegistry(auth, "", _DataReceiversGenerator(env, auth),
+      _ConnectionsGenerator(env, auth), _DummyRecoveryFileCleaner, 0,
       false)
 
 primitive _DataReceiversGenerator
-  fun apply(env: Env, auth: AmbientAuth): DataReceivers ? =>
-    DataReceivers(auth, _ConnectionsGenerator(env, auth)?, "")
+  fun apply(env: Env, auth: AmbientAuth): DataReceivers =>
+    DataReceivers(auth, _ConnectionsGenerator(env, auth), "")
 
 primitive _ConnectionsGenerator
-  fun apply(env: Env, auth: AmbientAuth): Connections ? =>
-    let the_journal = SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?)
+  fun apply(env: Env, auth: AmbientAuth): Connections =>
+    let the_journal = SimpleJournalNoop
     Connections("", "", auth, "", "", "", "",
       _NullMetricsSink, "", "", false, "", false
       where event_log = EventLog(the_journal, auth), the_journal = the_journal)
 
 primitive _RecoveryReplayerGenerator
-  fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer ? =>
-    RecoveryReplayer(auth, "", _DataReceiversGenerator(env, auth)?,
-      _RouterRegistryGenerator(env, auth)?, _Cluster)
+  fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer =>
+    RecoveryReplayer(auth, "", _DataReceiversGenerator(env, auth),
+      _RouterRegistryGenerator(env, auth), _Cluster)
 
 primitive _StatelessPartitionGenerator
   fun apply(): StatelessPartitionRouter =>

@@ -75,7 +75,7 @@ class _TestDataChannel is DataChannelListenNotify
 
     try
       let auth = h.env.root as AmbientAuth
-      let the_journal = SimpleJournal(FilePath(auth, "/tmp/bogus-journal.bin")?)
+      let the_journal: SimpleJournal = SimpleJournalNoop
       let event_log = EventLog(the_journal, auth)
       let conns = Connections("app_name", "worker_name", auth,
         "127.0.0.1", "0",
