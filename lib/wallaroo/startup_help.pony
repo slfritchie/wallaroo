@@ -39,6 +39,8 @@ primitive StartupHelp
           initializing process (that status is meaningless after init is done)]
         --resilience-dir/-r [Sets directory to write resilience files to,
           e.g. -r /tmp/data (no trailing slash)]
+        --resilience-no-local-file-io [Disables local file I/O; writes to I/O
+          journal are not affected by this flag]
         --log-rotation [Enables log rotation. Default: off]
         --event-log-file-size/-l [Optionally sets rotation size for the event
           log file backend]

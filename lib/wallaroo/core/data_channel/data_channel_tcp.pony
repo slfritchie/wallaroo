@@ -69,7 +69,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
     layout_initializer: LayoutInitializer tag,
     data_receivers: DataReceivers, recovery_replayer: RecoveryReplayer,
     router_registry: RouterRegistry, the_journal: SimpleJournal,
-    log_local_file_io: Bool,
+    do_local_file_io: Bool,
     joining: Bool = false)
   =>
     _name = name
@@ -83,7 +83,7 @@ class DataChannelListenNotifier is DataChannelListenNotify
     _recovery_replayer = recovery_replayer
     _router_registry = router_registry
     _the_journal = the_journal
-    _do_local_file_io = log_local_file_io
+    _do_local_file_io = do_local_file_io
     _joining_existing_cluster = joining
 
   fun ref listening(listen: DataChannelListener ref) =>
