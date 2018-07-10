@@ -18,7 +18,7 @@ actor DOSclient
   var _auth: AmbientAuth
   let _host: String
   let _port: String
-  let _rjc: (RemoteJournalClient | None)
+  let _rjc: RemoteJournalClient
   let _usedir_name: String
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
@@ -30,7 +30,7 @@ actor DOSclient
   var _last_episode: USize = 0
 
   new create(auth: AmbientAuth, host: String, port: String,
-    rjc: (RemoteJournalClient | None) = None, usedir_name: String = "{none}")
+    rjc: RemoteJournalClient, usedir_name: String = "{none}")
   =>
     _auth = auth
     _host = host
@@ -388,10 +388,7 @@ actor DOSclient
           let synced = fs(1)?.usize()?
           _D.ds66("DOSclient: %s appending stats: written %d synced %d\n",
             _usedir_name, written, synced)
-          try
-            (_rjc as RemoteJournalClient).notify_written_synced(
-              _usedir_name, written, synced)
-          end
+          _rjc.notify_written_synced(_usedir_name, written, synced)
         else
           Fail()
         end
