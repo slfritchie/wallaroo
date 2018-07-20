@@ -166,7 +166,7 @@ primitive WallarooConfig
       | ("resilience-no-local-file-io", let arg: None) =>
         so.do_local_file_io = false
       | ("resilience-disable-io-journal", let arg: None) =>
-        so.use_io_journal = true
+        so.use_io_journal = false
       | ("log-rotation", let arg: None) => so.log_rotation = true
       | ("event-log-file-size", let arg: I64) =>
         so.event_log_file_length = arg.usize()
