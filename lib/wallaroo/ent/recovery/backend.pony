@@ -345,10 +345,12 @@ class RotatingFileBackend is Backend
   let _file_length: (USize | None)
   var _offset: U64
   var _rotate_requested: Bool = false
+  let _rotation_enabled: Bool
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
     event_log: EventLog, file_length: (USize | None),
-    the_journal: SimpleJournal, auth: AmbientAuth, do_local_file_io: Bool) ?
+    the_journal: SimpleJournal, auth: AmbientAuth, do_local_file_io: Bool,
+    rotation_enabled: Bool = true) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
@@ -358,6 +360,7 @@ class RotatingFileBackend is Backend
     _the_journal = the_journal
     _auth = auth
     _do_local_file_io = do_local_file_io
+    _rotation_enabled = rotation_enabled
 
     // scan existing files matching _base_path, and identify the latest one
     // based on the hex offset
@@ -369,10 +372,21 @@ class RotatingFileBackend is Backend
     else // create a new file with offset 0
       0
     end
-    let p = _base_name + "-" + HexOffset(_offset) + _suffix
+    let p = if _rotation_enabled then
+      _base_name + "-" + HexOffset(_offset) + _suffix
+    else
+      _base_name + _suffix
+    end
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
+    let local_journal = match the_journal
+    | let lj: SimpleJournalNoop =>
+      // If the main journal is a noop journal, then don't bother
+      // creating a real journal for the event log data.
+      SimpleJournalNoop
+    else
+      SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
+    end
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
@@ -400,7 +414,7 @@ class RotatingFileBackend is Backend
 
   fun ref rotate_file() ? =>
     // only do this if current backend has actually written anything
-    if _backend.bytes_written() > 0 then
+    if _rotation_enabled and (_backend.bytes_written() > 0) then
       // TODO This is a placeholder for recording that we're rotating
       // an EventLog backend file, which is a prototype quick hack for
       // keeping such state within an SimpleJournal collection thingie.
