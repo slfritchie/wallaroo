@@ -268,7 +268,7 @@ actor RemoteJournalClient
         let rsd = recover tag this end
         let later = _DoLater(recover
           {(): Bool =>
-            _D.d6("\n\t\t\t\tDoLater: remote_size_discovery " +
+            _D.d6("\tDoLater: remote_size_discovery " +
               " after sleep_time %d\n", _remote_size_discovery_sleep)
             rsd.remote_size_discovery_retry()
             false
@@ -395,12 +395,12 @@ actor RemoteJournalClient
     //let block_size = missing_bytes.min(1024*1024)
     let block_size = missing_bytes.min(50)
 
-    _D.d6("\t_catch_up_send_block: block_size = %d\n", block_size)
+    _D.ds6("\tRJC %s: _catch_up_send_block: block_size = %d\n", _dl(), block_size)
     with file = File.open(_journal_fp) do
       file.seek(_remote_size.isize())
       let bytes = recover val file.read(block_size) end
       let goo = recover val [bytes] end
-      _D.d66("\t_catch_up_send_block: _remote_size %d bytes size = %d\n",
+      _D.ds66("\tRJC %s: _catch_up_send_block: _remote_size %d bytes size = %d\n", _dl(),
         _remote_size, bytes.size())
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
@@ -447,8 +447,8 @@ actor RemoteJournalClient
     else
       for (offset, data, data_size) in _buffer.values() do
         if (offset + data_size) <= _remote_size then
-          _D.d666("\t======send_buffer_state: " +
-            "skipping offset %d data_size %d remote_size %d\n",
+          _D.ds666("\tRJC %s: ======send_buffer_state: " +
+            "skipping offset %d data_size %d remote_size %d\n", _dl(),
             offset, data_size, _remote_size)
         elseif (offset < _remote_size) and
           ((offset + data_size) > _remote_size) then
@@ -462,15 +462,15 @@ actor RemoteJournalClient
           //
           // This case is very rare but does happen.  TODO is it worth
           // splitting the data here? and procedding forward?
-          _D.d666("\t======send_buffer_state: " +
-            "TODO split offset %d data_size %d remote_size %d\n", offset,
-            data_size, _remote_size)
+          _D.ds666("\tRJC %s: ======send_buffer_state: " +
+            "TODO split offset %d data_size %d remote_size %d\n", _dl(),
+            offset, data_size, _remote_size)
           _make_new_dos_then_local_size_discovery()
           return
         elseif offset == _remote_size then
-          _D.d666("\t======send_buffer_state: " +
-            "send_unframed offset %d data_size %d remote_size %d\n", offset,
-            data_size, _remote_size)
+          _D.ds666("\tRJC %s: ======send_buffer_state: " +
+            "send_unframed offset %d data_size %d remote_size %d\n", _dl(),
+            offset, data_size, _remote_size)
           // keep _local_size in sync with _remote_size
           _local_size = _local_size + data_size
           _dos.send_unframed(data)
@@ -536,12 +536,12 @@ actor RemoteJournalClient
         // We're over the max size. Clear buffer if it's full, but
         // keep counting buffered bytes.
         if _buffer.size() > 0 then
-          _D.d("\t====be_writev: be_writev CLEAR _buffer\n")
+          _D.ds("\tRJC %s: ====be_writev: be_writev CLEAR _buffer\n", _dl())
           _buffer.clear()
         end
       end
       _buffer_size = _buffer_size + data_size
-      _D.d6("\t====be_writev: be_writev new _buffer_size %d\n", _buffer_size)
+      _D.ds6("\tRJC %s: ====be_writev: be_writev new _buffer_size %d\n", _dl(), _buffer_size)
     end
 
   be dos_client_connection_status(connected: Bool) =>

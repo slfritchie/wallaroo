@@ -79,6 +79,11 @@ primitive _D
       @printf[I32](fmt.cstring(), a1.cstring(), a2.cstring(), a3, a4)
     end
 
+  fun ds666(fmt: String, a1: String, a2: USize, a3: USize, a4: USize) =>
+    ifdef "dos-verbose" then
+      @printf[I32](fmt.cstring(), a1.cstring(), a2, a3, a4)
+    end
+
   fun ds666s(fmt: String, a1: String, a2: USize, a3: USize, a4: USize, a5: String) =>
     ifdef "dos-verbose" then
       @printf[I32](fmt.cstring(), a1.cstring(), a2, a3, a4, a5.cstring())
