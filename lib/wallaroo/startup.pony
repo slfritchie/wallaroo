@@ -204,7 +204,7 @@ actor Startup
 
       var is_recovering: Bool = false
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
-      _the_journal = _start_journal()?
+      _the_journal = _start_journal(auth)
 
       // check to see if we can recover
       // Use Set to make the logic explicit and clear
@@ -453,7 +453,7 @@ actor Startup
         end
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
-      _the_journal = _start_journal()?
+      _the_journal = _start_journal(auth)
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
           EventLog(_the_journal as SimpleJournal, auth,
@@ -705,12 +705,29 @@ actor Startup
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.int())
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.term())
 
-  fun _start_journal(): SimpleJournal ? =>
+  fun _start_journal(auth: AmbientAuth): SimpleJournal =>
     if _startup_options.use_io_journal then
-      let j_local = recover iso
-        SimpleJournalBackendLocalFile(_the_journal_filepath as FilePath) end
-      let j_remote = recover iso SimpleJournalBackendRemote end
-      SimpleJournalMirror(consume j_local, consume j_remote, true, None) // TODO async receiver tag??
+      try
+        let the_journal_filepath = _the_journal_filepath as FilePath
+        let the_journal_basename = the_journal_filepath.path.split("/").pop()?
+        let usedir_name = "fixme-usedir-name-use-worker-name-yeah"
+
+        let j_local = recover iso
+          SimpleJournalBackendLocalFile(the_journal_filepath) end
+
+        let make_dos = recover val
+          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient =>
+            DOSclient(auth, "localhost", "9999", rjc, usedir_name)
+          } end
+        let rjc = RemoteJournalClient(auth,
+          the_journal_filepath, the_journal_basename, usedir_name, make_dos)
+        let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
+
+        SimpleJournalMirror(consume j_local, consume j_remote, true, None) // TODO async receiver tag??
+      else
+        Fail()
+        SimpleJournalNoop
+      end
     else
       SimpleJournalNoop
     end

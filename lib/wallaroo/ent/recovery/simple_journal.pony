@@ -213,15 +213,14 @@ class SimpleJournalBackendLocalFile is SimpleJournalBackend
     end
     true
 
-////TODO fix me!
 class SimpleJournalBackendRemote is SimpleJournalBackend
-  ////let _rjc: RemoteJournalClient
+  let _rjc: RemoteJournalClient
 
-  new create(/****rjc: RemoteJournalClient****/) =>
-    None////_rjc = rjc
+  new create(rjc: RemoteJournalClient) =>
+    _rjc = rjc
 
   fun ref be_dispose() =>
-    None////_rjc.dispose()
+    _rjc.dispose()
 
   fun ref be_position(): USize =>
     666 // TODO
@@ -231,8 +230,8 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
   =>
     // TODO offset sanity check
     // TODO offset update
-    ////_D.d66("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n", offset, data_size)
-    ////_rjc.be_writev(offset, data, data_size)
+    _D.d66("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n", offset, data_size)
+    _rjc.be_writev(offset, data, data_size)
     true
 
 /**********************************************************

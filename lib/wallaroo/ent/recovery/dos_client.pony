@@ -417,7 +417,7 @@ class DOSnotify is TCPConnectionNotify
   let _client: DOSclient
   var _header: Bool = true
   var _episode: USize = 0
-  let _qqq_crashme: I64 = 15
+  let _qqq_crashme: I64 = 111111115 // TODO delete me & test failure another way
   var _qqq_count: I64 = _qqq_crashme
 
   new create(client: DOSclient) =>

@@ -107,6 +107,7 @@ class FileBackend is Backend
   let _file_path: String
   let _event_log: EventLog
   let _the_journal: SimpleJournal
+  let _auth: AmbientAuth
   let _writer: Writer iso
   var _replay_log_exists: Bool
   var _bytes_written: USize = 0
@@ -123,6 +124,7 @@ class FileBackend is Backend
       AsyncJournalledFile(filepath, the_journal, auth, do_local_file_io) end
     _event_log = event_log
     _the_journal = the_journal
+    _auth = auth
     _do_local_file_io = do_local_file_io
 
   fun ref dispose() =>
@@ -379,10 +381,11 @@ class RotatingFileBackend is Backend
     end
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = _start_journal(the_journal, local_journal_filepath, false, _event_log)
+    let local_journal = _start_journal(auth, the_journal, local_journal_filepath, false, _event_log)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
-  fun tag _start_journal(the_journal: SimpleJournal,
+  // TODO Derp nearly cut-and-paste from startup.pony's version
+  fun tag _start_journal(auth: AmbientAuth, the_journal: SimpleJournal,
     local_journal_filepath: FilePath, encode_io_ops: Bool,
     event_log: EventLog): SimpleJournal
    =>
@@ -392,9 +395,20 @@ class RotatingFileBackend is Backend
       // creating a real journal for the event log data.
       SimpleJournalNoop
     else
+      let local_basename = try local_journal_filepath.path.split("/").pop()? else Fail(); "Fail()" end
+      let usedir_name = "fixme-usedir-name-use-worker-name-yeah"
+
       let j_local = recover iso
         SimpleJournalBackendLocalFile(local_journal_filepath) end
-      let j_remote = recover iso SimpleJournalBackendRemote end
+
+      let make_dos = recover val
+        {(rjc: RemoteJournalClient, usedir_name: String): DOSclient =>
+          DOSclient(auth, "localhost", "9999", rjc, usedir_name)
+        } end
+      let rjc = RemoteJournalClient(auth,
+        local_journal_filepath, local_basename, usedir_name, make_dos)
+      let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
+
       SimpleJournalMirror(consume j_local, consume j_remote, false, None) // TODO async receiver tag??
     end
 
@@ -442,7 +456,7 @@ class RotatingFileBackend is Backend
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-      let local_journal = _start_journal(_the_journal, local_journal_filepath, false, _event_log)
+      let local_journal = _start_journal(_auth, _the_journal, local_journal_filepath, false, _event_log)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync
