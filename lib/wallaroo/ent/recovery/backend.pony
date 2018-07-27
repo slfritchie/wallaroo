@@ -396,7 +396,7 @@ class RotatingFileBackend is Backend
       SimpleJournalNoop
     else
       let local_basename = try local_journal_filepath.path.split("/").pop()? else Fail(); "Fail()" end
-      let usedir_name = "fixme-usedir-name-use-worker-name-yeah"
+      let usedir_name = "fixme-usedir-name-use-worker-name-yeah2"
 
       let j_local = recover iso
         SimpleJournalBackendLocalFile(local_journal_filepath) end
