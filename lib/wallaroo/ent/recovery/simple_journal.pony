@@ -227,7 +227,7 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
     666 // TODO
 
   fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
-  : Bool
+    : Bool
   =>
     // TODO offset sanity check
     // TODO offset update
