@@ -20,20 +20,20 @@ trait SimpleJournalAsyncResponseReceiver
 
 trait tag SimpleJournal
   be dispose_journal()
+  be remove(path: String, optag: USize = 0)
   be set_length(path: String, len: USize, optag: USize = 0)
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0)
-  be remove(path: String, optag: USize = 0)
 
 actor SimpleJournalNoop is SimpleJournal
   new create() =>
     None
   be dispose_journal() =>
     None
+  be remove(path: String, optag: USize = 0) =>
+    None
   be set_length(path: String, len: USize, optag: USize = 0) =>
     None
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
-    None
-  be remove(path: String, optag: USize = 0) =>
     None
 
 actor SimpleJournalMirror is SimpleJournal
@@ -69,6 +69,34 @@ actor SimpleJournalMirror is SimpleJournal
     _j_file.be_dispose()
     _j_remote.be_dispose()
     _j_closed = true
+
+  be remove(path: String, optag: USize = 0) =>
+    if _j_closed then
+      Fail()
+    end
+    if _encode_io_ops then
+      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.remove(),
+        recover [] end, recover [path] end)
+      let wb: Writer = wb.create()
+
+      if pdu_size > U32.max_value().usize() then
+        Fail()
+      end
+      wb.u32_be(pdu_size.u32())
+      wb.writev(consume pdu)
+      let data_size = wb.size()
+      let data = recover val wb.done() end
+      let ret = _j_file.be_writev(_j_file_size, data, data_size)
+      if ret then
+        _j_remote.be_writev(_j_file_size, data, data_size)
+        _j_file_size = _j_file_size + data_size
+      else
+        Fail() // TODO?
+      end
+      ret
+    else
+      Fail()
+    end
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
     if _j_closed then
@@ -127,6 +155,9 @@ actor SimpleJournalMirror is SimpleJournal
         (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
           [], [path; consume bytes])
 
+        if pdu_size > U32.max_value().usize() then
+          Fail()
+        end
         wb.u32_be(pdu_size.u32())
         wb.writev(consume pdu)
         ifdef "journaldbg" then
@@ -174,34 +205,6 @@ actor SimpleJournalMirror is SimpleJournal
         let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
         o.async_io_error(this, optag)
       end
-    end
-
-  be remove(path: String, optag: USize = 0) =>
-    if _j_closed then
-      Fail()
-    end
-    if _encode_io_ops then
-      (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.remove(),
-        recover [] end, recover [path] end)
-      let wb: Writer = wb.create()
-
-      if pdu_size > U32.max_value().usize() then
-        Fail()
-      end
-      wb.u32_be(pdu_size.u32())
-      wb.writev(consume pdu)
-      let data_size = wb.size()
-      let data = recover val wb.done() end
-      let ret = _j_file.be_writev(_j_file_size, data, data_size)
-      if ret then
-        _j_remote.be_writev(_j_file_size, data, data_size)
-        _j_file_size = _j_file_size + data_size
-      else
-        Fail() // TODO?
-      end
-      ret
-    else
-      Fail()
     end
 
 trait SimpleJournalBackend
