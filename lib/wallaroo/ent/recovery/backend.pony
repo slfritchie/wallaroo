@@ -379,15 +379,24 @@ class RotatingFileBackend is Backend
     end
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = match the_journal
+    let local_journal = _start_journal(the_journal, local_journal_filepath, false, _event_log)
+    _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
+
+  fun tag _start_journal(the_journal: SimpleJournal,
+    local_journal_filepath: FilePath, encode_io_ops: Bool,
+    event_log: EventLog): SimpleJournal
+   =>
+    match the_journal
     | let lj: SimpleJournalNoop =>
       // If the main journal is a noop journal, then don't bother
       // creating a real journal for the event log data.
       SimpleJournalNoop
     else
-      SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
+      let j_local = recover iso
+        SimpleJournalBackendLocalFile(local_journal_filepath) end
+      let j_remote = recover iso SimpleJournalBackendRemote end
+      SimpleJournalMirror(consume j_local, consume j_remote, false, None) // TODO async receiver tag??
     end
-    _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   fun bytes_written(): USize => _backend.bytes_written()
 
@@ -433,7 +442,7 @@ class RotatingFileBackend is Backend
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-      let local_journal = SimpleJournalLocalFile(local_journal_filepath, false, _event_log)
+      let local_journal = _start_journal(_the_journal, local_journal_filepath, false, _event_log)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync

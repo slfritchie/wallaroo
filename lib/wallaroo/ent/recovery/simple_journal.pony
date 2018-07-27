@@ -36,34 +36,42 @@ actor SimpleJournalNoop is SimpleJournal
   be remove(path: String, optag: USize = 0) =>
     None
 
-actor SimpleJournalLocalFile is SimpleJournal
-  var filepath: FilePath
-  var _j_file: File
-  var _j_file_closed: Bool
+actor SimpleJournalMirror is SimpleJournal
+  """
+  This journal actor writes both to a local journal and to a remote journal.
+
+  TODO adding multiple remote journal backends should be straightforward.
+  """
+  var _j_file: SimpleJournalBackend
+  var _j_remote: SimpleJournalBackend
+  var _j_closed: Bool
+  var _j_file_size: USize
   let _encode_io_ops: Bool
   let _owner: (None tag | SimpleJournalAsyncResponseReceiver tag)
 
-  new create(filepath': FilePath, encode_io_ops: Bool = true,
+  new create(j_file: SimpleJournalBackend iso,
+    j_remote: SimpleJournalBackend iso,
+    encode_io_ops: Bool = true,
     owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
   =>
-    filepath = filepath'
     _encode_io_ops = encode_io_ops
     _owner = owner
 
-    _j_file = File(filepath)
-    _j_file_closed = false
-    // A newly created file has offset @ start of file, we want the end of file
-    _j_file.seek_end(0)
+    _j_file = consume j_file
+    _j_remote = consume j_remote
+    _j_closed = false
+    _j_file_size = _j_file.be_position()
 
   // TODO This method only exists because of prototype hack laziness
   // that does not refactor both RotatingEventLog & SimpleJournal.
   // It is used only by RotatingEventLog.
   be dispose_journal() =>
-    _j_file.dispose()
-    _j_file_closed = true
+    _j_file.be_dispose()
+    _j_remote.be_dispose()
+    _j_closed = true
 
   be set_length(path: String, len: USize, optag: USize = 0) =>
-    if _j_file_closed then
+    if _j_closed then
       Fail()
     end
     if _encode_io_ops then
@@ -76,13 +84,22 @@ actor SimpleJournalLocalFile is SimpleJournal
       end
       wb.u32_be(pdu_size.u32())
       wb.writev(consume pdu)
-      _j_file.writev(wb.done())
+      let data_size = wb.size()
+      let data = recover val wb.done() end
+      let ret = _j_file.be_writev(_j_file_size, data, data_size)
+      if ret then
+        _j_remote.be_writev(_j_file_size, data, data_size)
+        _j_file_size = _j_file_size + data_size
+      else
+        Fail() // TODO?
+      end
+      ret
     else
       Fail()
     end
 
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
-    if _j_file_closed then
+    if _j_closed then
       Fail()
     end
     let write_res =
@@ -115,11 +132,41 @@ actor SimpleJournalLocalFile is SimpleJournal
         ifdef "journaldbg" then
           @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
         end
-        _j_file.writev(wb.done())
+        let data2_size = wb.size()
+        let data2 = recover val wb.done() end
+        let ret = _j_file.be_writev(_j_file_size, data2, data2_size)
+        // _D.ds666s("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n", path, bytes_size, pdu_size, optag, ret.string())
+        @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n".cstring(), path.cstring(), bytes_size, pdu_size, optag, ret.string().cstring())
+        if ret then
+          _j_remote.be_writev(_j_file_size, data2, data2_size)
+          _j_file_size = _j_file_size + data2_size
+        else
+          Fail() // TODO?
+        end
+        ret
       else
-        _j_file.writev(data)
+        var data_size: USize = 0
+
+        for d in data.values() do
+          data_size = data_size + d.size()
+        end
+        let ret = _j_file.be_writev(_j_file_size, data, data_size)
+        if ret then
+          _j_remote.be_writev(_j_file_size, data, data_size)
+          _j_file_size = _j_file_size + data_size
+        else
+          Fail() // TODO?
+        end
+        ret
       end
-    if not write_res then
+    if write_res then
+      if optag > 0 then
+        try
+          let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
+          o.async_io_ok(this, optag)
+        end
+      end
+    else
       // We don't know how many bytes were written.  ^_^
       // TODO So, I suppose we need to ask the OS about the file size
       // to figure that out so that we can do <TBD> to recover.
@@ -128,15 +175,9 @@ actor SimpleJournalLocalFile is SimpleJournal
         o.async_io_error(this, optag)
       end
     end
-    if optag > 0 then
-      try
-        let o = _owner as (SimpleJournalAsyncResponseReceiver tag)
-        o.async_io_ok(this, optag)
-      end
-    end
 
   be remove(path: String, optag: USize = 0) =>
-    if _j_file_closed then
+    if _j_closed then
       Fail()
     end
     if _encode_io_ops then
@@ -149,10 +190,75 @@ actor SimpleJournalLocalFile is SimpleJournal
       end
       wb.u32_be(pdu_size.u32())
       wb.writev(consume pdu)
-      _j_file.writev(wb.done())
+      let data_size = wb.size()
+      let data = recover val wb.done() end
+      let ret = _j_file.be_writev(_j_file_size, data, data_size)
+      if ret then
+        _j_remote.be_writev(_j_file_size, data, data_size)
+        _j_file_size = _j_file_size + data_size
+      else
+        Fail() // TODO?
+      end
+      ret
     else
       Fail()
     end
+
+trait SimpleJournalBackend
+  fun ref be_dispose(): None
+
+  fun ref be_position(): USize
+
+  fun ref be_writev(offset: USize,
+    data: ByteSeqIter val, data_size: USize): Bool
+
+
+class SimpleJournalBackendLocalFile is SimpleJournalBackend
+  let _j_file: File
+
+  new create(filepath: FilePath) =>
+    _j_file = File(filepath)
+    _j_file.seek_end(0)
+
+  fun ref be_dispose() =>
+    _j_file.dispose()
+
+  fun ref be_position(): USize =>
+    _j_file.position()
+
+  fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
+  : Bool
+  =>
+    let res1 = _j_file.writev(data)
+    let res2 = _j_file.flush()
+    if not (res1 and res2) then
+      // TODO: The RemoteJournalClient assumes that data written to the
+      // local journal file is always up-to-date and never buffered.
+      Fail()
+    end
+    true
+
+////TODO fix me!
+class SimpleJournalBackendRemote is SimpleJournalBackend
+  ////let _rjc: RemoteJournalClient
+
+  new create(/****rjc: RemoteJournalClient****/) =>
+    None////_rjc = rjc
+
+  fun ref be_dispose() =>
+    None////_rjc.dispose()
+
+  fun ref be_position(): USize =>
+    666 // TODO
+
+  fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
+  : Bool
+  =>
+    // TODO offset sanity check
+    // TODO offset update
+    ////_D.d66("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n", offset, data_size)
+    ////_rjc.be_writev(offset, data, data_size)
+    true
 
 /**********************************************************
 |------+----------------+---------------------------------|

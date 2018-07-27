@@ -664,6 +664,7 @@ actor Startup
     for d in _join_disposables.values() do
       d.dispose()
     end
+    try (_the_journal as SimpleJournal).dispose_journal() end
 
   fun ref _remove_file(filename: String) =>
     @printf[I32]("...Removing %s...\n".cstring(), filename.cstring())
@@ -706,7 +707,10 @@ actor Startup
 
   fun _start_journal(): SimpleJournal ? =>
     if _startup_options.use_io_journal then
-      SimpleJournalLocalFile(_the_journal_filepath as FilePath)
+      let j_local = recover iso
+        SimpleJournalBackendLocalFile(_the_journal_filepath as FilePath) end
+      let j_remote = recover iso SimpleJournalBackendRemote end
+      SimpleJournalMirror(consume j_local, consume j_remote, true, None) // TODO async receiver tag??
     else
       SimpleJournalNoop
     end
