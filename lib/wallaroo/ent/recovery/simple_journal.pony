@@ -77,23 +77,8 @@ actor SimpleJournalMirror is SimpleJournal
     if _encode_io_ops then
       (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.remove(),
         recover [] end, recover [path] end)
-      let wb: Writer = wb.create()
-
-      if pdu_size > U32.max_value().usize() then
-        Fail()
-      end
-      wb.u32_be(pdu_size.u32())
-      wb.writev(consume pdu)
-      let data_size = wb.size()
-      let data = recover val wb.done() end
-      let ret = _j_file.be_writev(_j_file_size, data, data_size)
-      if ret then
-        _j_remote.be_writev(_j_file_size, data, data_size)
-        _j_file_size = _j_file_size + data_size
-      else
-        Fail() // TODO?
-      end
-      ret
+      let write_res = _do_encoded_writes(consume pdu, pdu_size)
+      _async_io_status(write_res, optag)
     else
       Fail()
     end
@@ -105,23 +90,8 @@ actor SimpleJournalMirror is SimpleJournal
     if _encode_io_ops then
       (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.set_length(),
         recover [len] end, recover [path] end)
-      let wb: Writer = wb.create()
-
-      if pdu_size > U32.max_value().usize() then
-        Fail()
-      end
-      wb.u32_be(pdu_size.u32())
-      wb.writev(consume pdu)
-      let data_size = wb.size()
-      let data = recover val wb.done() end
-      let ret = _j_file.be_writev(_j_file_size, data, data_size)
-      if ret then
-        _j_remote.be_writev(_j_file_size, data, data_size)
-        _j_file_size = _j_file_size + data_size
-      else
-        Fail() // TODO?
-      end
-      ret
+      let write_res = _do_encoded_writes(consume pdu, pdu_size)
+      _async_io_status(write_res, optag)
     else
       Fail()
     end
@@ -154,27 +124,7 @@ actor SimpleJournalMirror is SimpleJournal
         let bytes_size = bytes.size()
         (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
           [], [path; consume bytes])
-
-        if pdu_size > U32.max_value().usize() then
-          Fail()
-        end
-        wb.u32_be(pdu_size.u32())
-        wb.writev(consume pdu)
-        ifdef "journaldbg" then
-          @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d\n".cstring(), path.cstring(), bytes_size, pdu_size, optag)
-        end
-        let data2_size = wb.size()
-        let data2 = recover val wb.done() end
-        let ret = _j_file.be_writev(_j_file_size, data2, data2_size)
-        // _D.ds666s("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n", path, bytes_size, pdu_size, optag, ret.string())
-        @printf[I32]("### SimpleJournal: writev %s bytes %d pdu_size %d optag %d RET %s\n".cstring(), path.cstring(), bytes_size, pdu_size, optag, ret.string().cstring())
-        if ret then
-          _j_remote.be_writev(_j_file_size, data2, data2_size)
-          _j_file_size = _j_file_size + data2_size
-        else
-          Fail() // TODO?
-        end
-        ret
+        _do_encoded_writes(consume pdu, pdu_size)
       else
         var data_size: USize = 0
 
@@ -190,6 +140,9 @@ actor SimpleJournalMirror is SimpleJournal
         end
         ret
       end
+    _async_io_status(write_res, optag)
+
+  fun ref _async_io_status(write_res: Bool, optag: USize) =>
     if write_res then
       if optag > 0 then
         try
@@ -207,6 +160,26 @@ actor SimpleJournalMirror is SimpleJournal
       end
     end
 
+  fun ref _do_encoded_writes(pdu: Array[ByteSeq] iso, pdu_size: USize): Bool =>
+    if pdu_size > U32.max_value().usize() then
+      Fail()
+    end
+
+    let wb: Writer = wb.create()
+    wb.u32_be(pdu_size.u32())
+    wb.writev(consume pdu)
+    let data_size = wb.size()
+    let data = recover val wb.done() end
+    let ret = _j_file.be_writev(_j_file_size, data, data_size)
+    if ret then
+      _j_remote.be_writev(_j_file_size, data, data_size)
+      _j_file_size = _j_file_size + data_size
+    else
+      Fail() // TODO?
+    end
+    ret
+
+
 trait SimpleJournalBackend
   fun ref be_dispose(): None
 
@@ -214,7 +187,6 @@ trait SimpleJournalBackend
 
   fun ref be_writev(offset: USize,
     data: ByteSeqIter val, data_size: USize): Bool
-
 
 class SimpleJournalBackendLocalFile is SimpleJournalBackend
   let _j_file: File
@@ -307,6 +279,3 @@ primitive _SJ
     end
     let size = wb.size()
     (wb.done(), size)
-
-
-
