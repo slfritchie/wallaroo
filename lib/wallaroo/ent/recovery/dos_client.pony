@@ -36,7 +36,10 @@ actor DOSclient
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
   var _appending: Bool = false
-  var _do_reconnect: Bool = true
+  // TODO DEBUGGING: Original intent was _do_reconnect=true
+  // TODO However, it's too big of a source of concurrency racing
+  // TODO with the RemoteJournalClient actor!?
+  var _do_reconnect: Bool = false
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
   var _status_notifier: (({(Bool, Any): None}) | None) = None
   let _timers: Timers = Timers
