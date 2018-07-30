@@ -397,6 +397,9 @@ actor RemoteJournalClient
 
     _D.ds6("\tRJC %s: _catch_up_send_block: block_size = %d\n", _dl(), block_size)
     with file = File.open(_journal_fp) do
+      if not file.valid() then
+        Fail()
+      end
       file.seek(_remote_size.isize())
       let bytes = recover val file.read(block_size) end
       let goo = recover val [bytes] end
@@ -404,8 +407,8 @@ actor RemoteJournalClient
         _remote_size, bytes.size())
       _dos.send_unframed(goo)
       _remote_size = _remote_size + bytes.size()
-      _catch_up_state()
     end
+    _catch_up_state()
 
   be send_buffer_state() =>
     _send_buffer_state()
