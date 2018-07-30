@@ -38,13 +38,14 @@ actor DOSclient
   var _appending: Bool = false
   var _do_reconnect: Bool = true
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
-  var _status_notifier: (({(Bool): None}) | None) = None
+  var _status_notifier: (({(Bool, Any): None}) | None) = None
   let _timers: Timers = Timers
   var _last_episode: USize = 0
 
   new create(auth: AmbientAuth, host: String, port: String,
     rjc: RemoteJournalClient, usedir_name: String = "{none}")
   =>
+    @printf[I32]("DOS: dos-client 0x%lx create\n".cstring(), this)
     _auth = auth
     _host = host
     _port = port
@@ -52,15 +53,16 @@ actor DOSclient
     _usedir_name = usedir_name
     _reconn()
 
-  be connection_status_notifier(status_notifier: {(Bool): None} iso) =>
+  be connection_status_notifier(status_notifier: {(Bool, Any): None} iso) =>
     _status_notifier = consume status_notifier
     // Deal with a race where we were connected before the status notifier
     // lambda arrives here.
     if _connected then
-      _call_status_notifier()
+      _call_status_notifier(true)
     end
 
   fun ref _reconn(): None =>
+    @printf[I32]("DOS: dos-client 0x%lx _reconn\n".cstring(), this)
     ifdef "verbose" then
       @printf[I32]("DOS: calling _reconn\n".cstring())
     end
@@ -69,6 +71,7 @@ actor DOSclient
     _sock = TCPConnection(_auth, recover DOSnotify(this) end, _host, _port)
 
   be dispose() =>
+    @printf[I32]("DOS: dos-client 0x%lx dispose\n".cstring(), this)
     ifdef "verbose" then
       @printf[I32]("DOS: &&&&&dispose\n".cstring())
     end
@@ -77,6 +80,7 @@ actor DOSclient
     _dispose()
 
   fun ref _dispose() =>
+    @printf[I32]("DOS: dos-client 0x%lx _dispose\n".cstring(), this)
     ifdef "verbose" then
       @printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),
         _waiting_reply.size())
@@ -96,35 +100,37 @@ actor DOSclient
     _waiting_reply.clear()
 
   be connected() =>
+    @printf[I32]("DOS: dos-client 0x%lx connected\n".cstring(), this)
     _D.d("DOS: connected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: connected\n".cstring())
     end
     _connected = true
-    _call_status_notifier()
+    _call_status_notifier(true)
 
-  fun ref _call_status_notifier() =>
+  fun ref _call_status_notifier(connect_status: Bool) =>
     try
-      (_status_notifier as {(Bool): None})(true)
+      (_status_notifier as {(Bool, Any): None})(connect_status, this)
     end
 
   be disconnected() =>
+    @printf[I32]("DOS: dos-client 0x%lx disconnected\n".cstring(), this)
     _disconnected()
 
   fun ref _disconnected() =>
+    @printf[I32]("DOS: dos-client 0x%lx _disconnected\n".cstring(), this)
     _D.d("DOS: disconnected\n")
     ifdef "verbose" then
       @printf[I32]("DOS: disconnected\n".cstring())
     end
     _dispose()
-    try
-      (_status_notifier as {(Bool): None})(false)
-    end
+    _call_status_notifier(false)
     if _do_reconnect then
       _reconn()
     end
 
   be throttled(episode: USize) =>
+    @printf[I32]("DOS: dos-client 0x%lx throttled\n".cstring(), this)
     _D.d6("DOS: throttled episode %d\n", episode)
     ifdef "verbose" then
       @printf[I32]("DOS: throttled episode %d\n".cstring(), episode)
@@ -140,6 +146,7 @@ actor DOSclient
     _timers(consume t)
 
   be unthrottled(episode: USize) =>
+    @printf[I32]("DOS: dos-client 0x%lx unthrottled\n".cstring(), this)
     _D.d6("DOS: unthrottled episode %d\n", episode)
     ifdef "verbose" then
       @printf[I32]("DOS: unthrottled episode %d\n".cstring(), episode)
