@@ -381,8 +381,8 @@ actor RemoteJournalClient
 
   fun ref _catch_up_state(catch_up_bytes: USize) =>
     if _disposed then _D.ds6("RJC %s: line %d _disposed!\n", _dl(), __loc.line()); return end
-    _D.ds66("RJC %s: catch_up_state _local_size %d _remote_size %d\n",
-      _dl(), _local_size, _remote_size)
+    _D.ds666("RJC %s: catch_up_state _local_size %d _remote_size %d catch_up_bytes %d\n",
+      _dl(), _local_size, _remote_size, catch_up_bytes)
     _state = _SCatchUp
 
     if not _connected then
@@ -392,6 +392,7 @@ actor RemoteJournalClient
 
     if catch_up_bytes > (1024*1024) then
       // Yield via behavior call
+      _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       catch_up_state()
     elseif _local_size == _remote_size then
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
