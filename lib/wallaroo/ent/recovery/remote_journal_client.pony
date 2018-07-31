@@ -394,6 +394,7 @@ actor RemoteJournalClient
       // Yield via behavior call
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       catch_up_state()
+      return
     elseif _local_size == _remote_size then
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       send_buffer_state()
