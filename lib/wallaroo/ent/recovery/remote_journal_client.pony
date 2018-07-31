@@ -109,7 +109,7 @@ actor RemoteJournalClient
 
     _dos.connection_status_notifier(recover iso
       {(connected: Bool, who: Any): None => 
-        @printf[I32]("RJC %s: lambda dos-client 0x%lx connected %s\n".cstring(), _usedir_name.cstring(), who, connected.string().cstring())
+        None////@printf[I32]("RJC %s: lambda dos-client 0x%lx connected %s\n".cstring(), _usedir_name.cstring(), who, connected.string().cstring())
         _D.dss("RJC %s: lambda connected %s\n", _usedir_name, connected.string())
         rjc.dos_client_connection_status(connected)
       } end)
