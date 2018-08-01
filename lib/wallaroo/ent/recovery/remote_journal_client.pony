@@ -391,7 +391,7 @@ actor RemoteJournalClient
     end
 
     if catch_up_bytes > (1024*1024) then
-      // Yield via behavior call
+      // Yield via behavior call 
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       catch_up_state()
       return
