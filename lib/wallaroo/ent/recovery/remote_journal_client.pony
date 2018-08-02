@@ -407,8 +407,8 @@ actor RemoteJournalClient
   fun ref _catch_up_send_block(catch_up_bytes: USize, iters: USize) =>
     var bytes_size: USize = 0
     let missing_bytes = _local_size - _remote_size
-    //let block_size = missing_bytes.min(1024*1024)
-    let block_size = missing_bytes.min(50)
+    let block_size = missing_bytes.min(64*1024)
+    // Pathological test case: let block_size = missing_bytes.min(10)
 
     _D.ds6("\tRJC %s: _catch_up_send_block: block_size = %d\n", _dl(), block_size)
     with file = File.open(_journal_fp) do
