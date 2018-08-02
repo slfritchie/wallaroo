@@ -23,7 +23,7 @@ use "lib/wallaroo/ent/recovery"
  Process 2 of 2: run this reproducer:
 
    rm yodel/use-dir-foo/j-file-name.journal
-   tar cf - /usr/lib | dd bs=1024k count=100 > ./j-file-name.journal
+   tar cf - /usr/lib | dd bs=1024k count=100 iflag=fullblock > ./j-file-name.journal
    ./dos-dumb-object-service2 use-dir-foo j-file-name
    ls -l ./j-file-name.journal yodel/use-dir-foo/j-file-name.journal
 
