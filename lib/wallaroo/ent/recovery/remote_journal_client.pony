@@ -367,7 +367,7 @@ actor RemoteJournalClient
         // events really are short-term; if a TCP backpressure event
         // is long-term, then we will get stuck.
         _appending = true
-        _catch_up_state(0)
+        _catch_up_state(0, 0)
       else
         // Either failure: protocol was live but said not ok, or else
         // timeout/closed/other means that we should disconnect and
@@ -377,9 +377,9 @@ actor RemoteJournalClient
     end
 
   be catch_up_state() =>
-    _catch_up_state(0)
+    _catch_up_state(0, 0)
 
-  fun ref _catch_up_state(catch_up_bytes: USize) =>
+  fun ref _catch_up_state(catch_up_bytes: USize, iters: USize) =>
     if _disposed then _D.ds6("RJC %s: line %d _disposed!\n", _dl(), __loc.line()); return end
     _D.ds66("RJC %s: catch_up_state _local_size %d _remote_size %d\n",
       _dl(), _local_size, _remote_size)
@@ -390,7 +390,7 @@ actor RemoteJournalClient
       return
     end
 
-    if catch_up_bytes > (1024*1024) then
+    if (iters > 100) or (catch_up_bytes > (1024*1024)) then
       // Yield via behavior call
       catch_up_state()
     elseif _local_size == _remote_size then
@@ -398,13 +398,13 @@ actor RemoteJournalClient
       send_buffer_state()
     elseif _local_size > _remote_size then
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
-      _catch_up_send_block(catch_up_bytes)
+      _catch_up_send_block(catch_up_bytes, iters)
     else
       _D.ds6("RJC %s: catch_up_state line %d\n", _dl(), __loc.line())
       Fail()
     end
 
-  fun ref _catch_up_send_block(catch_up_bytes: USize) =>
+  fun ref _catch_up_send_block(catch_up_bytes: USize, iters: USize) =>
     var bytes_size: USize = 0
     let missing_bytes = _local_size - _remote_size
     //let block_size = missing_bytes.min(1024*1024)
@@ -424,7 +424,7 @@ actor RemoteJournalClient
       bytes_size = bytes.size()
       _remote_size = _remote_size + bytes_size
     end
-    _catch_up_state(catch_up_bytes + bytes_size)
+    _catch_up_state(catch_up_bytes + bytes_size, iters + 1)
 
   be send_buffer_state() =>
     _send_buffer_state()
@@ -456,7 +456,7 @@ actor RemoteJournalClient
       else
         Fail()
       end
-      _catch_up_state(0)
+      _catch_up_state(0, 0)
       return
     end
     _state = _SSendBuffer
