@@ -569,11 +569,16 @@ actor RemoteJournalClient
       _dl(), connected.string())
     _connected = connected
     if not _connected then
+      // We use the DOSclient in do_reconnect=false mode.  So we need
+      // to manage disconnections ourselves.  When disconnected, we
+      // not only need to reconnect but also to move the protocol forward
+      // beyond its initial state: usedir, remote size discovery, start
+      // append, etc.
       _usedir_sent = false
       _appending = false
       _in_sync = false
-    end
-    if _connected then
+      _make_new_dos_then_local_size_discovery()
+    else
       _local_size_discovery()
     end
 

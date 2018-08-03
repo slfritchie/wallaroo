@@ -39,14 +39,15 @@ actor DOSclient
   // TODO DEBUGGING: Original intent was _do_reconnect=true
   // TODO However, it's too big of a source of concurrency racing
   // TODO with the RemoteJournalClient actor!?
-  var _do_reconnect: Bool = false
+  var _do_reconnect: Bool
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
   var _status_notifier: (({(Bool, Any): None}) | None) = None
   let _timers: Timers = Timers
   var _last_episode: USize = 0
 
   new create(auth: AmbientAuth, host: String, port: String,
-    rjc: RemoteJournalClient, usedir_name: String = "{none}")
+    rjc: RemoteJournalClient, usedir_name: String = "{none}",
+    do_reconnect: Bool = false)
   =>
     @printf[I32]("DOS: dos-client 0x%lx create\n".cstring(), this)
     _auth = auth
@@ -54,6 +55,7 @@ actor DOSclient
     _port = port
     _rjc = rjc
     _usedir_name = usedir_name
+    _do_reconnect = do_reconnect
     _reconn()
 
   be connection_status_notifier(status_notifier: {(Bool, Any): None} iso) =>
@@ -437,6 +439,7 @@ class DOSnotify is TCPConnectionNotify
     ifdef "verbose" then
       @printf[I32]("SOCK: connect_failed\n".cstring())
     end
+    _client.disconnected()
 
   fun ref connected(conn: TCPConnection ref) =>
     ifdef "verbose" then
