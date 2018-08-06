@@ -533,7 +533,7 @@ actor RemoteJournalClient
         _D.ds66666("RJC %s: be_writev offset %d data_size %d, _remote_size %d " +
           "hey got old/delayed writev op for offset %d data_size %d\n",
           _dl(), offset, data_size, _remote_size, offset, data_size)
-        None
+        return
       else
         // WHOA, we have an out-of-order problem, or we're missing
         // a write, or something else terrible.
