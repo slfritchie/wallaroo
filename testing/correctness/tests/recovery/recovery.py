@@ -123,6 +123,11 @@ def _test_recovery(command):
         stopper.start()
         stopper.join()
         if stopper.error:
+            print 'Stopper error:'
+            print runners[-1].get_output()
+            print '---'
+            print runners[-2].get_output()
+            print '---'
             raise stopper.error
 
         # stop application workers

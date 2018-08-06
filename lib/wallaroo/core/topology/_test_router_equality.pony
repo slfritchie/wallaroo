@@ -17,6 +17,7 @@ Copyright 2017 The Wallaroo Authors.
 */
 
 use "collections"
+use "files"
 use "ponytest"
 use "wallaroo_labs/equality"
 use "wallaroo/core/boundary"
@@ -41,6 +42,65 @@ actor _TestRouterEquality is TestList
     test(_TestLatestAfterNew)
     test(_TestLatestWithoutNew)
 
+/*** TODO SLF: This test class was removed in summer 2018, so delete here also?
+
+class iso _TestLocalPartitionRouterEquality is UnitTest
+  """
+  Test that updating LocalPartitionRouter creates the expected changes
+
+  Move step id 1 from worker w1 to worker w2.
+  """
+  fun name(): String =>
+    "topology/LocalPartitionRouterEquality"
+
+  fun ref apply(h: TestHelper) ? =>
+    let auth = h.env.root as AmbientAuth
+    let event_log = EventLog(SimpleJournalNoop, auth)
+    let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
+
+    let step1 = _StepGenerator(auth, event_log, recovery_replayer)
+    let step2 = _StepGenerator(auth, event_log, recovery_replayer)
+    let step3 = _StepGenerator(auth, event_log, recovery_replayer)
+    let boundary2 = _BoundaryGenerator("w1", auth)
+    let boundary3 = _BoundaryGenerator("w1", auth)
+
+    let base_local_map = recover trn Map[U128, Step] end
+    base_local_map(1) = step1
+    let target_local_map: Map[U128, Step] val = recover Map[U128, Step] end
+
+    let base_step_ids = recover trn Map[String, U128] end
+    base_step_ids("k1") = 1
+    base_step_ids("k2") = 2
+    base_step_ids("k3") = 3
+    let target_step_ids = recover trn Map[String, U128] end
+    target_step_ids("k1") = 1
+    target_step_ids("k2") = 2
+    target_step_ids("k3") = 3
+
+    let new_proxy_router = ProxyRouter("w1", boundary2,
+      ProxyAddress("w2", 1), auth)
+
+    let base_partition_routes = _BasePartitionRoutesGenerator(event_log, auth,
+      step1, boundary2, boundary3)
+    let target_partition_routes = _TargetPartitionRoutesGenerator(event_log, auth,
+      new_proxy_router, boundary2, boundary3)
+
+    var base_router: PartitionRouter =
+      LocalPartitionRouter[String, String, EmptyState]("s", "w1",
+        consume base_local_map, consume base_step_ids, base_partition_routes,
+      _PartitionFunctionGenerator())
+    var target_router: PartitionRouter =
+      LocalPartitionRouter[String, String, EmptyState]("s", "w2",
+        consume target_local_map, consume target_step_ids, target_partition_routes,
+        _PartitionFunctionGenerator())
+    h.assert_eq[Bool](false, base_router == target_router)
+
+    base_router = base_router.update_route[String]("k1", new_proxy_router)?
+
+    h.assert_eq[Bool](true, base_router == target_router)
+
+ ***/
+
 class iso _TestOmniRouterEquality is UnitTest
   """
   Test that updating OmniRouter creates the expected changes
@@ -54,7 +114,7 @@ class iso _TestOmniRouterEquality is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -125,7 +185,7 @@ class iso _TestDataRouterEqualityAfterRemove is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -183,7 +243,7 @@ class iso _TestDataRouterEqualityAfterAdd is UnitTest
 
   fun ref apply(h: TestHelper) ? =>
     let auth = h.env.root as AmbientAuth
-    let event_log = EventLog()
+    let event_log = EventLog(SimpleJournalNoop, auth)
     let recovery_replayer = _RecoveryReplayerGenerator(h.env, auth)
 
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
@@ -249,9 +309,10 @@ primitive _DataReceiversGenerator
 
 primitive _ConnectionsGenerator
   fun apply(env: Env, auth: AmbientAuth): Connections =>
+    let the_journal: SimpleJournal = SimpleJournalNoop
     Connections("", "", auth, "", "", "", "",
       _NullMetricsSink, "", "", false, "", false
-      where event_log = EventLog())
+      where event_log = EventLog(the_journal, auth), the_journal = the_journal)
 
 primitive _RecoveryReplayerGenerator
   fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer =>
@@ -265,7 +326,7 @@ primitive _StatelessPartitionGenerator
 
 primitive _StateStepCreatorGenerator
   fun apply(auth: AmbientAuth): StateStepCreator =>
-    StateStepCreator(auth, "app", "worker", _NullMetricsSink, EventLog())
+    StateStepCreator(auth, "app", "worker", _NullMetricsSink, EventLog(SimpleJournalNoop, auth))
 
 actor _Cluster is Cluster
   be notify_cluster_of_new_stateful_step(id: StepId, key: Key,

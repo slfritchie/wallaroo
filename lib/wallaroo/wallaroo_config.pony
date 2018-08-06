@@ -41,6 +41,8 @@ class StartupOptions
   var worker_name: String = ""
   var resilience_dir: String = "/tmp"
   var log_rotation: Bool = false
+  var do_local_file_io: Bool = true
+  var use_io_journal: Bool = true
   var event_log_file_length: (USize | None) = None
   var j_arg: (Array[String] | None) = None
   var is_joining: Bool = false
@@ -90,6 +92,8 @@ primitive WallarooConfig
       .add("cluster-initializer", "t", None)
       .add("name", "n", StringArgument)
       .add("resilience-dir", "r", StringArgument)
+      .add("resilience-no-local-file-io", "", None)
+      .add("resilience-disable-io-journal", "", None)
       .add("log-rotation", "", None)
       .add("event-log-file-size", "l", I64Argument)
       // pass in control address of any worker as the value of this parameter
@@ -159,6 +163,10 @@ primitive WallarooConfig
         else
           so.resilience_dir = arg
         end
+      | ("resilience-no-local-file-io", let arg: None) =>
+        so.do_local_file_io = false
+      | ("resilience-disable-io-journal", let arg: None) =>
+        so.use_io_journal = false
       | ("log-rotation", let arg: None) => so.log_rotation = true
       | ("event-log-file-size", let arg: I64) =>
         so.event_log_file_length = arg.usize()
