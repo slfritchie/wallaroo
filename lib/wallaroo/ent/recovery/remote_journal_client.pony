@@ -61,7 +61,7 @@ actor RemoteJournalClient
   var _buffer: Array[(USize, ByteSeqIter, USize)] = _buffer.create()
   var _buffer_size: USize = 0
   // Beware of races if we ever change _buffer_max_size dynamically
-  let _buffer_max_size: USize = 200 // (4*1024*1024)
+  let _buffer_max_size: USize = (1*1024*1024)
   let _timers: Timers = Timers
   var _remote_size_discovery_sleep: USize = 1_000_000
   let _remote_size_discovery_max_sleep: USize = 1_000_000_000
