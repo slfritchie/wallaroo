@@ -107,7 +107,7 @@ actor SimpleJournalMirror is SimpleJournal
 
   be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
     if _j_closed then
-      Fail()
+      return // We're probably shutting down. This async write isn't bad.
     end
     let write_res =
       if _encode_io_ops then

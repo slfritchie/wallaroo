@@ -71,6 +71,7 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
   var _router_registry: (RouterRegistry | None) = None
   var _rotating: Bool = false
   var _backend_bytes_after_snapshot: USize
+  var _disposed: Bool = false
 
   new create(the_journal: SimpleJournal, auth: AmbientAuth,
     event_log_config: EventLogConfig = EventLogConfig())
@@ -117,6 +118,7 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
   be dispose() =>
     @printf[I32]("EventLog: dispose\n".cstring())
     _backend.dispose()
+    _disposed = true
     @printf[I32]("EventLog: dispose 2\n".cstring())
 
   be set_router_registry(router_registry: RouterRegistry) =>
@@ -206,8 +208,10 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
       // write buffer to disk
       _backend.write()?
     else
-      @printf[I32]("error writing log entries to disk!\n".cstring())
-      Fail()
+      if not _disposed then
+        @printf[I32]("error writing log entries to disk!\n".cstring())
+        Fail()
+      end
     end
 
   be flush_buffer(resilient_id: StepId, low_watermark: U64) =>
