@@ -645,8 +645,15 @@ actor Startup
     _remove_file(_control_channel_file)
     _remove_file(_worker_names_file)
     _remove_file(_connection_addresses_file)
-    try (_the_journal as SimpleJournal).dispose_journal() end
+
     try (_event_log as EventLog).dispose() end
+    let ts: Timers = Timers
+    let later = _DoLater(recover {(): Bool =>
+      try (_the_journal as SimpleJournal).dispose_journal() end
+      false
+    } end)
+    let t = Timer(consume later, 500_000_000)
+    ts(consume t)
 
     try
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
@@ -758,3 +765,12 @@ class WallarooShutdownHandler is SignalNotify
   fun ref apply(count: U32): Bool =>
     _connections.clean_files_shutdown(_recovery_file_cleaner)
     false
+
+class _DoLater is TimerNotify
+  let _f: {(): Bool} iso
+
+  new iso create(f: {(): Bool} iso) =>
+    _f = consume f
+
+  fun ref apply(t: Timer, c: U64): Bool =>
+    _f()
