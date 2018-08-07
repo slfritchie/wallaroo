@@ -44,6 +44,7 @@ actor SimpleJournalMirror is SimpleJournal
   """
   var _j_file: SimpleJournalBackend
   var _j_remote: SimpleJournalBackend
+  let _name: String
   var _j_closed: Bool
   var _j_file_size: USize
   let _encode_io_ops: Bool
@@ -51,6 +52,7 @@ actor SimpleJournalMirror is SimpleJournal
 
   new create(j_file: SimpleJournalBackend iso,
     j_remote: SimpleJournalBackend iso,
+    name: String,
     encode_io_ops: Bool = true,
     owner: (None tag | SimpleJournalAsyncResponseReceiver tag) = None)
   =>
@@ -59,6 +61,7 @@ actor SimpleJournalMirror is SimpleJournal
 
     _j_file = consume j_file
     _j_remote = consume j_remote
+    _name = name
     _j_closed = false
     _j_file_size = _j_file.be_position()
 
@@ -66,9 +69,12 @@ actor SimpleJournalMirror is SimpleJournal
   // that does not refactor both RotatingEventLog & SimpleJournal.
   // It is used only by RotatingEventLog.
   be dispose_journal() =>
-    _j_file.be_dispose()
-    _j_remote.be_dispose()
-    _j_closed = true
+    if not _j_closed then
+      _D.ds("SimpleJournalMirror: dispose_journal %s\n", _name)
+      _j_file.be_dispose()
+      _j_remote.be_dispose()
+      _j_closed = true
+    end
 
   be remove(path: String, optag: USize = 0) =>
     if _j_closed then

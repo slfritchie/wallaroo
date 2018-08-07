@@ -732,7 +732,7 @@ actor Startup
           the_journal_filepath, the_journal_basename, usedir_name, make_dos)
         let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
 
-        SimpleJournalMirror(consume j_local, consume j_remote, true, None) // TODO async receiver tag??
+        SimpleJournalMirror(consume j_local, consume j_remote, "main", true, None) // TODO async receiver tag??
       else
         Fail()
         SimpleJournalNoop
