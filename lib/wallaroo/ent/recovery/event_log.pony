@@ -116,7 +116,8 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
 
   be dispose() =>
     @printf[I32]("EventLog: dispose\n".cstring())
-    _the_journal.dispose_journal()
+    _backend.dispose()
+    @printf[I32]("EventLog: dispose 2\n".cstring())
 
   be set_router_registry(router_registry: RouterRegistry) =>
     _router_registry = router_registry

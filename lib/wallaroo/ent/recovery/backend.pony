@@ -73,6 +73,7 @@ primitive LastLogFilePath
 /////////////////////////////////
 
 trait Backend
+  fun ref dispose()
   fun ref sync() ?
   fun ref datasync() ?
   fun ref start_log_replay()
@@ -84,6 +85,7 @@ class DummyBackend is Backend
   let _event_log: EventLog
   new create(event_log: EventLog) =>
     _event_log = event_log
+  fun ref dispose() => None
   fun ref sync() => None
   fun ref datasync() => None
   fun ref start_log_replay() =>
@@ -129,10 +131,6 @@ class FileBackend is Backend
 
   fun ref dispose() =>
     _file.dispose()
-    // This journal prototype uses a single SimpleJournal per EventLog
-    // log file ... which is a hack to avoid re-writing a large amount
-    // of EventLog.  The append-only log file rotation ought to be
-    // something that SimpleJournal takes full responsibility for.
     _the_journal.dispose_journal()
 
   fun bytes_written(): USize =>
@@ -411,6 +409,10 @@ class RotatingFileBackend is Backend
 
       SimpleJournalMirror(consume j_local, consume j_remote, "backend", false, None) // TODO async receiver tag??
     end
+
+  fun ref dispose() =>
+    @printf[I32]("FileBackend: dispose\n".cstring())
+    _backend.dispose()
 
   fun bytes_written(): USize => _backend.bytes_written()
 

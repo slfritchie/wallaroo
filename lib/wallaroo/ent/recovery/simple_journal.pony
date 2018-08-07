@@ -28,6 +28,7 @@ actor SimpleJournalNoop is SimpleJournal
   new create() =>
     None
   be dispose_journal() =>
+    @printf[I32]("SimpleJournalNoop: dispose_journal\n".cstring())
     None
   be remove(path: String, optag: USize = 0) =>
     None
