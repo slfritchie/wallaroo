@@ -30,7 +30,6 @@ interface tag Resilient
   // Log-rotation
   be snapshot_state()
 
-
 class val EventLogConfig
   let log_dir: (FilePath | AmbientAuth | None)
   let filename: (String val | None)
@@ -114,6 +113,10 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
         DummyBackend(this)
       end
     _backend_bytes_after_snapshot = _backend.bytes_written()
+
+  be dispose() =>
+    @printf[I32]("EventLog: dispose\n".cstring())
+    _the_journal.dispose_journal()
 
   be set_router_registry(router_registry: RouterRegistry) =>
     _router_registry = router_registry

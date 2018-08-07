@@ -674,6 +674,7 @@ actor Startup
       d.dispose()
     end
     try (_the_journal as SimpleJournal).dispose_journal() end
+    try (_event_log as EventLog).dispose() end
 
   fun ref _remove_file(filename: String) =>
     @printf[I32]("...Removing %s...\n".cstring(), filename.cstring())

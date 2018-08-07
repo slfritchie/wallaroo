@@ -69,8 +69,9 @@ actor SimpleJournalMirror is SimpleJournal
   // that does not refactor both RotatingEventLog & SimpleJournal.
   // It is used only by RotatingEventLog.
   be dispose_journal() =>
+    _D.ds("SimpleJournalMirror: dispose_journal %s\n", _name)
     if not _j_closed then
-      _D.ds("SimpleJournalMirror: dispose_journal %s\n", _name)
+      _D.ds("SimpleJournalMirror: dispose_journal %s closing backends\n", _name)
       _j_file.be_dispose()
       _j_remote.be_dispose()
       _j_closed = true
