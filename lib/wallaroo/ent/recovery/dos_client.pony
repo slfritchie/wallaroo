@@ -49,7 +49,9 @@ actor DOSclient
     rjc: RemoteJournalClient, usedir_name: String = "{none}",
     do_reconnect: Bool = false)
   =>
-    @printf[I32]("DOS: dos-client 0x%lx create\n".cstring(), this)
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx create\n".cstring(), usedir_name.cstring(), this)
+    end
     _auth = auth
     _host = host
     _port = port
@@ -67,30 +69,24 @@ actor DOSclient
     end
 
   fun ref _reconn(): None =>
-    @printf[I32]("DOS: dos-client 0x%lx _reconn\n".cstring(), this)
-    ifdef "verbose" then
-      @printf[I32]("DOS: calling _reconn\n".cstring())
+    ifdef "dos-verbose" then
+       @printf[I32]("DOS: dos-client %s 0x%lx _reconn\n".cstring(), _usedir_name.cstring(), this)
     end
     _connected = false
     _appending = false
-    _sock = TCPConnection(_auth, recover DOSnotify(this) end, _host, _port)
+    _sock = TCPConnection(_auth, recover DOSnotify(this, _usedir_name) end, _host, _port)
 
   be dispose() =>
-    @printf[I32]("DOS: dos-client 0x%lx dispose\n".cstring(), this)
-    ifdef "verbose" then
-      @printf[I32]("DOS: &&&&&dispose\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx dispose\n".cstring(), _usedir_name.cstring(), this)
     end
-    _D.d("DOS: &&&&&dispose\n")
     _do_reconnect = false
     _dispose()
 
   fun ref _dispose() =>
-    @printf[I32]("DOS: dos-client 0x%lx _dispose\n".cstring(), this)
-    ifdef "verbose" then
-      @printf[I32]("DOS: _dispose.  Promises to reject: %d\n".cstring(),
-        _waiting_reply.size())
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx _dispose.  Promises to reject: %d\n".cstring(), _usedir_name.cstring(), this, _waiting_reply.size())
     end
-    _D.d6("DOS: _dispose.  Promises to reject: %d\n", _waiting_reply.size())
     try (_sock as TCPConnection).dispose() end
     _connected = false
     _appending = false
@@ -105,10 +101,8 @@ actor DOSclient
     _waiting_reply.clear()
 
   be connected() =>
-    @printf[I32]("DOS: dos-client 0x%lx connected\n".cstring(), this)
-    _D.d("DOS: connected\n")
-    ifdef "verbose" then
-      @printf[I32]("DOS: connected\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx connected\n".cstring(), _usedir_name.cstring(), this)
     end
     _connected = true
     _call_status_notifier(true)
@@ -119,14 +113,12 @@ actor DOSclient
     end
 
   be disconnected() =>
-    @printf[I32]("DOS: dos-client 0x%lx disconnected\n".cstring(), this)
+    @printf[I32]("DOS: dos-client %s 0x%lx disconnected\n".cstring(), _usedir_name.cstring(), this)
     _disconnected()
 
   fun ref _disconnected() =>
-    @printf[I32]("DOS: dos-client 0x%lx _disconnected\n".cstring(), this)
-    _D.d("DOS: disconnected\n")
-    ifdef "verbose" then
-      @printf[I32]("DOS: disconnected\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx _disconnected\n".cstring(), _usedir_name.cstring(), this)
     end
     _dispose()
     _call_status_notifier(false)
@@ -135,10 +127,8 @@ actor DOSclient
     end
 
   be throttled(episode: USize) =>
-    @printf[I32]("DOS: dos-client 0x%lx throttled\n".cstring(), this)
-    _D.d6("DOS: throttled episode %d\n", episode)
-    ifdef "verbose" then
-      @printf[I32]("DOS: throttled episode %d\n".cstring(), episode)
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx throttled, episode %d\n".cstring(), _usedir_name.cstring(), this, episode)
     end
     _last_episode = episode
     let dos = recover tag this end
@@ -151,17 +141,14 @@ actor DOSclient
     _timers(consume t)
 
   be unthrottled(episode: USize) =>
-    @printf[I32]("DOS: dos-client 0x%lx unthrottled\n".cstring(), this)
-    _D.d6("DOS: unthrottled episode %d\n", episode)
-    ifdef "verbose" then
-      @printf[I32]("DOS: unthrottled episode %d\n".cstring(), episode)
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx unthrottled, episode %d\n".cstring(), _usedir_name.cstring(), this, episode)
     end
     _last_episode = episode
 
   be throttled_check(last_episode: USize) =>
-    _D.d6("DOS: throttled_check last_episode %d\n", last_episode)
-    ifdef "verbose" then
-      @printf[I32]("DOS: throttled_check last_episode %d\n".cstring(), last_episode)
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx throttled_check last_episode %d\n".cstring(), _usedir_name.cstring(), this, last_episode)
     end
     if last_episode <= _last_episode then
       // The connection's throttled status has not changed since
@@ -183,8 +170,8 @@ actor DOSclient
 
     if _connected and (not _appending) then
       let pdu: String = "a" + filename + "\t" + offset.string()
-      ifdef "verbose" then
-        @printf[I32]("DOSc: start_streaming_append: %s offset %d\n", filename.cstring(), offset)
+      ifdef "dos-verbose" then
+        @printf[I32]("DOS: dos-client %s 0x%lx start_streaming_append: %s offset %d\n".cstring(), _usedir_name.cstring(), this, filename.cstring(), offset)
       end
       request.push(0)
       request.push(0)
@@ -196,13 +183,13 @@ actor DOSclient
     else
       match p
       | None =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: streaming_append not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx: ERROR: streaming_append not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring(), this)
         end
         None
       | let pp: Promise[DOSreply] =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: streaming_append not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx: ERROR: streaming_append not connected, reject!  TODO\n".cstring(), _usedir_name.cstring(), this)
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -213,8 +200,8 @@ actor DOSclient
     let request: String iso = recover String end
 
     if _connected and (not _appending) then
-      ifdef "verbose" then
-        @printf[I32]("DOSc: do_ls\n")
+      ifdef "dos-verbose" then
+        @printf[I32]("DOS: dos-client %s 0x%lx do_ls\n".cstring(), _usedir_name.cstring(), this)
       end
       request.push(0)
       request.push(0)
@@ -227,13 +214,13 @@ actor DOSclient
     else
       match p
       | None =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: ls not connected, no promise!\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: ls not connected, no promise!\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: ls not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: ls not connected, reject!  TODO\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -247,8 +234,8 @@ actor DOSclient
 
     if _connected and (not _appending) then
       let pdu: String = "g" + filename + "\t" + offset.string() + "\t" + size.string()
-      ifdef "verbose" then
-        @printf[I32]("DOSc: do_get_chunk: %s\n".cstring(), pdu.cstring())
+      ifdef "dos-verbose" then
+        @printf[I32]("DOS: dos-client %s 0x%lx do_get_chunk: %s\n".cstring(), _usedir_name.cstring(), this, pdu.cstring())
       end
 
       request.push(0)
@@ -261,13 +248,13 @@ actor DOSclient
     else
       match p
       | None =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: get_chunk not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: get_chunk not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: get_chunk not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: get_chunk not connected, reject!  TODO\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -309,7 +296,7 @@ actor DOSclient
     let p_all_chunks1 = Promises[T].join(chunk_ps.values())
     p_all_chunks1.next[None](
       {(ts: Array[T] val): None =>
-        ifdef "verbose" then
+        ifdef "dos-verbose" then
           @printf[I32]("PROMISE BIG: yay\n".cstring())
         end
         notify_get_file_complete(true, ts)
@@ -326,8 +313,8 @@ actor DOSclient
 
     if _connected and (not _appending) then
       let pdu: String = "u" + name
-      ifdef "verbose" then
-        @printf[I32]("DOSc: do_usedir: %s\n", name.cstring())
+      ifdef "dos-verbose" then
+        @printf[I32]("DOS: dos-client %s 0x%lx do_usedir: %s\n".cstring(), _usedir_name.cstring(), this, name.cstring())
       end
       request.push(0)
       request.push(0)
@@ -339,13 +326,13 @@ actor DOSclient
     else
       match p
       | None =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: do_usedir not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: do_usedir not connected, no promise!  TODO\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         None
       | let pp: Promise[DOSreply] =>
-        ifdef "verbose" then
-          @printf[I32]("DOSclient: %s: ERROR: do_usedir not connected, reject!  TODO\n".cstring(), _usedir_name.cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("DOS: dos-client %s 0x%lx %s: ERROR: do_usedir not connected, reject!  TODO\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring())
         end
         _D.d6("@@@@@@@@@@@@@@@@ promise reject, line %d\n", __loc.line())
         pp.reject()
@@ -355,14 +342,14 @@ actor DOSclient
   // Used only by the DOSnotify socket thingie
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
-    @printf[I32]("DOSclient: %s: GOT: %s\n".cstring(), _usedir_name.cstring(), str.cstring())
-    ifdef "verbose" then
-      @printf[I32]("DOSclient: %s GOT: %s\n".cstring(), _usedir_name.cstring(), str.cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("DOS: dos-client %s 0x%lx %s GOT: %s\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring(), str.cstring())
     end
     try
       (let op, let p) = _waiting_reply.shift()?
       match p
       | None =>
+        _D.ds("DOSclient: %s: None op\n", _usedir_name)
         None
       | let pp: Promise[DOSreply] =>
         try
@@ -431,19 +418,21 @@ class DOSnotify is TCPConnectionNotify
   var _episode: USize = 0
   let _qqq_crashme: I64 = 111111116 // TODO delete me & test failure another way
   var _qqq_count: I64 = _qqq_crashme
+  let _usedir_name: String
 
-  new create(client: DOSclient) =>
+  new create(client: DOSclient, usedir_name: String) =>
     _client = client
+    _usedir_name = usedir_name
 
   fun ref connect_failed(conn: TCPConnection ref) =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: connect_failed\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx connect_failed\n".cstring(), _usedir_name.cstring(), conn)
     end
     _client.disconnected()
 
   fun ref connected(conn: TCPConnection ref) =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: I am connected.\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx connected.\n".cstring(), _usedir_name.cstring(), conn)
     end
     _header = true
     conn.set_nodelay(true)
@@ -458,13 +447,15 @@ class DOSnotify is TCPConnectionNotify
     : Bool
   =>
     if _header then
-      ifdef "verbose" then
-        @printf[I32]("SOCK: received header\n".cstring())
+      ifdef "dos-verbose" then
+        @printf[I32]("SOCK: %s 0x%lx received header\n".cstring(), _usedir_name.cstring(), conn)
       end
       try
         let expect = Bytes.to_u32(data(0)?, data(1)?, data(2)?, data(3)?).usize()
         conn.expect(expect)
-        @printf[I32]("SOCK: received header, expect = %d\n".cstring(), expect)
+        ifdef "dos-verbose" then
+          @printf[I32]("SOCK: %s 0x%lx received header, expect = %d\n".cstring(), _usedir_name.cstring(), conn, expect)
+        end
         if expect > 0 then
           _header = false
         else
@@ -473,15 +464,14 @@ class DOSnotify is TCPConnectionNotify
           _header = true
         end
       else
-        ifdef "verbose" then
-          @printf[I32]("Error reading header on control channel\n".cstring())
+        ifdef "dos-verbose" then
+          @printf[I32]("SOCK: %s 0x%lx Error reading header on control channel\n".cstring(), _usedir_name.cstring(), conn)
         end
       end
     else
-      ifdef "verbose" then
-        @printf[I32]("SOCK: received payload\n".cstring())
+      ifdef "dos-verbose" then
+        @printf[I32]("SOCK: %s 0x%lx received payload size %d\n".cstring(), _usedir_name.cstring(), conn, data.size())
       end
-      @printf[I32]("SOCK: received payload of size %d\n".cstring(), data.size())
       _client.response(consume data)
       conn.expect(4)
       _header = true
@@ -492,12 +482,10 @@ class DOSnotify is TCPConnectionNotify
   // and calling sent().  TCPConnection will do its own buffering and
   // may call sent() more or less frequently.
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: sent\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx sent %d, crashme %d\n".cstring(), _usedir_name.cstring(), conn, data.size(), USize.from[I64](_qqq_count))
     end
     _qqq_count = _qqq_count - 1
-    _D.d66("SOCK: sent @ crashme %d size %d\n",
-      USize.from[I64](_qqq_count), data.size())
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
@@ -506,12 +494,10 @@ class DOSnotify is TCPConnectionNotify
     data
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: sentv\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx sentv ?, crashme %d\n".cstring(), _usedir_name.cstring(), _usedir_name.cstring(), conn, USize.from[I64](_qqq_count))
     end
     _qqq_count = _qqq_count - 1
-    _D.d66("SOCK: sent @ crashme %d size %d\n",
-      USize.from[I64](_qqq_count), USize(-6))
     if _qqq_count <= 0 then
       conn.close()
       conn.dispose()
@@ -520,21 +506,21 @@ class DOSnotify is TCPConnectionNotify
     data
 
   fun ref closed(conn: TCPConnection ref) =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: closed\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx closed\n".cstring(), _usedir_name.cstring(), conn)
     end
     _client.disconnected()
 
   fun ref throttled(conn: TCPConnection ref) =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: throttled\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx throttled\n".cstring(), _usedir_name.cstring(), conn)
     end
     _client.throttled(_episode)
     _episode = _episode + 1
 
   fun ref unthrottled(conn: TCPConnection ref) =>
-    ifdef "verbose" then
-      @printf[I32]("SOCK: unthrottled\n".cstring())
+    ifdef "dos-verbose" then
+      @printf[I32]("SOCK: %s 0x%lx unthrottled\n".cstring(), _usedir_name.cstring(), conn)
     end
     _client.unthrottled(_episode)
     _episode = _episode + 1

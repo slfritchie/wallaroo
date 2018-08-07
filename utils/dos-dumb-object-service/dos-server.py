@@ -151,8 +151,8 @@ class DOS_Server(SocketServer.BaseRequestHandler):
             self.request.sendall(reply)
             raise e
         finally:
-            if debug: print 'DBG: do_streaming_append: finally: %s sync_only %s' % \
-                (filename, sync_only)
+            if debug: print 'DBG: do_streaming_append: finally: %s sync_only %s am_locked %s' % \
+                (filename, sync_only, am_locked)
             if am_locked:
                 with appending as appending_l:
                     del appending_l[filename]
