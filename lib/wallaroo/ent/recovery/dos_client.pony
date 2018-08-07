@@ -343,7 +343,7 @@ actor DOSclient
   be response(data: Array[U8] iso) =>
     let str = String.from_array(consume data)
     ifdef "dos-verbose" then
-      @printf[I32]("DOS: dos-client %s 0x%lx %s GOT: %s\n".cstring(), _usedir_name.cstring(), this, _usedir_name.cstring(), str.cstring())
+      @printf[I32]("DOS: dos-client %s 0x%lx GOT: %s\n".cstring(), _usedir_name.cstring(), this, str.cstring())
     end
     try
       (let op, let p) = _waiting_reply.shift()?
@@ -426,13 +426,13 @@ class DOSnotify is TCPConnectionNotify
 
   fun ref connect_failed(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx connect_failed\n".cstring(), _usedir_name.cstring(), conn)
+      @printf[I32]("SOCK: %s 0x%lx connect_failed\n".cstring(), _usedir_name.cstring(), _client)
     end
     _client.disconnected()
 
   fun ref connected(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx connected.\n".cstring(), _usedir_name.cstring(), conn)
+      @printf[I32]("SOCK: %s 0x%lx connected.\n".cstring(), _usedir_name.cstring(), _client)
     end
     _header = true
     conn.set_nodelay(true)
@@ -448,13 +448,13 @@ class DOSnotify is TCPConnectionNotify
   =>
     if _header then
       ifdef "dos-verbose" then
-        @printf[I32]("SOCK: %s 0x%lx received header\n".cstring(), _usedir_name.cstring(), conn)
+        @printf[I32]("SOCK: %s 0x%lx received header\n".cstring(), _usedir_name.cstring(), _client)
       end
       try
         let expect = Bytes.to_u32(data(0)?, data(1)?, data(2)?, data(3)?).usize()
         conn.expect(expect)
         ifdef "dos-verbose" then
-          @printf[I32]("SOCK: %s 0x%lx received header, expect = %d\n".cstring(), _usedir_name.cstring(), conn, expect)
+          @printf[I32]("SOCK: %s 0x%lx received header, expect = %d\n".cstring(), _usedir_name.cstring(), _client, expect)
         end
         if expect > 0 then
           _header = false
@@ -465,12 +465,12 @@ class DOSnotify is TCPConnectionNotify
         end
       else
         ifdef "dos-verbose" then
-          @printf[I32]("SOCK: %s 0x%lx Error reading header on control channel\n".cstring(), _usedir_name.cstring(), conn)
+          @printf[I32]("SOCK: %s 0x%lx Error reading header on control channel\n".cstring(), _usedir_name.cstring(), _client)
         end
       end
     else
       ifdef "dos-verbose" then
-        @printf[I32]("SOCK: %s 0x%lx received payload size %d\n".cstring(), _usedir_name.cstring(), conn, data.size())
+        @printf[I32]("SOCK: %s 0x%lx received payload size %d\n".cstring(), _usedir_name.cstring(), _client, data.size())
       end
       _client.response(consume data)
       conn.expect(4)
@@ -483,7 +483,7 @@ class DOSnotify is TCPConnectionNotify
   // may call sent() more or less frequently.
   fun ref sent(conn: TCPConnection ref, data: ByteSeq): ByteSeq =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx sent %d, crashme %d\n".cstring(), _usedir_name.cstring(), conn, data.size(), USize.from[I64](_qqq_count))
+      @printf[I32]("SOCK: %s 0x%lx sent %d, crashme %lu\n".cstring(), _usedir_name.cstring(), _client, data.size(), USize.from[I64](_qqq_count))
     end
     _qqq_count = _qqq_count - 1
     if _qqq_count <= 0 then
@@ -495,7 +495,7 @@ class DOSnotify is TCPConnectionNotify
 
   fun ref sentv(conn: TCPConnection ref, data: ByteSeqIter): ByteSeqIter =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx sentv ?, crashme %d\n".cstring(), _usedir_name.cstring(), _usedir_name.cstring(), conn, USize.from[I64](_qqq_count))
+      @printf[I32]("SOCK: %s 0x%lx sentv ?, crashme %lu\n".cstring(), _usedir_name.cstring(), _client, USize.from[I64](_qqq_count))
     end
     _qqq_count = _qqq_count - 1
     if _qqq_count <= 0 then
@@ -507,20 +507,20 @@ class DOSnotify is TCPConnectionNotify
 
   fun ref closed(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx closed\n".cstring(), _usedir_name.cstring(), conn)
+      @printf[I32]("SOCK: %s 0x%lx closed\n".cstring(), _usedir_name.cstring(), _client)
     end
     _client.disconnected()
 
   fun ref throttled(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx throttled\n".cstring(), _usedir_name.cstring(), conn)
+      @printf[I32]("SOCK: %s 0x%lx throttled\n".cstring(), _usedir_name.cstring(), _client)
     end
     _client.throttled(_episode)
     _episode = _episode + 1
 
   fun ref unthrottled(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
-      @printf[I32]("SOCK: %s 0x%lx unthrottled\n".cstring(), _usedir_name.cstring(), conn)
+      @printf[I32]("SOCK: %s 0x%lx unthrottled\n".cstring(), _usedir_name.cstring(), _client)
     end
     _client.unthrottled(_episode)
     _episode = _episode + 1

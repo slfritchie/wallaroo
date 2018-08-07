@@ -645,6 +645,7 @@ actor Startup
     _remove_file(_control_channel_file)
     _remove_file(_worker_names_file)
     _remove_file(_connection_addresses_file)
+    try (_the_journal as SimpleJournal).dispose_journal() end
 
     try
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
@@ -673,7 +674,6 @@ actor Startup
     for d in _join_disposables.values() do
       d.dispose()
     end
-    try (_the_journal as SimpleJournal).dispose_journal() end
     try (_event_log as EventLog).dispose() end
 
   fun ref _remove_file(filename: String) =>

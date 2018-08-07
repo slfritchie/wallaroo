@@ -79,6 +79,7 @@ actor SimpleJournalMirror is SimpleJournal
 
   be remove(path: String, optag: USize = 0) =>
     if _j_closed then
+      @printf[I32]("SimpleJournalMirror: %s remove %s\n".cstring(), _name.cstring(), path.cstring())
       Fail()
     end
     if _encode_io_ops then
