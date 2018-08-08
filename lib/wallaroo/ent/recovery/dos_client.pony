@@ -36,9 +36,6 @@ actor DOSclient
   var _sock: (TCPConnection | None) = None
   var _connected: Bool = false
   var _appending: Bool = false
-  // TODO DEBUGGING: Original intent was _do_reconnect=true
-  // TODO However, it's too big of a source of concurrency racing
-  // TODO with the RemoteJournalClient actor!?
   var _do_reconnect: Bool
   let _waiting_reply: Array[(DOSop, (Promise[DOSreply]| None))] = _waiting_reply.create()
   var _status_notifier: (({(Bool, Any): None}) | None) = None
@@ -47,7 +44,7 @@ actor DOSclient
 
   new create(auth: AmbientAuth, host: String, port: String,
     rjc: RemoteJournalClient, usedir_name: String = "{none}",
-    do_reconnect: Bool = false)
+    do_reconnect: Bool = true)
   =>
     ifdef "dos-verbose" then
       @printf[I32]("DOS: dos-client %s 0x%lx create\n".cstring(), usedir_name.cstring(), this)
@@ -120,8 +117,10 @@ actor DOSclient
     ifdef "dos-verbose" then
       @printf[I32]("DOS: dos-client %s 0x%lx _disconnected\n".cstring(), _usedir_name.cstring(), this)
     end
+    if _connected then
+      _call_status_notifier(false)
+    end
     _dispose()
-    _call_status_notifier(false)
     if _do_reconnect then
       _reconn()
     end
@@ -428,7 +427,17 @@ class DOSnotify is TCPConnectionNotify
     ifdef "dos-verbose" then
       @printf[I32]("SOCK: %s 0x%lx connect_failed\n".cstring(), _usedir_name.cstring(), _client)
     end
-    _client.disconnected()
+
+    // If the connection failed, then the server is down.
+    // Reconnection will be attempted as soon as the status notification
+    // arrives ...so let's delay that notification for a bit.
+    let ts: Timers = Timers
+    let later = _DoLater(recover {(): Bool =>
+      _client.disconnected()
+      false
+    } end)
+    let t = Timer(consume later, 500_000_000)
+    ts(consume t)
 
   fun ref connected(conn: TCPConnection ref) =>
     ifdef "dos-verbose" then
