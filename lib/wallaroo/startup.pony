@@ -647,6 +647,9 @@ actor Startup
     _remove_file(_connection_addresses_file)
 
     try (_event_log as EventLog).dispose() end
+    // This is a kludge: we don't want to dispose of _the_journal
+    // until after the _remove_file() async commands have been
+    // processed by _the_journal.  Wheeee!
     let ts: Timers = Timers
     let later = _DoLater(recover {(): Bool =>
       try (_the_journal as SimpleJournal).dispose_journal() end

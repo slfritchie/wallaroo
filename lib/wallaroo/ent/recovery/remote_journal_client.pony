@@ -65,7 +65,7 @@ actor RemoteJournalClient
   let _timers: Timers = Timers
   var _remote_size_discovery_sleep: USize = 1_000_000
   let _remote_size_discovery_max_sleep: USize = 1_000_000_000
-  let _timeout_nanos: U64 = 200_000_000 // TODO too small for "real"?
+  let _timeout_nanos: U64 = 2_000_000_000 // TODO too small for "real"?
   let _qqq: U64 = Time.nanos().mod(97)
 
   new create(auth: AmbientAuth, journal_fp: FilePath, journal_path: String,
@@ -111,7 +111,24 @@ actor RemoteJournalClient
       {(connected: Bool, who: Any): None => 
         @printf[I32]("RJC %s: lambda dos-client 0x%lx connected %s\n".cstring(), _usedir_name.cstring(), who, connected.string().cstring())
         _D.dss("RJC %s: lambda connected %s\n", _usedir_name, connected.string())
-        rjc.dos_client_connection_status(connected)
+        if connected then
+          // Notify immediately
+          rjc.dos_client_connection_status(connected)
+        else
+          // Delay a disconnection notification very briefly.
+          // We will try to reconnect immediately, but we don't want a
+          // busy-loop if the server has crashed.
+          let delay: U64 = 100_000_000
+          let later = _DoLater(recover
+            {(): Bool =>
+              _D.d6("\tDoLater: dos_client_connection_status " +
+                " after sleep_time %d\n", USize.from[U64](delay))
+                rjc.dos_client_connection_status(connected)
+              false
+            } end)
+          let t = Timer(consume later, delay)
+          _timers(consume t)
+        end
       } end)
 
   fun ref _make_new_dos_then_local_size_discovery() =>
