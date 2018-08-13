@@ -527,7 +527,8 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_file_path, [data; "\n"], _tag)
+    _journal.writev(_offset, _file_path, [data; "\n"], _tag)
+    _offset = _offset + (data.size() + 1)
     _tag = _tag + 1
 
     if _do_local_file_io then
@@ -592,12 +593,18 @@ class AsyncJournalledFile
     ifdef "journaldbg" then
       @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
     end
-    _journal.writev(_file_path, data, _tag)
+    _journal.writev(_offset, _file_path, data, _tag)
     _tag = _tag + 1
+
+    var data_size: USize = 0
+
+    for d in data.values() do
+      data_size = data_size + d.size()
+    end
+    _offset = _offset + data_size
 
     if _do_local_file_io then
       let ret = _file.writev(data)
-      _offset = _file.position()
       ret
     else
       true

@@ -22,7 +22,7 @@ trait tag SimpleJournal
   be dispose_journal()
   be remove(path: String, optag: USize = 0)
   be set_length(path: String, len: USize, optag: USize = 0)
-  be writev(path: String, data: ByteSeqIter val, optag: USize = 0)
+  be writev(offset: USize, path: String, data: ByteSeqIter val, optag: USize = 0)
 
 actor SimpleJournalNoop is SimpleJournal
   new create() =>
@@ -34,7 +34,7 @@ actor SimpleJournalNoop is SimpleJournal
     None
   be set_length(path: String, len: USize, optag: USize = 0) =>
     None
-  be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+  be writev(offset: USize, path: String, data: ByteSeqIter val, optag: USize = 0) =>
     None
 
 actor SimpleJournalMirror is SimpleJournal
@@ -105,7 +105,7 @@ actor SimpleJournalMirror is SimpleJournal
       Fail()
     end
 
-  be writev(path: String, data: ByteSeqIter val, optag: USize = 0) =>
+  be writev(offset: USize, path: String, data: ByteSeqIter val, optag: USize = 0) =>
     if _j_closed then
       return // We're probably shutting down. This async write isn't bad.
     end
@@ -132,7 +132,7 @@ actor SimpleJournalMirror is SimpleJournal
 
         let bytes_size = bytes.size()
         (let pdu, let pdu_size) = _SJ.encode_request(optag, _SJ.writev(),
-          [], [path; consume bytes])
+          [offset], [path; consume bytes])
         _do_encoded_writes(consume pdu, pdu_size)
       else
         var data_size: USize = 0
