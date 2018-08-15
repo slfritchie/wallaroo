@@ -622,7 +622,8 @@ actor Startup
     try
       _event_log_dir_filepath = FilePath(auth, _startup_options.resilience_dir)?
       _the_journal_filepath = FilePath(auth,
-        _startup_options.resilience_dir + "/the-journal.bin")?
+        _startup_options.resilience_dir + "/" + _app_name + "-" +
+        _startup_options.worker_name + ".journal")?
     else
       Fail()
     end

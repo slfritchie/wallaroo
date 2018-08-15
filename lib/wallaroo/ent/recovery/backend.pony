@@ -380,7 +380,7 @@ class RotatingFileBackend is Backend
       _base_name + _suffix
     end
     let fp = FilePath(_base_dir, p)?
-    let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+    let local_journal_filepath = FilePath(_base_dir, p + ".journal")?
     let local_journal = _start_journal(auth, the_journal, local_journal_filepath, false, _event_log, worker_name)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
@@ -459,7 +459,7 @@ class RotatingFileBackend is Backend
       // 4. open new backend with new file set to new offset.
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
-      let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
+      let local_journal_filepath = FilePath(_base_dir, p + ".journal")?
       let local_journal = _start_journal(_auth, _the_journal, local_journal_filepath, false, _event_log, _worker_name)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
