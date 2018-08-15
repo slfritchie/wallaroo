@@ -341,6 +341,7 @@ class RotatingFileBackend is Backend
   let _event_log: EventLog
   let _the_journal: SimpleJournal
   let _auth: AmbientAuth
+  let _worker_name: String
   let _do_local_file_io: Bool
   let _file_length: (USize | None)
   var _offset: U64
@@ -349,8 +350,8 @@ class RotatingFileBackend is Backend
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
     event_log: EventLog, file_length: (USize | None),
-    the_journal: SimpleJournal, auth: AmbientAuth, do_local_file_io: Bool,
-    rotation_enabled: Bool = true) ?
+    the_journal: SimpleJournal, auth: AmbientAuth, worker_name: String,
+    do_local_file_io: Bool, rotation_enabled: Bool = true) ?
   =>
     _base_dir = base_dir
     _base_name = base_name
@@ -359,6 +360,7 @@ class RotatingFileBackend is Backend
     _event_log = event_log
     _the_journal = the_journal
     _auth = auth
+    _worker_name = worker_name
     _do_local_file_io = do_local_file_io
     _rotation_enabled = rotation_enabled
 
@@ -379,13 +381,13 @@ class RotatingFileBackend is Backend
     end
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-    let local_journal = _start_journal(auth, the_journal, local_journal_filepath, false, _event_log)
+    let local_journal = _start_journal(auth, the_journal, local_journal_filepath, false, _event_log, worker_name)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
   // TODO Derp nearly cut-and-paste from startup.pony's version
   fun tag _start_journal(auth: AmbientAuth, the_journal: SimpleJournal,
     local_journal_filepath: FilePath, encode_io_ops: Bool,
-    event_log: EventLog): SimpleJournal
+    event_log: EventLog, worker_name: String): SimpleJournal
    =>
     match the_journal
     | let lj: SimpleJournalNoop =>
@@ -394,7 +396,7 @@ class RotatingFileBackend is Backend
       SimpleJournalNoop
     else
       let local_basename = try local_journal_filepath.path.split("/").pop()? else Fail(); "Fail()" end
-      let usedir_name = "fixme-usedir-name-use-worker-name-yeah2"
+      let usedir_name = worker_name
 
       let j_local = recover iso
         SimpleJournalBackendLocalFile(local_journal_filepath) end
@@ -458,7 +460,7 @@ class RotatingFileBackend is Backend
       let p = _base_name + "-" + HexOffset(_offset) + _suffix
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".bin")?
-      let local_journal = _start_journal(_auth, _the_journal, local_journal_filepath, false, _event_log)
+      let local_journal = _start_journal(_auth, _the_journal, local_journal_filepath, false, _event_log, _worker_name)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync

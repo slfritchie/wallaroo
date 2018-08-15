@@ -293,14 +293,16 @@ actor Startup
             where backend_file_length' =
               _startup_options.event_log_file_length,
             suffix' = _event_log_file_suffix, log_rotation' = true,
-            do_local_file_io' = _startup_options.do_local_file_io))
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name))
         else
           EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            do_local_file_io' = _startup_options.do_local_file_io))
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name))
         end
       else
         EventLog(_the_journal as SimpleJournal, auth)
@@ -465,14 +467,16 @@ actor Startup
             where backend_file_length' =
               _startup_options.event_log_file_length,
             suffix' = _event_log_file_suffix, log_rotation' = true,
-            do_local_file_io' = _startup_options.do_local_file_io))
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name))
         else
           EventLog(_the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            do_local_file_io' = _startup_options.do_local_file_io))
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name))
         end
       else
         EventLog(_the_journal as SimpleJournal, auth)
@@ -730,7 +734,7 @@ actor Startup
       try
         let the_journal_filepath = _the_journal_filepath as FilePath
         let the_journal_basename = the_journal_filepath.path.split("/").pop()?
-        let usedir_name = "fixme-usedir-name-use-worker-name-yeah1"
+        let usedir_name = _startup_options.worker_name
 
         let j_local = recover iso
           SimpleJournalBackendLocalFile(the_journal_filepath) end
