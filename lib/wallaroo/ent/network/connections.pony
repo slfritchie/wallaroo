@@ -656,6 +656,7 @@ actor Connections is Cluster
   fun ref _create_control_connection(target_name: String, host: String,
     service: String)
   =>
+@printf[I32]("_create_control_connection: target_name %s host %s service %s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _control_addrs(target_name) = (host, service)
     let tcp_conn_wrapper =
       if _control_conns.contains(target_name) then

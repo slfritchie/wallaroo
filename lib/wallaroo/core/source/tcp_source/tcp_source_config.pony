@@ -22,6 +22,10 @@ use "wallaroo/core/source"
 
 primitive TCPSourceConfigCLIParser
   fun apply(args: Array[String] val): Array[TCPSourceConfigOptions] val ? =>
+@printf[I32]("SLF: hey 99\n".cstring())
+    for yyy in args.values() do
+      @printf[I32]("SLF: hey 99, args = %s\n".cstring(), yyy.cstring())
+    end
     let in_arg = "in"
     let short_in_arg = "i"
 

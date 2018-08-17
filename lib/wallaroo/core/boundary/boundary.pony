@@ -256,7 +256,7 @@ actor OutgoingBoundary is Consumer
       _notify_connecting()
     end
 
-    @printf[I32](("RE-Connecting OutgoingBoundary to " + _host + ":" + _service
+    @printf[I32](("RE-Connecting 1 OutgoingBoundary to " + _host + ":" + _service
       + "\n").cstring())
 
   be migrate_step(step_id: StepId, state_name: String, key: Key,
@@ -644,7 +644,7 @@ actor OutgoingBoundary is Consumer
 
   fun ref _schedule_reconnect() =>
     if (_host != "") and (_service != "") and not _no_more_reconnect then
-      @printf[I32]("RE-Connecting OutgoingBoundary to %s:%s\n".cstring(),
+      @printf[I32]("RE-Connecting 2 OutgoingBoundary to %s:%s\n".cstring(),
         _host.cstring(), _service.cstring())
       let timer = Timer(_PauseBeforeReconnect(this), _reconnect_pause)
       _timers(consume timer)

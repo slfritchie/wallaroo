@@ -205,6 +205,9 @@ primitive ChannelMsgEncoder
     _encode(AckDataConnectMsg(last_id_seen), auth)?
 
   fun data_disconnect(auth: AmbientAuth): Array[ByteSeq] val ? =>
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "data_disconnect".cstring(), __loc.line())
+    end
     _encode(DataDisconnectMsg, auth)?
 
   fun start_normal_data_sending(last_id_seen: SeqId, auth: AmbientAuth):
@@ -271,6 +274,9 @@ primitive ChannelMsgEncoder
     already know the worker name (which indicates that it is recovering, not
     joining)
     """
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "inform_recover_not_join".cstring(), __loc.line())
+    end
     _encode(InformRecoverNotJoinMsg, auth)?
 
   fun joining_worker_initialized(worker_name: String, c_addr: (String, String),
@@ -304,6 +310,9 @@ primitive ChannelMsgEncoder
     The autoscale coordinator sends this message to indicate that autoscale is
     complete.
     """
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "autoscale_complete".cstring(), __loc.line())
+    end
     _encode(AutoscaleCompleteMsg, auth)?
 
   fun leaving_worker_done_migrating(worker_name: String, auth: AmbientAuth):
@@ -384,6 +393,9 @@ primitive ChannelMsgEncoder
     _encode(AnnounceNewSourceMsg(worker_name, id), auth)?
 
   fun rotate_log_files(auth: AmbientAuth): Array[ByteSeq] val ? =>
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "rotate_log_files".cstring(), __loc.line())
+    end
     _encode(RotateLogFilesMsg, auth)?
 
   fun clean_shutdown(auth: AmbientAuth, msg: String = ""): Array[ByteSeq] val ?
@@ -443,6 +455,9 @@ class val UnknownChannelMsg is ChannelMsg
 
   new val create(d: Array[U8] val) =>
     data = d
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "UnknownChannelMsg".cstring(), __loc.line())
+    end
 
 class val IdentifyControlPortMsg is ChannelMsg
   let worker_name: String
@@ -451,6 +466,9 @@ class val IdentifyControlPortMsg is ChannelMsg
   new val create(name: String, s: String) =>
     worker_name = name
     service = s
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "IdentifyControlPortMsg".cstring(), __loc.line())
+    end
 
 class val IdentifyDataPortMsg is ChannelMsg
   let worker_name: String
@@ -459,18 +477,27 @@ class val IdentifyDataPortMsg is ChannelMsg
   new val create(name: String, s: String) =>
     worker_name = name
     service = s
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "IdentifyDataPortMsg".cstring(), __loc.line())
+    end
 
 class val ReconnectDataPortMsg is ChannelMsg
   let worker_name: String
 
   new val create(name: String) =>
     worker_name = name
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReconnectDataPortMsg".cstring(), __loc.line())
+    end
 
 class val SpinUpLocalTopologyMsg is ChannelMsg
   let local_topology: LocalTopology
 
   new val create(lt: LocalTopology) =>
     local_topology = lt
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "SpinUpLocalTopologyMsg".cstring(), __loc.line())
+    end
 
 class val SpinUpStepMsg is ChannelMsg
   let step_id: U64
@@ -479,12 +506,18 @@ class val SpinUpStepMsg is ChannelMsg
   new val create(s_id: U64, s_builder: StepBuilder) =>
     step_id = s_id
     step_builder = s_builder
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "SpinUpStepMsg".cstring(), __loc.line())
+    end
 
 class val TopologyReadyMsg is ChannelMsg
   let worker_name: String
 
   new val create(name: String) =>
     worker_name = name
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "TopologyReadyMsg".cstring(), __loc.line())
+    end
 
 class val CreateConnectionsMsg is ChannelMsg
   let control_addrs: Map[String, (String, String)] val
@@ -495,18 +528,27 @@ class val CreateConnectionsMsg is ChannelMsg
   =>
     control_addrs = c_addrs
     data_addrs = d_addrs
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "CreateConnectionsMsg".cstring(), __loc.line())
+    end
 
 class val ConnectionsReadyMsg is ChannelMsg
   let worker_name: String
 
   new val create(name: String) =>
     worker_name = name
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ConnectionsReadyMsg".cstring(), __loc.line())
+    end
 
 class val CreateDataChannelListener is ChannelMsg
   let workers: Array[String] val
 
   new val create(ws: Array[String] val) =>
     workers = ws
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "CreateDataChannelListener".cstring(), __loc.line())
+    end
 
 class val DataConnectMsg is ChannelMsg
   let sender_name: String
@@ -515,6 +557,9 @@ class val DataConnectMsg is ChannelMsg
   new val create(sender_name': String, sender_boundary_id': U128) =>
     sender_name = sender_name'
     sender_boundary_id = sender_boundary_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "DataConnectMsg".cstring(), __loc.line())
+    end
 
 primitive DataDisconnectMsg is ChannelMsg
 
@@ -523,18 +568,27 @@ class val AckDataConnectMsg is ChannelMsg
 
   new val create(last_id_seen': SeqId) =>
     last_id_seen = last_id_seen'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AckDataConnectMsg".cstring(), __loc.line())
+    end
 
 class val StartNormalDataSendingMsg is ChannelMsg
   let last_id_seen: SeqId
 
   new val create(last_id_seen': SeqId) =>
     last_id_seen = last_id_seen'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "StartNormalDataSendingMsg".cstring(), __loc.line())
+    end
 
 class val RequestBoundaryCountMsg is ChannelMsg
   let sender_name: String
 
   new val create(from: String) =>
     sender_name = from
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "RequestBoundaryCountMsg".cstring(), __loc.line())
+    end
 
 class val ReplayBoundaryCountMsg is ChannelMsg
   let sender_name: String
@@ -543,6 +597,9 @@ class val ReplayBoundaryCountMsg is ChannelMsg
   new val create(from: String, count: USize) =>
     sender_name = from
     boundary_count = count
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReplayBoundaryCountMsg".cstring(), __loc.line())
+    end
 
 class val ReplayCompleteMsg is ChannelMsg
   let sender_name: String
@@ -551,7 +608,9 @@ class val ReplayCompleteMsg is ChannelMsg
   new val create(from: String, b_id: U128) =>
     sender_name = from
     boundary_id = b_id
-
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReplayCompleteMsg".cstring(), __loc.line())
+    end
 
 trait val StepMigrationMsg is ChannelMsg
   fun state_name(): String
@@ -592,24 +651,36 @@ class val MigrationBatchCompleteMsg is ChannelMsg
 
   new val create(sender: String) =>
     sender_name = sender
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "MigrationBatchCompleteMsg".cstring(), __loc.line())
+    end
 
 class val AckMigrationBatchCompleteMsg is ChannelMsg
   let sender_name: String
 
   new val create(sender: String) =>
     sender_name = sender
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AckMigrationBatchCompleteMsg".cstring(), __loc.line())
+    end
 
 class val MuteRequestMsg is ChannelMsg
   let originating_worker: String
 
   new val create(worker: String) =>
     originating_worker = worker
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "MuteRequestMsg".cstring(), __loc.line())
+    end
 
 class val UnmuteRequestMsg is ChannelMsg
   let originating_worker: String
 
   new val create(worker: String) =>
     originating_worker = worker
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "UnmuteRequestMsg".cstring(), __loc.line())
+    end
 
 class val StepMigrationCompleteMsg is ChannelMsg
   let step_id: StepId
@@ -617,6 +688,9 @@ class val StepMigrationCompleteMsg is ChannelMsg
   new val create(step_id': U128)
   =>
     step_id = step_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "StepMigrationCompleteMsg".cstring(), __loc.line())
+    end
 
 class val BeginLeavingMigrationMsg is ChannelMsg
   let remaining_workers: Array[String] val
@@ -627,6 +701,9 @@ class val BeginLeavingMigrationMsg is ChannelMsg
   =>
     remaining_workers = remaining_workers'
     leaving_workers = leaving_workers'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "BeginLeavingMigrationMsg".cstring(), __loc.line())
+    end
 
 class val InitiateShrinkMsg is ChannelMsg
   let remaining_workers: Array[String] val
@@ -637,6 +714,9 @@ class val InitiateShrinkMsg is ChannelMsg
   =>
     remaining_workers = remaining_workers'
     leaving_workers = leaving_workers'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InitiateShrinkMsg".cstring(), __loc.line())
+    end
 
 class val PrepareShrinkMsg is ChannelMsg
   let remaining_workers: Array[String] val
@@ -647,18 +727,27 @@ class val PrepareShrinkMsg is ChannelMsg
   =>
     remaining_workers = remaining_workers'
     leaving_workers = leaving_workers'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "PrepareShrinkMsg".cstring(), __loc.line())
+    end
 
 class val LeavingMigrationAckRequestMsg is ChannelMsg
   let sender: String
 
   new val create(sender': String) =>
     sender = sender'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "LeavingMigrationAckRequestMsg".cstring(), __loc.line())
+    end
 
 class val LeavingMigrationAckMsg is ChannelMsg
   let sender: String
 
   new val create(sender': String) =>
     sender = sender'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "LeavingMigrationAckMsg".cstring(), __loc.line())
+    end
 
 class val AckWatermarkMsg is ChannelMsg
   let sender_name: String
@@ -671,6 +760,9 @@ class val AckWatermarkMsg is ChannelMsg
     sender_name = sender_name'
     sender_step_id = sender_step_id'
     seq_id = seq_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AckWatermarkMsg".cstring(), __loc.line())
+    end
 
 class val DataMsg is ChannelMsg
   let pipeline_time_spent: U64
@@ -689,13 +781,18 @@ class val DataMsg is ChannelMsg
     latest_ts = latest_ts'
     metrics_id = metrics_id'
     metric_name = metric_name'
-
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "DataMsg".cstring(), __loc.line())
+    end
 
 class val ReplayMsg is ChannelMsg
   let data_bytes: Array[ByteSeq] val
 
   new val create(db: Array[ByteSeq] val) =>
     data_bytes = db
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReplayMsg".cstring(), __loc.line())
+    end
 
   fun data_msg(auth: AmbientAuth): DataMsg ? =>
     var size: USize = 0
@@ -769,6 +866,9 @@ class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
     _proxy_address = proxy_address
     _msg_uid = msg_uid'
     _frac_ids = frac_ids'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ForwardMsg".cstring(), __loc.line())
+    end
 
   fun sender_name(): String => _sender_name
 
@@ -832,6 +932,9 @@ class val ForwardKeyedMsg[D: Any val] is ReplayableDeliveryMsg
     _metric_name = m_name
     _msg_uid = msg_uid'
     _frac_ids = frac_ids'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ForwardKeyedMsg".cstring(), __loc.line())
+    end
 
   fun sender_name(): String => _sender_name
 
@@ -908,6 +1011,9 @@ class val JoinClusterMsg is ChannelMsg
   new val create(w: String, wc: USize) =>
     worker_name = w
     worker_count = wc
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "JoinClusterMsg".cstring(), __loc.line())
+    end
 
 class val InformJoiningWorkerMsg is ChannelMsg
   """
@@ -947,12 +1053,18 @@ class val InformJoiningWorkerMsg is ChannelMsg
     partition_router_blueprints = p_blueprints
     stateless_partition_router_blueprints = stateless_p_blueprints
     omni_router_blueprint = omr_blueprint
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InformJoiningWorkerMsg".cstring(), __loc.line())
+    end
 
 class val InformJoinErrorMsg is ChannelMsg
   let message: String
 
   new val create(m: String) =>
     message = m
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InformJoinErrorMsg".cstring(), __loc.line())
+    end
 
 primitive InformRecoverNotJoinMsg is ChannelMsg
 
@@ -968,18 +1080,27 @@ class val JoiningWorkerInitializedMsg is ChannelMsg
     worker_name = name
     control_addr = c_addr
     data_addr = d_addr
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InformRecoverNotJoinMsg".cstring(), __loc.line())
+    end
 
 class val InitiateStopTheWorldForJoinMigrationMsg is ChannelMsg
   let new_workers: Array[String] val
 
   new val create(ws: Array[String] val) =>
     new_workers = ws
+      ifdef "trace" then
+        @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InitiateStopTheWorldForJoinMigrationMsg".cstring(), __loc.line())
+      end
 
 class val InitiateJoinMigrationMsg is ChannelMsg
   let new_workers: Array[String] val
 
   new val create(ws: Array[String] val) =>
     new_workers = ws
+      ifdef "trace" then
+        @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InitiateJoinMigrationMsg".cstring(), __loc.line())
+      end
 
 primitive AutoscaleCompleteMsg is ChannelMsg
 
@@ -989,6 +1110,9 @@ class val LeavingWorkerDoneMigratingMsg is ChannelMsg
   new val create(name: String)
   =>
     worker_name = name
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "LeavingWorkerDoneMigratingMsg".cstring(), __loc.line())
+    end
 
 class val AnnounceConnectionsMsg is ChannelMsg
   let control_addrs: Map[String, (String, String)] val
@@ -999,6 +1123,9 @@ class val AnnounceConnectionsMsg is ChannelMsg
   =>
     control_addrs = c_addrs
     data_addrs = d_addrs
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AnnounceConnectionsMsg".cstring(), __loc.line())
+    end
 
 class val AnnounceJoiningWorkersMsg is ChannelMsg
   let sender: String
@@ -1012,6 +1139,9 @@ class val AnnounceJoiningWorkersMsg is ChannelMsg
     sender = sender'
     control_addrs = c_addrs
     data_addrs = d_addrs
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AnnounceJoiningWorkersMsg".cstring(), __loc.line())
+    end
 
 class val AnnounceHashPartitionsGrowMsg is ChannelMsg
   let sender: String
@@ -1024,12 +1154,18 @@ class val AnnounceHashPartitionsGrowMsg is ChannelMsg
     sender = sender'
     joining_workers = joining_workers'
     hash_partitions = hash_partitions'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AnnounceHashPartitionsGrowMsg".cstring(), __loc.line())
+    end
 
 class val ConnectedToJoiningWorkersMsg is ChannelMsg
   let sender: String
 
   new val create(sender': String) =>
     sender = sender'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ConnectedToJoiningWorkersMsg".cstring(), __loc.line())
+    end
 
 class val AnnounceNewStatefulStepMsg is ChannelMsg
   """
@@ -1046,6 +1182,9 @@ class val AnnounceNewStatefulStepMsg is ChannelMsg
     _worker_name = worker
     _key = k
     _state_name = s_name
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AnnounceNewStatefulStepMsg".cstring(), __loc.line())
+    end
 
   fun update_registry(r: RouterRegistry) =>
     r.add_state_proxy(_step_id, ProxyAddress(_worker_name, _step_id), _key,
@@ -1062,6 +1201,9 @@ class val AnnounceNewSourceMsg is ChannelMsg
   new val create(sender': String, id: StepId) =>
     sender = sender'
     source_id = id
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "AnnounceNewSourceMsg".cstring(), __loc.line())
+    end
 
 primitive RotateLogFilesMsg is ChannelMsg
   """
@@ -1073,6 +1215,9 @@ class val CleanShutdownMsg is ChannelMsg
 
   new val create(m: String) =>
     msg = m
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "RotateLogFilesMsg".cstring(), __loc.line())
+    end
 
 class val InFlightAckMsg is ChannelMsg
   let sender: String
@@ -1081,6 +1226,9 @@ class val InFlightAckMsg is ChannelMsg
   new val create(sender': String, request_id': RequestId) =>
     sender = sender'
     request_id = request_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InFlightAckMsg".cstring(), __loc.line())
+    end
 
 class val FinishedCompleteAckMsg is ChannelMsg
   let sender: String
@@ -1089,6 +1237,9 @@ class val FinishedCompleteAckMsg is ChannelMsg
   new val create(sender': String, request_id': RequestId) =>
     sender = sender'
     request_id = request_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "FinishedCompleteAckMsg".cstring(), __loc.line())
+    end
 
 class val RequestInFlightAckMsg is ChannelMsg
   let sender: String
@@ -1101,6 +1252,9 @@ class val RequestInFlightAckMsg is ChannelMsg
     sender = sender'
     request_id = request_id'
     requester_id = requester_id'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "RequestInFlightAckMsg".cstring(), __loc.line())
+    end
 
 class val RequestInFlightResumeAckMsg is ChannelMsg
   let sender: String
@@ -1119,15 +1273,24 @@ class val RequestInFlightResumeAckMsg is ChannelMsg
     request_id = request_id'
     requester_id = requester_id'
     leaving_workers = leaving_workers'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "RequestInFlightResumeAckMsg".cstring(), __loc.line())
+    end
 
 class val ResumeTheWorldMsg is ChannelMsg
   let sender: String
 
   new val create(sender': String) =>
     sender = sender'
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ResumeTheWorldMsg".cstring(), __loc.line())
+    end
 
 class val ReportStatusMsg is ChannelMsg
   let code: ReportStatusCode
 
   new val create(c: ReportStatusCode) =>
     code = c
+    ifdef "trace" then
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReportStatusMsg".cstring(), __loc.line())
+    end

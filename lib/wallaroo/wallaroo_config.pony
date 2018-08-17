@@ -110,6 +110,7 @@ primitive WallarooConfig
     end
 
     if include_input_addrs then
+@printf[I32]("SLF: hey 1\n".cstring())
       options.add("in", "i", StringArgument)
     end
 
@@ -120,6 +121,7 @@ primitive WallarooConfig
       | ("metrics", let arg: String) =>
         so.m_arg = arg.split(":")
       | ("in", let arg: String) =>
+@printf[I32]("SLF: hey 2\n".cstring())
         let i_addrs_write = recover trn Array[Array[String]] end
         for addr in arg.split(",").values() do
           i_addrs_write.push(addr.split(":"))
@@ -241,5 +243,10 @@ primitive WallarooConfig
     end
 
     var o = Options(options.remaining(), false)
+@printf[I32]("SLF: hey 3, size of input_addrs = %d\n".cstring(), so.input_addrs.size())
+@printf[I32]("SLF: hey 3b, size of options.remaining() = %d\n".cstring(), options.remaining().size())
+    for yyy in options.remaining().values() do
+      @printf[I32]("SLF: hey 4, options remaining = %s\n".cstring(), yyy.cstring())
+    end
 
     (so, options.remaining())
