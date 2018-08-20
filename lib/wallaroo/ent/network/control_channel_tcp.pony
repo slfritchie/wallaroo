@@ -29,8 +29,8 @@ use "wallaroo/core/topology"
 class ControlChannelListenNotifier is TCPListenNotify
   let _auth: AmbientAuth
   let _worker_name: String
-  var _host: String = ""
-  var _service: String = ""
+  let _c_host: String
+  let _c_service: String
   var _d_host: String
   var _d_service: String
   let _is_initializer: Bool
@@ -53,7 +53,8 @@ class ControlChannelListenNotifier is TCPListenNotify
     recovery_replayer: RecoveryReplayer, router_registry: RouterRegistry,
     recovery_file: FilePath, data_host: String, data_service: String,
     event_log: EventLog, recovery_file_cleaner: RecoveryFileCleaner,
-    the_journal: SimpleJournal, do_local_file_io: Bool)
+    the_journal: SimpleJournal, do_local_file_io: Bool,
+    control_host: String, control_service: String)
   =>
     _auth = auth
     _worker_name = worker_name
@@ -71,14 +72,13 @@ class ControlChannelListenNotifier is TCPListenNotify
     _recovery_file_cleaner = recovery_file_cleaner
     _the_journal = the_journal
     _do_local_file_io = do_local_file_io
+    _c_host = control_host
+    _c_service = control_service
 
   fun ref listening(listen: TCPListener ref) =>
     try
-      (_host, _service) = listen.local_address().name()?
-      if _host == "::1" then _host = "127.0.0.1" end
-
       if not _is_initializer then
-        _connections.register_my_control_addr(_host, _service)
+        _connections.register_my_control_addr(_c_host, _c_service)
       end
       _router_registry.register_control_channel_listener(listen)
 
@@ -87,28 +87,28 @@ class ControlChannelListenNotifier is TCPListenNotify
       end
 
       let message = ChannelMsgEncoder.identify_control_port(_worker_name,
-        _service, _auth)?
+        _c_service, _auth)?
       _connections.send_control_to_cluster(message)
 
       let f = AsyncJournalledFile(_recovery_file, _the_journal, _auth,
         _do_local_file_io)
-      f.print(_host)
-      f.print(_service)
+      f.print(_c_host)
+      f.print(_c_service)
       f.sync()
       f.dispose()
       // TODO: AsyncJournalledFile does not provide implicit sync semantics here
 
-      @printf[I32]((_worker_name + " control: listening on " + _host + ":" +
-        _service + "\n").cstring())
+      @printf[I32]((_worker_name + " control: listening on " + _c_host +
+        ":" + _c_service + "\n").cstring())
     else
-      @printf[I32]((_worker_name + " control: couldn't get local address\n")
-        .cstring())
+      @printf[I32]((_worker_name + " control: couldn't get local address %s:%s\n")
+        .cstring(), _c_host.cstring(), _c_service.cstring())
       listen.close()
     end
 
   fun ref not_listening(listen: TCPListener ref) =>
     @printf[I32]((_worker_name + " control: unable to listen on (%s:%s)\n")
-      .cstring(), _host.cstring(), _service.cstring())
+      .cstring(), _c_host.cstring(), _c_service.cstring())
     Fail()
 
   fun ref connected(listen: TCPListener ref): TCPConnectionNotify iso^ =>
@@ -187,6 +187,9 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
           | let i: ClusterInitializer =>
             i.identify_control_address(m.worker_name, host, m.service)
           end
+          @printf[I32]("_create_control_connection: call from control_channel_tcp line %d\n".cstring(), __loc.line())
+          // TODO TODO SEE PRINTF BELOW
+          @printf[I32]("SLF TODO add data address to the message??\n".cstring())
           _connections.create_control_connection(m.worker_name, host,
             m.service)
         else
@@ -203,6 +206,7 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
           | let i: ClusterInitializer =>
             i.identify_data_address(m.worker_name, host, m.service)
           end
+          @printf[I32]("create_data_connection: call from control_channel_tcp line %d\n".cstring(), __loc.line())
           _connections.create_data_connection(m.worker_name, host, m.service)
         end
       | let m: RequestBoundaryCountMsg =>
@@ -217,9 +221,13 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
         ifdef "trace" then
           @printf[I32]("Received ReconnectDataPortMsg on Control Channel\n"
             .cstring())
+          @printf[I32]("Received ReconnectDataPortMsg on Control Channel from worker %s service %s\n".cstring(), m.worker_name.cstring(), m.service.cstring())
         end
-        _connections.reconnect_data_connection(m.worker_name)
-        _router_registry.reconnect_source_boundaries(m.worker_name)
+        try
+          (let host, _) = conn.remote_address().name()?
+          _connections.reconnect_data_connection(m.worker_name, host, m.service)
+          _router_registry.reconnect_source_boundaries(m.worker_name)
+        end
       | let m: ReplayBoundaryCountMsg =>
         ifdef "trace" then
           @printf[I32]("Received ReplayBoundaryCountMsg on Control Channel\n"

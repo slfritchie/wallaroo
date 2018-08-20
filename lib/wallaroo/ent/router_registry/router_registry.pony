@@ -645,6 +645,7 @@ actor RouterRegistry is InFlightAckRequester
 
   be reconnect_source_boundaries(target_worker: String) =>
     for source in _sources.values() do
+      @printf[I32]("SLF hey, router_registry.pony reconnect_source_boundaries: reconnect %s\n".cstring(), target_worker.cstring())
       source.reconnect_boundary(target_worker)
     end
 

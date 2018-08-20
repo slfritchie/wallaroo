@@ -137,8 +137,8 @@ actor OutgoingBoundary is Consumer
   let _worker_name: String
   let _target_worker: String
   var _step_id: StepId = 0
-  let _host: String
-  let _service: String
+  var _host: String
+  var _service: String
   let _from: String
   let _queue: Array[Array[ByteSeq] val] = _queue.create()
   var _lowest_queue_id: SeqId = 0
@@ -183,6 +183,7 @@ actor OutgoingBoundary is Consumer
     _read_buf = recover Array[U8].>undefined(init_size) end
     _next_size = init_size
     _max_size = 65_536
+    @printf[I32]("SLF: hey OutgoingBoundary 0x%lx create %s:%s\n".cstring(), this, _host.cstring(), _service.cstring())
 
   //
   // Application startup lifecycle event
@@ -248,8 +249,14 @@ actor OutgoingBoundary is Consumer
       end
     end
 
-  be reconnect() =>
+  be reconnect(host: String, service: String) =>
     if not _connected and not _no_more_reconnect then
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect OLD %s:%s\n".cstring(), this, _host.cstring(), _service.cstring())
+      if ((host != "") and (service != "")) then
+        _host = host
+        _service = service
+      end
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect NEW %s:%s\n".cstring(), this, _host.cstring(), _service.cstring())
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
         _from.cstring())
@@ -1115,5 +1122,5 @@ class _PauseBeforeReconnect is TimerNotify
     _ob = ob
 
   fun ref apply(timer: Timer, count: U64): Bool =>
-    _ob.reconnect()
+    _ob.reconnect("", "")
     false

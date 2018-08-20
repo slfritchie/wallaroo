@@ -94,6 +94,7 @@ actor Connections is Cluster
       _my_control_addr = (c_host, c_service)
       _my_data_addr = (d_host, d_service)
     else
+     @printf[I32]("_create_control_connection: call from line %d\n".cstring(), __loc.line())
       create_control_connection("initializer", c_host, c_service)
     end
 
@@ -501,10 +502,12 @@ actor Connections is Cluster
     router_registry: (RouterRegistry | None) = None)
   =>
     try
+      @printf[I32]("SLF hey, Connections.create_connections top\n".cstring())
       _save_connections(control_addrs, data_addrs)
 
       for (target, address) in control_addrs.pairs() do
         if target != _worker_name then
+          @printf[I32]("_create_control_connection: call from line %d\n".cstring(), __loc.line())
           _create_control_connection(target, address._1, address._2)
         end
       end
@@ -629,6 +632,7 @@ actor Connections is Cluster
       let data_addrs = addresses("data")?
       for (target, address) in control_addrs.pairs() do
         if target != _worker_name then
+          @printf[I32]("_create_control_connection: call from line %d\n".cstring(), __loc.line())
           _create_control_connection(target, address._1, address._2)
         end
       end
@@ -651,12 +655,13 @@ actor Connections is Cluster
   be create_control_connection(target_name: String, host: String,
     service: String)
   =>
+    @printf[I32]("_create_control_connection: call from line %d\n".cstring(), __loc.line())
     _create_control_connection(target_name, host, service)
 
   fun ref _create_control_connection(target_name: String, host: String,
     service: String)
   =>
-@printf[I32]("_create_control_connection: target_name %s host %s service %s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
+    @printf[I32]("_create_control_connection: target_name %s host %s service %s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _control_addrs(target_name) = (host, service)
     let tcp_conn_wrapper =
       if _control_conns.contains(target_name) then
@@ -675,11 +680,13 @@ actor Connections is Cluster
     let control_conn: TCPConnection =
       TCPConnection(_auth, consume control_notifier, host, service)
 
-  be reconnect_data_connection(target_name: String) =>
+  be reconnect_data_connection(target_name: String,
+    target_host: String, target_service: String)
+  =>
     if _data_conns.contains(target_name) then
       try
         let outgoing_boundary = _data_conns(target_name)?
-        outgoing_boundary.reconnect()
+        outgoing_boundary.reconnect(target_host, target_service)
       end
     else
       @printf[I32]("Target: %s not found in data connection map!\n".cstring(),

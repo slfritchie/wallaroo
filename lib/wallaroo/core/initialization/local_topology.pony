@@ -338,6 +338,7 @@ actor LocalTopologyInitializer is LayoutInitializer
     | let t: LocalTopology =>
       if not ArrayHelpers[String].contains[String](t.worker_names, w) then
         _add_worker_name(w)
+        @printf[I32]("_create_control_connection: call from local_topology.pony line %d\n".cstring(), __loc.line())
         _connections.create_control_connection(w, joining_host,
           control_addr._2)
         _connections.create_data_connection_to_joining_worker(w, joining_host,

@@ -336,8 +336,18 @@ actor Startup
       router_registry.set_event_log(event_log)
       event_log.set_router_registry(router_registry)
 
+      (let control_host, let control_service, let data_service) =
+        if _startup_options.is_initializer then
+          (_startup_options.c_host, _startup_options.c_service,
+            _startup_options.d_service)
+        else
+          (_startup_options.my_c_host, _startup_options.my_c_service,
+            _startup_options.my_d_service)
+        end
+
       let recovery_replayer = RecoveryReplayer(auth,
-        _startup_options.worker_name, data_receivers, router_registry,
+        _startup_options.worker_name, data_service,
+        data_receivers, router_registry,
         connections, is_recovering)
 
       let recovery = Recovery(auth, _startup_options.worker_name,
@@ -381,6 +391,7 @@ actor Startup
         end
       end
 
+      @printf[I32]("SLF: hey, control_host = %s, control_service = %s\n".cstring(), control_host.cstring(), control_service.cstring())
       let control_notifier: TCPListenNotify iso =
         ControlChannelListenNotifier(_startup_options.worker_name,
           auth, connections, _startup_options.is_initializer,
@@ -388,7 +399,8 @@ actor Startup
           recovery_replayer, router_registry,
           control_channel_filepath, _startup_options.my_d_host,
           _startup_options.my_d_service, event_log, this,
-          _the_journal as SimpleJournal, _startup_options.do_local_file_io)
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io,
+          control_host, control_service)
 
       // We need to recover connections before creating our control
       // channel listener, since it's at that point that we notify
@@ -398,15 +410,9 @@ actor Startup
         connections.recover_connections(local_topology_initializer)
       end
 
-      if _startup_options.is_initializer then
-        connections.make_and_register_recoverable_listener(
-          auth, consume control_notifier, control_channel_filepath,
-          _startup_options.c_host, _startup_options.c_service)
-      else
-        connections.make_and_register_recoverable_listener(
-          auth, consume control_notifier, control_channel_filepath,
-          _startup_options.my_c_host, _startup_options.my_c_service)
-      end
+      connections.make_and_register_recoverable_listener(
+        auth, consume control_notifier, control_channel_filepath,
+        control_host, control_service)
 
       if is_recovering then
         // need to do this before recreating the data connection as at
@@ -511,7 +517,7 @@ actor Startup
       event_log.set_router_registry(router_registry)
 
       let recovery_replayer = RecoveryReplayer(auth,
-        _startup_options.worker_name,
+        _startup_options.worker_name, _startup_options.my_d_service,
         data_receivers, router_registry, connections)
 
       let recovery = Recovery(auth, _startup_options.worker_name,
@@ -575,7 +581,8 @@ actor Startup
           recovery_replayer, router_registry, control_channel_filepath,
           _startup_options.my_d_host, _startup_options.my_d_service,
           event_log, this, _the_journal as SimpleJournal,
-          _startup_options.do_local_file_io)
+          _startup_options.do_local_file_io,
+          _startup_options.my_c_host, _startup_options.my_c_service)
 
       connections.make_and_register_recoverable_listener(
         auth, consume control_notifier, control_channel_filepath,

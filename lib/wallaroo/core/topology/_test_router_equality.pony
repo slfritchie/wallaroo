@@ -316,7 +316,7 @@ primitive _ConnectionsGenerator
 
 primitive _RecoveryReplayerGenerator
   fun apply(env: Env, auth: AmbientAuth): RecoveryReplayer =>
-    RecoveryReplayer(auth, "", _DataReceiversGenerator(env, auth),
+    RecoveryReplayer(auth, "", "", _DataReceiversGenerator(env, auth),
       _RouterRegistryGenerator(env, auth), _Cluster)
 
 primitive _StatelessPartitionGenerator

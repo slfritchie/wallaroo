@@ -157,10 +157,10 @@ primitive ChannelMsgEncoder
   =>
     _encode(IdentifyDataPortMsg(worker_name, service), auth)?
 
-  fun reconnect_data_port(worker_name: String,
+  fun reconnect_data_port(worker_name: String, service: String,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(ReconnectDataPortMsg(worker_name), auth)?
+    _encode(ReconnectDataPortMsg(worker_name, service), auth)?
 
   fun spin_up_local_topology(local_topology: LocalTopology,
     auth: AmbientAuth): Array[ByteSeq] val ?
@@ -467,7 +467,7 @@ class val IdentifyControlPortMsg is ChannelMsg
     worker_name = name
     service = s
     ifdef "trace" then
-      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "IdentifyControlPortMsg".cstring(), __loc.line())
+      @printf[I32]("ChannelMsg %s line %d, worker %s service %s\n".cstring(), "IdentifyControlPortMsg".cstring(), __loc.line(), worker_name.cstring(), service.cstring())
     end
 
 class val IdentifyDataPortMsg is ChannelMsg
@@ -478,16 +478,18 @@ class val IdentifyDataPortMsg is ChannelMsg
     worker_name = name
     service = s
     ifdef "trace" then
-      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "IdentifyDataPortMsg".cstring(), __loc.line())
+      @printf[I32]("ChannelMsg %s line %d, worker %s service %s\n".cstring(), "IdentifyDataPortMsg".cstring(), __loc.line(), worker_name.cstring(), service.cstring())
     end
 
 class val ReconnectDataPortMsg is ChannelMsg
   let worker_name: String
+  let service: String
 
-  new val create(name: String) =>
+  new val create(name: String, s: String) =>
     worker_name = name
+    service = s
     ifdef "trace" then
-      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "ReconnectDataPortMsg".cstring(), __loc.line())
+      @printf[I32]("ChannelMsg %s line %d, worker %s service %s\n".cstring(), "ReconnectDataPortMsg".cstring(), __loc.line(), worker_name.cstring(), service.cstring())
     end
 
 class val SpinUpLocalTopologyMsg is ChannelMsg
@@ -1081,7 +1083,7 @@ class val JoiningWorkerInitializedMsg is ChannelMsg
     control_addr = c_addr
     data_addr = d_addr
     ifdef "trace" then
-      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "InformRecoverNotJoinMsg".cstring(), __loc.line())
+      @printf[I32]("ChannelMsg %s line %d\n".cstring(), "JoiningWorkerInitializedMsg".cstring(), __loc.line())
     end
 
 class val InitiateStopTheWorldForJoinMigrationMsg is ChannelMsg
