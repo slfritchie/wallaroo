@@ -35,6 +35,7 @@ use "wallaroo_labs/bytes"
 use "wallaroo_labs/time"
 use "wallaroo/core/common"
 use "wallaroo/ent/network"
+use "wallaroo/ent/router_registry"
 use "wallaroo/ent/spike"
 use "wallaroo/ent/watermarking"
 use "wallaroo_labs/mort"
@@ -60,21 +61,25 @@ class val OutgoingBoundaryBuilder
   let _reporter: MetricsReporter val
   let _host: String
   let _service: String
+  let _router_registry: RouterRegistry
   let _spike_config: (SpikeConfig | None)
 
   new val create(auth: AmbientAuth, name: String, r: MetricsReporter iso,
-    h: String, s: String, spike_config: (SpikeConfig | None) = None)
+    h: String, s: String, router_registry: RouterRegistry,
+    spike_config: (SpikeConfig | None) = None)
   =>
     _auth = auth
     _worker_name = name
     _reporter = consume r
     _host = h
     _service = s
+    _router_registry = router_registry
     _spike_config = spike_config
 
   fun apply(step_id: StepId, target_worker: String): OutgoingBoundary =>
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host, _service where spike_config = _spike_config)
+      _reporter.clone(), _host, _service, _router_registry
+       where spike_config = _spike_config)
     boundary.register_step_id(step_id)
     boundary
 
@@ -85,7 +90,8 @@ class val OutgoingBoundaryBuilder
     Called when creating a boundary post cluster initialization
     """
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host, _service where spike_config = _spike_config)
+      _reporter.clone(), _host, _service, _router_registry
+       where spike_config = _spike_config)
     boundary.register_step_id(step_id)
     boundary.quick_initialize(layout_initializer)
     boundary
@@ -148,12 +154,14 @@ actor OutgoingBoundary is Consumer
 
   // Producer (Resilience)
   let _terminus_route: TerminusRoute = TerminusRoute
+  let _router_registry: RouterRegistry
 
   var _reconnect_pause: U64 = 10_000_000_000
   let _timers: Timers = Timers
 
   new create(auth: AmbientAuth, worker_name: String, target_worker: String,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
+    router_registry: RouterRegistry,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
     spike_config:(SpikeConfig | None) = None)
   =>
@@ -178,6 +186,7 @@ actor OutgoingBoundary is Consumer
     _target_worker = target_worker
     _host = host
     _service = service
+    _router_registry = router_registry
     _from = from
     _metrics_reporter = consume metrics_reporter
     _read_buf = recover Array[U8].>undefined(init_size) end
@@ -251,12 +260,13 @@ actor OutgoingBoundary is Consumer
 
   be reconnect(host: String, service: String) =>
     if not _connected and not _no_more_reconnect then
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect OLD %s:%s\n".cstring(), this, _host.cstring(), _service.cstring())
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s OLD %s:%s from %s\n".cstring(), this, _worker_name.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       if ((host != "") and (service != "")) then
         _host = host
         _service = service
+        ///////////TODO _router_registry.update_worker_data_service(_worker_name, _host, _service)
       end
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect NEW %s:%s\n".cstring(), this, _host.cstring(), _service.cstring())
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s NEW %s:%s from %s\n".cstring(), this, _worker_name.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
         _from.cstring())

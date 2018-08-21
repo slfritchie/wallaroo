@@ -61,8 +61,8 @@ class iso _TestLocalPartitionRouterEquality is UnitTest
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
     let step3 = _StepGenerator(auth, event_log, recovery_replayer)
-    let boundary2 = _BoundaryGenerator("w1", auth)
-    let boundary3 = _BoundaryGenerator("w1", auth)
+    let boundary2 = _BoundaryGenerator(h.env, "w1", auth)
+    let boundary3 = _BoundaryGenerator(h.env, "w1", auth)
 
     let base_local_map = recover trn Map[U128, Step] end
     base_local_map(1) = step1
@@ -120,8 +120,8 @@ class iso _TestOmniRouterEquality is UnitTest
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
 
-    let boundary2 = _BoundaryGenerator("w1", auth)
-    let boundary3 = _BoundaryGenerator("w1", auth)
+    let boundary2 = _BoundaryGenerator(h.env, "w1", auth)
+    let boundary3 = _BoundaryGenerator(h.env, "w1", auth)
 
     let base_data_routes = recover trn Map[U128, Consumer] end
     base_data_routes(1) = step1
@@ -291,9 +291,10 @@ primitive _StepGenerator
       _StateStepCreatorGenerator(auth))
 
 primitive _BoundaryGenerator
-  fun apply(worker_name: String, auth: AmbientAuth): OutgoingBoundary =>
+  fun apply(env: Env, worker_name: String, auth: AmbientAuth): OutgoingBoundary =>
     OutgoingBoundary(auth, worker_name, "",
-      MetricsReporter("", "", _NullMetricsSink), "", "")
+      MetricsReporter("", "", _NullMetricsSink), "", "",
+      _RouterRegistryGenerator(env, auth))
 
 primitive _RouterRegistryGenerator
   fun apply(env: Env, auth: AmbientAuth): RouterRegistry =>

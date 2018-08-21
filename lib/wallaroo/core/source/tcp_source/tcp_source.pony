@@ -143,6 +143,7 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
     _route_builder = route_builder
     for (target_worker_name, builder) in outgoing_boundary_builders.pairs() do
       if not _outgoing_boundaries.contains(target_worker_name) then
+        @printf[I32]("SLF: tcp_source.pony _accept: target_worker_name %s not contains, build_and_initialize\n".cstring(), target_worker_name.cstring())
         let new_boundary =
           builder.build_and_initialize(_step_id_gen(), target_worker_name,
             _layout_initializer)
@@ -231,6 +232,7 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
     """
     for (target_worker_name, builder) in boundary_builders.pairs() do
       if not _outgoing_boundaries.contains(target_worker_name) then
+        @printf[I32]("SLF: tcp_source.pony add_boundary_builders: target_worker_name %s not contains, build_and_initialize\n".cstring(), target_worker_name.cstring())
         let boundary = builder.build_and_initialize(_step_id_gen(),
           target_worker_name, _layout_initializer)
         _router_registry.register_disposable(boundary)
