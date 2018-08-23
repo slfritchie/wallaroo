@@ -444,6 +444,7 @@ actor Connections is Cluster
   =>
     try
       (let host, let service) = _data_addrs(target)?
+      @printf[I32]("SLF: create_boundary_to_joining_worker: %s %s:%s\n".cstring(), target.cstring(), host.cstring(), service.cstring())
       let reporter = MetricsReporter(_app_name,
         _worker_name, _metrics_conn)
       try
@@ -731,6 +732,7 @@ actor Connections is Cluster
   be create_data_connection_to_joining_worker(target_name: String,
     host: String, service: String, li: LayoutInitializer)
   =>
+    @printf[I32]("SLF: create_data_connection_to_joining_worker: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _data_addrs(target_name) = (host, service)
     try
       let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
