@@ -262,7 +262,7 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
 
   be reconnect_boundary(target_worker_name: String) =>
     try
-      _outgoing_boundaries(target_worker_name)?.reconnect("", "") // SLF TODO!
+      _outgoing_boundaries(target_worker_name)?.reconnect("", "")
     else
       Fail()
     end

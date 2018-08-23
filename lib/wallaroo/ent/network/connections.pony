@@ -24,7 +24,8 @@ use "wallaroo/core/data_channel"
 use "wallaroo/core/initialization"
 use "wallaroo/core/messages"
 use "wallaroo/core/metrics"
-use "wallaroo/core/source/tcp_source"
+use "wallaroo/core/source"
+////// delme?? use "wallaroo/core/source/tcp_source"
 use "wallaroo/core/topology"
 use "wallaroo/ent/data_receiver"
 use "wallaroo/ent/recovery"
@@ -62,6 +63,8 @@ actor Connections is Cluster
   let _the_journal: SimpleJournal
   let _do_local_file_io: Bool
   let _log_rotation: Bool
+  let _source_listeners: SetIs[SourceListener] =
+    _source_listeners.create()
 
   new create(app_name: String, worker_name: String,
     auth: AmbientAuth, c_host: String, c_service: String,
@@ -444,7 +447,7 @@ actor Connections is Cluster
       let reporter = MetricsReporter(_app_name,
         _worker_name, _metrics_conn)
       let builder = OutgoingBoundaryBuilder(_auth, _worker_name,
-        consume reporter, host, service, _spike_config)
+        consume reporter, host, service, this, _spike_config)
       let boundary = builder.build_and_initialize(boundary_id, target,
         local_topology_initializer)
       _register_disposable(boundary)
@@ -710,7 +713,7 @@ actor Connections is Cluster
     _data_addrs(target_name) = (host, service)
     let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
       MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
-      _spike_config)
+      this, _spike_config)
     let outgoing_boundary = boundary_builder(_step_id_gen(), target_name)
     _data_conn_builders(target_name) = boundary_builder
     _register_disposable(outgoing_boundary)
@@ -723,7 +726,7 @@ actor Connections is Cluster
     _data_addrs(target_name) = (host, service)
     let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
       MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
-      _spike_config)
+      this, _spike_config)
     let outgoing_boundary =
       boundary_builder.build_and_initialize(_step_id_gen(), target_name, li)
     _data_conn_builders(target_name) = boundary_builder
@@ -887,3 +890,13 @@ actor Connections is Cluster
       @printf[I32]("WARNING: LogRotation requested, but log_rotation is off!\n"
         .cstring())
     end
+
+  be register_source_listener(listen: SourceListener tag) =>
+    @printf[I32]("SLF: Connections: register_source_listener 0x%lx\n".cstring(), listen)
+    _source_listeners.set(listen)
+    _register_disposable(listen)
+
+  be update_worker_data_channel_info(worker_name: String, host: String, service: String)
+  =>
+    @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s info %s:%s\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
+

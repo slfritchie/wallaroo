@@ -371,7 +371,6 @@ actor RouterRegistry is InFlightAckRequester
       if not _outgoing_boundaries.contains(worker) then
         Fail()
       end
-      ///////// TODO SLF: ?
       if not _outgoing_boundaries_builders.contains(worker) then
         _outgoing_boundaries_builders(worker) = builder
         new_boundary_builders(worker) = builder
@@ -1621,20 +1620,14 @@ actor RouterRegistry is InFlightAckRequester
     service: String)
   =>
     if _outgoing_boundaries_builders.contains(target_worker) then
-      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s FOUND!\n".cstring(), target_worker.cstring())
-      try
-        _outgoing_boundaries_builders(target_worker)?.
-          update_worker_data_service(host, service)
-      else
-        Fail()
-      end
+      @printf[I32]("SLF: HEY! update_worker_data_service 1 target_worker %s FOUND!\n".cstring(), target_worker.cstring())
     else
-      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s not found!\n".cstring(), target_worker.cstring())
+      @printf[I32]("SLF: HEY! update_worker_data_service 2 target_worker %s not found!\n".cstring(), target_worker.cstring())
     end
     if _outgoing_boundaries.contains(target_worker) then
-      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s FOUND!\n".cstring(), target_worker.cstring())
+      @printf[I32]("SLF: HEY! update_worker_data_service 2 target_worker %s found!\n".cstring(), target_worker.cstring())
     else
-      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s not found!\n".cstring(), target_worker.cstring())
+      @printf[I32]("SLF: HEY! update_worker_data_service 2 target_worker %s not found!\n".cstring(), target_worker.cstring())
     end
 
 class MigrationAction is CustomAction
