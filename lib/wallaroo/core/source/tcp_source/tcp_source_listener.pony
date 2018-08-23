@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+use "net" // SLF: Debugging only, remove this line
 use "collections"
 use "wallaroo/core/boundary"
 use "wallaroo/core/common"
@@ -213,7 +214,7 @@ actor TCPSourceListener is SourceListener
     """
     try
       let source_id = _step_id_gen()
-      @printf[I32]("SLF: tcp_source_listener.pony _spawn: calling tcp_source._accept()\n".cstring())
+      try let ip = recover NetAddress end;  @pony_os_sockname[Bool](_fd, ip); (let qqq_host, let qqq_port) = ip.name()?; @printf[I32]("SLF: tcp_source_listener.pony _spawn: calling tcp_source._accept() for sock %d: %s:%s\n".cstring(), ns, qqq_host.cstring(), qqq_port.cstring()) end
       let source = TCPSource._accept(source_id, _auth, this,
         _notify_connected(source_id)?, _event_log, _router.routes(),
         _route_builder, _outgoing_boundary_builders, _layout_initializer,

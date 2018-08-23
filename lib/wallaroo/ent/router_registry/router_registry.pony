@@ -371,6 +371,7 @@ actor RouterRegistry is InFlightAckRequester
       if not _outgoing_boundaries.contains(worker) then
         Fail()
       end
+      ///////// TODO SLF: ?
       if not _outgoing_boundaries_builders.contains(worker) then
         _outgoing_boundaries_builders(worker) = builder
         new_boundary_builders(worker) = builder
@@ -1614,6 +1615,26 @@ actor RouterRegistry is InFlightAckRequester
       _omni_router = o.update_route_to_step(id, target)
     else
       Fail()
+    end
+
+  be update_worker_data_service(target_worker: String, host: String,
+    service: String)
+  =>
+    if _outgoing_boundaries_builders.contains(target_worker) then
+      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s FOUND!\n".cstring(), target_worker.cstring())
+      try
+        _outgoing_boundaries_builders(target_worker)?.
+          update_worker_data_service(host, service)
+      else
+        Fail()
+      end
+    else
+      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s not found!\n".cstring(), target_worker.cstring())
+    end
+    if _outgoing_boundaries.contains(target_worker) then
+      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s FOUND!\n".cstring(), target_worker.cstring())
+    else
+      @printf[I32]("SLF: HEY! update_worker_data_service target_worker %s not found!\n".cstring(), target_worker.cstring())
     end
 
 class MigrationAction is CustomAction

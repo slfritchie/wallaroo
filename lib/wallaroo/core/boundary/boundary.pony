@@ -59,8 +59,8 @@ class val OutgoingBoundaryBuilder
   let _auth: AmbientAuth
   let _worker_name: String
   let _reporter: MetricsReporter val
-  let _host: String
-  let _service: String
+  var _host: String
+  var _service: String
   let _router_registry: RouterRegistry
   let _spike_config: (SpikeConfig | None)
 
@@ -95,6 +95,12 @@ class val OutgoingBoundaryBuilder
     boundary.register_step_id(step_id)
     boundary.quick_initialize(layout_initializer)
     boundary
+
+  fun update_worker_data_service(host: String, service: String) =>
+    None
+    // SLF TODO: No, no, no, this thing is a val, silly
+    // _host = host
+    // _service = service
 
 actor OutgoingBoundary is Consumer
   // Steplike
@@ -260,13 +266,13 @@ actor OutgoingBoundary is Consumer
 
   be reconnect(host: String, service: String) =>
     if not _connected and not _no_more_reconnect then
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s OLD %s:%s from %s\n".cstring(), this, _worker_name.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s OLD %s:%s from %s\n".cstring(), this, _target_worker.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       if ((host != "") and (service != "")) then
         _host = host
         _service = service
-        ///////////TODO _router_registry.update_worker_data_service(_worker_name, _host, _service)
+        _router_registry.update_worker_data_service(_target_worker, _host, _service)
       end
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s NEW %s:%s from %s\n".cstring(), this, _worker_name.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
+      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s NEW %s:%s from %s\n".cstring(), this, _target_worker.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
         _from.cstring())

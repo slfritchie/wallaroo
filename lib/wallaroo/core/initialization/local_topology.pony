@@ -444,7 +444,7 @@ actor LocalTopologyInitializer is LayoutInitializer
     consume candidates
 
   be add_boundary_to_joining_worker(w: String, boundary: OutgoingBoundary,
-    builder: OutgoingBoundaryBuilder)
+    builder: OutgoingBoundaryBuilder val)
   =>
     _add_boundary(w, boundary, builder)
     _router_registry.register_boundaries(_outgoing_boundaries,
