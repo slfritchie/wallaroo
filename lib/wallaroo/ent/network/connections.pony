@@ -896,7 +896,39 @@ actor Connections is Cluster
     _source_listeners.set(listen)
     _register_disposable(listen)
 
-  be update_worker_data_channel_info(worker_name: String, host: String, service: String)
+  be update_worker_data_addrs(worker_name: String, host: String, service: String)
   =>
-    @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s info %s:%s\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
+    @printf[I32]("SLF: Connections: update_worker_data_channel_info worker %s info %s:%s\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
+    _data_addrs(worker_name) = (host, service)
 
+    if _data_conn_builders.contains(worker_name) then
+      try
+        let old_builder = _data_conn_builders(worker_name)?
+        (let auth, _, let reporter, _, _, _, let spike_config) =
+          old_builder.get_state()
+        let new_builder = OutgoingBoundaryBuilder(auth, worker_name,
+          reporter.clone(), host, service, this, spike_config)
+        _data_conn_builders(worker_name) = new_builder
+        let outgoing_boundary = new_builder(_step_id_gen(), worker_name)
+        _data_conns(worker_name) = outgoing_boundary
+
+        @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s update OutgoingBoundaryBuilder, disseminate to listeners and their connections\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
+
+        let boundary_builders =
+          recover trn Map[String, OutgoingBoundaryBuilder] end
+        for (worker, builder) in _data_conn_builders.pairs() do
+          boundary_builders(worker) = builder
+        end
+
+        let boundary_builders_to_send = consume val boundary_builders
+
+        for sl in _source_listeners.values() do
+        @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s sl 0x%x\n".cstring(), worker_name.cstring(), sl)
+          sl.update_boundary_builders(boundary_builders_to_send)
+        end
+      else
+        Fail()
+      end
+    else
+      Fail()
+    end

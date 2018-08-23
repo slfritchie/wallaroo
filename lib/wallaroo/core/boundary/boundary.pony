@@ -95,6 +95,11 @@ class val OutgoingBoundaryBuilder
     boundary.quick_initialize(layout_initializer)
     boundary
 
+  fun get_state():
+    (AmbientAuth, String, MetricsReporter val, String, String, Connections, (SpikeConfig|None))
+  =>
+    (_auth, _worker_name, _reporter, _host, _service, _connections, _spike_config)
+
 actor OutgoingBoundary is Consumer
   // Steplike
   let _wb: Writer = Writer
@@ -263,7 +268,7 @@ actor OutgoingBoundary is Consumer
       if ((host != "") and (service != "")) then
         _host = host
         _service = service
-        _connections.update_worker_data_channel_info(_target_worker, host, service)
+        _connections.update_worker_data_addrs(_target_worker, host, service)
       end
       @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s NEW %s:%s from %s\n".cstring(), this, _target_worker.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       _connect_count = @pony_os_connect_tcp[U32](this,

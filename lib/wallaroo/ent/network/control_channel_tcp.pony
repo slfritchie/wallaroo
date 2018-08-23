@@ -188,8 +188,6 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
             i.identify_control_address(m.worker_name, host, m.service)
           end
           @printf[I32]("_create_control_connection: call from control_channel_tcp line %d\n".cstring(), __loc.line())
-          // TODO TODO SEE PRINTF BELOW
-          @printf[I32]("SLF TODO add data address to the message??\n".cstring())
           _connections.create_control_connection(m.worker_name, host,
             m.service)
         else
