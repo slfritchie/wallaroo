@@ -62,7 +62,6 @@ actor Connections is Cluster
   let _the_journal: SimpleJournal
   let _do_local_file_io: Bool
   let _log_rotation: Bool
-  var _router_registry: (RouterRegistry | None) = None
 
   new create(app_name: String, worker_name: String,
     auth: AmbientAuth, c_host: String, c_service: String,
@@ -188,9 +187,6 @@ actor Connections is Cluster
 
     cluster_initializer.identify_data_address("initializer", _init_d_host,
       _init_d_service)
-
-  be set_router_registry(router_registry: RouterRegistry) =>
-    _router_registry = router_registry
 
   be send_control(worker: String, data: Array[ByteSeq] val) =>
     _send_control(worker, data)
@@ -447,18 +443,13 @@ actor Connections is Cluster
       @printf[I32]("SLF: create_boundary_to_joining_worker: %s %s:%s\n".cstring(), target.cstring(), host.cstring(), service.cstring())
       let reporter = MetricsReporter(_app_name,
         _worker_name, _metrics_conn)
-      try
-        let builder = OutgoingBoundaryBuilder(_auth, _worker_name,
-          consume reporter, host, service, _router_registry as RouterRegistry,
-          _spike_config)
-        let boundary = builder.build_and_initialize(boundary_id, target,
-          local_topology_initializer)
-        _register_disposable(boundary)
-        local_topology_initializer.add_boundary_to_joining_worker(target,
-          boundary, builder)
-      else
-        Fail()
-      end
+      let builder = OutgoingBoundaryBuilder(_auth, _worker_name,
+        consume reporter, host, service, _spike_config)
+      let boundary = builder.build_and_initialize(boundary_id, target,
+        local_topology_initializer)
+      _register_disposable(boundary)
+      local_topology_initializer.add_boundary_to_joining_worker(target,
+        boundary, builder)
     else
       @printf[I32]("Can't find data address for worker\n".cstring())
       Fail()
@@ -717,35 +708,27 @@ actor Connections is Cluster
   =>
     @printf[I32]("SLF: _create_data_connection: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _data_addrs(target_name) = (host, service)
-    try
-      let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
-        MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
-        _router_registry as RouterRegistry, _spike_config)
-      let outgoing_boundary = boundary_builder(_step_id_gen(), target_name)
-      _data_conn_builders(target_name) = boundary_builder
-      _register_disposable(outgoing_boundary)
-      _data_conns(target_name) = outgoing_boundary
-    else
-      Fail()
-    end
+    let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
+      MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
+      _spike_config)
+    let outgoing_boundary = boundary_builder(_step_id_gen(), target_name)
+    _data_conn_builders(target_name) = boundary_builder
+    _register_disposable(outgoing_boundary)
+    _data_conns(target_name) = outgoing_boundary
 
   be create_data_connection_to_joining_worker(target_name: String,
     host: String, service: String, li: LayoutInitializer)
   =>
     @printf[I32]("SLF: create_data_connection_to_joining_worker: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _data_addrs(target_name) = (host, service)
-    try
-      let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
-        MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
-        _router_registry as RouterRegistry, _spike_config)
-      let outgoing_boundary =
-        boundary_builder.build_and_initialize(_step_id_gen(), target_name, li)
-      _data_conn_builders(target_name) = boundary_builder
-      _register_disposable(outgoing_boundary)
-      _data_conns(target_name) = outgoing_boundary
-    else
-      Fail()
-    end
+    let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
+      MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
+      _spike_config)
+    let outgoing_boundary =
+      boundary_builder.build_and_initialize(_step_id_gen(), target_name, li)
+    _data_conn_builders(target_name) = boundary_builder
+    _register_disposable(outgoing_boundary)
+    _data_conns(target_name) = outgoing_boundary
 
   be update_boundary_ids(boundary_ids: Map[String, U128] val) =>
     for (worker, boundary) in _data_conns.pairs() do

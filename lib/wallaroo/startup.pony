@@ -335,7 +335,6 @@ actor Startup
         _startup_options.stop_the_world_pause, _is_joining)
       router_registry.set_event_log(event_log)
       event_log.set_router_registry(router_registry)
-      connections.set_router_registry(router_registry)
 
       (let control_host, let control_service, let data_service) =
         if _startup_options.is_initializer then
@@ -516,7 +515,6 @@ actor Startup
         _startup_options.stop_the_world_pause, _is_joining, m.sender_name)
       router_registry.set_event_log(event_log)
       event_log.set_router_registry(router_registry)
-      connections.set_router_registry(router_registry)
 
       let recovery_replayer = RecoveryReplayer(auth,
         _startup_options.worker_name, _startup_options.my_d_service,
