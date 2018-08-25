@@ -906,7 +906,8 @@ actor Connections is Cluster
         let old_builder = _data_conn_builders(worker_name)?
         (let auth, _, let reporter, _, _, _, let spike_config) =
           old_builder.get_state()
-        let new_builder = OutgoingBoundaryBuilder(auth, worker_name,
+        // Create a builder with *local* worker name in 2nd arg.
+        let new_builder = OutgoingBoundaryBuilder(auth, _worker_name,
           reporter.clone(), host, service, this, spike_config)
         _data_conn_builders(worker_name) = new_builder
         let outgoing_boundary = new_builder(_step_id_gen(), worker_name)

@@ -56,7 +56,7 @@ use @pony_asio_event_destroy[None](event: AsioEventID)
 
 class val OutgoingBoundaryBuilder
   let _auth: AmbientAuth
-  let _worker_name: String
+  let _worker_name: String // Local worker name, not peer's name!
   let _reporter: MetricsReporter val
   let _host: String
   let _service: String
