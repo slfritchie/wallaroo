@@ -91,7 +91,9 @@ actor RecoveryReplayer
     dr: DataReceiver)
   =>
     try
+      @printf[I32]("SLF: RecoveryReplayer: data_receiver_added: top, worker %s boundary_step_id %lx dr 0x%lx\n".cstring(), worker.cstring(), boundary_step_id, dr)
       _replay_phase.add_reconnected_boundary(worker, boundary_step_id)?
+      @printf[I32]("SLF: RecoveryReplayer: data_receiver_added: bottom\n".cstring())
     else
       _print_replay_phase_error()
       Fail()
