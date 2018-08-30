@@ -3,9 +3,10 @@
 . ./COMMON.sh
 
 ./99-stop-everything.sh
-ssh -n $USER@$SERVER1_EXT "rm -f /tmp/market-spread*"
-ssh -n $USER@$SERVER2_EXT "rm -f /tmp/market-spread*"
-ssh -n $USER@$SERVER3_EXT "rm -f /tmp/market-spread*"
+ssh -n $USER@$SERVER1_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
+ssh -n $USER@$SERVER2_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
+ssh -n $USER@$SERVER3_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
+ssh -n $USER@$SERVER4_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
 
 . ./START-DOS-SERVER.sh
 
@@ -26,7 +27,7 @@ ssh -n $USER@$SERVER2_EXT "cd wallaroo ; ./testing/performance/apps/market-sprea
 sleep 2
 
 echo Start worker3
-ssh -n $USER@$SERVER3_EXT "cd wallaroo ; ./testing/performance/apps/market-spread/market-spread -i ${SERVER1}:7000,${SERVER1}:7001 -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker3 --my-control ${SERVER3}:13131 --my-data ${SERVER3}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/market-spread2.out 2>&1" &
+ssh -n $USER@$SERVER3_EXT "cd wallaroo ; ./testing/performance/apps/market-spread/market-spread -i ${SERVER1}:7000,${SERVER1}:7001 -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker3 --my-control ${SERVER3}:13131 --my-data ${SERVER3}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/market-spread3.out 2>&1" &
 sleep 2
 
 for i in $SERVER1_EXT $SERVER2_EXT $SERVER3_EXT; do

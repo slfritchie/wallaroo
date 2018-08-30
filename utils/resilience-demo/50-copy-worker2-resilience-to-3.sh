@@ -8,8 +8,9 @@ if [ $RESTORE_VIA_JOURNAL_DUMP = y ]; then
     ssh -A -n $USER@$SERVER3_EXT "rsync -raH -v -e 'ssh -o \"StrictHostKeyChecking no\"' ${DOS_SERVER}:/tmp/dos-data/worker2/\* /tmp"
 
     echo Extract journalled I/O ops from the journal file
+    ssh -n $USER@$SERVER3_EXT "echo BEFORE ; ls -l /tmp/mar*"
     ssh -n $USER@$SERVER3_EXT "cd wallaroo ; python ./utils/journal-dump/journal-dump.py /tmp/market-spread-worker2.journal"
-    ssh -n $USER@$SERVER3_EXT "ls -l /tmp/mar*"
+    ssh -n $USER@$SERVER3_EXT "echo AFTER ; ls -l /tmp/mar*"
     sleep 3
 else
     echo

@@ -3,9 +3,9 @@
 . ./COMMON.sh
 
 ./99-stop-everything.sh
-ssh -n $USER@$SERVER1_EXT "rm -f /tmp/market-spread*"
-ssh -n $USER@$SERVER2_EXT "rm -f /tmp/market-spread*"
-ssh -n $USER@$SERVER3_EXT "rm -f /tmp/market-spread*"
+ssh -n $USER@$SERVER1_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
+ssh -n $USER@$SERVER2_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
+ssh -n $USER@$SERVER3_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*"
 
 . ./START-DOS-SERVER.sh
 
