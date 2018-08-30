@@ -747,9 +747,12 @@ actor Startup
         let j_local = recover iso
           SimpleJournalBackendLocalFile(the_journal_filepath) end
 
+        let dos_host = _startup_options.dos_host
+        let dos_service = _startup_options.dos_service
         let make_dos = recover val
-          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient =>
-            DOSclient(auth, "localhost", "9999", rjc, usedir_name)
+          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
+          =>
+            DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
           } end
         let rjc = RemoteJournalClient(auth,
           the_journal_filepath, the_journal_basename, usedir_name, make_dos)

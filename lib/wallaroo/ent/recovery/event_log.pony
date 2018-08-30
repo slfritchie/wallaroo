@@ -39,6 +39,8 @@ class val EventLogConfig
   let suffix: String
   let do_local_file_io: Bool
   let worker_name: String
+  let dos_host: String
+  let dos_service: String
 
   new val create(log_dir': (FilePath | AmbientAuth | None) = None,
     filename': (String val | None) = None,
@@ -47,7 +49,9 @@ class val EventLogConfig
     log_rotation': Bool = false,
     suffix': String = ".evlog",
     do_local_file_io': Bool = true,
-    worker_name': String = "unknown worker name")
+    worker_name': String = "unknown worker name",
+    dos_host': String = "localhost",
+    dos_service': String = "9999")
   =>
     filename = filename'
     log_dir = log_dir'
@@ -57,6 +61,8 @@ class val EventLogConfig
     suffix = suffix'
     do_local_file_io = do_local_file_io'
     worker_name = worker_name'
+    dos_host = dos_host'
+    dos_service = dos_service'
 
 actor EventLog is SimpleJournalAsyncResponseReceiver
   let _resilients: Map[StepId, Resilient] = _resilients.create()
@@ -90,8 +96,9 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
             | let ld: FilePath =>
               RotatingFileBackend(ld, f, _config.suffix, this,
                 _config.backend_file_length, _the_journal, _auth,
-                _config.worker_name,
-                _config.do_local_file_io where rotation_enabled = true)?
+                _config.worker_name, _config.do_local_file_io,
+                _config.dos_host, _config.dos_service
+                where rotation_enabled = true)?
             else
               Fail()
               DummyBackend(this)
@@ -101,13 +108,15 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
             | let ld: FilePath =>
               RotatingFileBackend(ld, f, "", this,
                 _config.backend_file_length, _the_journal, _auth,
-                _config.worker_name,
-                _config.do_local_file_io where rotation_enabled = false)?
+                _config.worker_name, _config.do_local_file_io,
+                _config.dos_host, _config.dos_service
+                where rotation_enabled = false)?
             | let ld: AmbientAuth =>
               RotatingFileBackend(FilePath(ld, f)?, f, "", this,
                 _config.backend_file_length, _the_journal, _auth,
-                _config.worker_name,
-                _config.do_local_file_io where rotation_enabled = false)?
+                _config.worker_name, _config.do_local_file_io,
+                _config.dos_host, _config.dos_service
+                where rotation_enabled = false)?
             else
               Fail()
               DummyBackend(this)

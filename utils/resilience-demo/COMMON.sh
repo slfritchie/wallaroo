@@ -12,3 +12,5 @@ SERVER4=10.0.103.78
 USER=ubuntu # We're using an Ubuntu AMI @ AWS EC2
 REPO_URL=https://github.com/slfritchie/wallaroo.git
 REPO_BRANCH=slf-file-io-journal6
+USE_DOS_SERVER=y
+DOS_SERVER=54.210.136.72:9999

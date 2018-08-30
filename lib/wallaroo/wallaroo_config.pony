@@ -49,6 +49,8 @@ class StartupOptions
   var a_arg: (String | None) = None
   var stop_the_world_pause: U64 = 2_000_000_000
   var spike_config: (SpikeConfig | None) = None
+  var dos_host: String = "localhost"
+  var dos_service: String = "9999"
 
 primitive WallarooConfig
   fun application_args(args: Array[String] val): Array[String] val ? =>
@@ -92,6 +94,7 @@ primitive WallarooConfig
       .add("cluster-initializer", "t", None)
       .add("name", "n", StringArgument)
       .add("resilience-dir", "r", StringArgument)
+      .add("resilience-dos-server", "", StringArgument)
       .add("resilience-no-local-file-io", "", None)
       .add("resilience-disable-io-journal", "", None)
       .add("log-rotation", "", None)
@@ -110,7 +113,6 @@ primitive WallarooConfig
     end
 
     if include_input_addrs then
-@printf[I32]("SLF: hey 1\n".cstring())
       options.add("in", "i", StringArgument)
     end
 
@@ -121,7 +123,6 @@ primitive WallarooConfig
       | ("metrics", let arg: String) =>
         so.m_arg = arg.split(":")
       | ("in", let arg: String) =>
-@printf[I32]("SLF: hey 2\n".cstring())
         let i_addrs_write = recover trn Array[Array[String]] end
         for addr in arg.split(",").values() do
           i_addrs_write.push(addr.split(":"))
@@ -165,6 +166,10 @@ primitive WallarooConfig
         else
           so.resilience_dir = arg
         end
+      | ("resilience-dos-server", let arg: String) =>
+        let a = arg.split(":")
+        so.dos_host = a(0)?
+        so.dos_service = a(1)?
       | ("resilience-no-local-file-io", let arg: None) =>
         so.do_local_file_io = false
       | ("resilience-disable-io-journal", let arg: None) =>
@@ -240,13 +245,6 @@ primitive WallarooConfig
         "|||\n").cstring())
       @printf[I32](("|||Spike margin: " + sc.margin.string() +
         "|||\n").cstring())
-    end
-
-    var o = Options(options.remaining(), false)
-@printf[I32]("SLF: hey 3, size of input_addrs = %d\n".cstring(), so.input_addrs.size())
-@printf[I32]("SLF: hey 3b, size of options.remaining() = %d\n".cstring(), options.remaining().size())
-    for yyy in options.remaining().values() do
-      @printf[I32]("SLF: hey 4, options remaining = %s\n".cstring(), yyy.cstring())
     end
 
     (so, options.remaining())

@@ -300,7 +300,7 @@ if __name__ == "__main__":
     (_, base_dir) = sys.argv
 
     # Port 0 means to select an arbitrary unused port
-    HOST, PORT = "localhost", 9999
+    HOST, PORT = "", 9999
 
     server = ThreadedTCPServer((HOST, PORT), DOS_Server)
     server.allow_reuse_address = True
