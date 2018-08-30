@@ -41,6 +41,7 @@ actor RecoveryReconnecter
     worker.
   """
   let _worker_name: String
+  let _data_service: String
   let _auth: AmbientAuth
   var _reconnect_phase: _ReconnectPhase = _EmptyReconnectPhase
   // We keep track of all steps so we can tell them when to clear
@@ -55,11 +56,12 @@ actor RecoveryReconnecter
   var _reconnected_boundaries: Map[String, SetIs[RoutingId]] =
     _reconnected_boundaries.create()
 
-  new create(auth: AmbientAuth, worker_name: String,
+  new create(auth: AmbientAuth, worker_name: String, data_service: String,
     data_receivers: DataReceivers, router_registry: RouterRegistry,
     cluster: Cluster, is_recovering: Bool = false)
   =>
     _worker_name = worker_name
+    _data_service = data_service
     _auth = auth
     _data_receivers = data_receivers
     _router_registry = router_registry
@@ -152,7 +154,8 @@ actor RecoveryReconnecter
     _reconnect_phase = _WaitForReconnections(expected_boundaries,
       reconnected_boundaries, this)
     try
-      let msg = ChannelMsgEncoder.reconnect_data_port(_worker_name, _auth)?
+      let msg = ChannelMsgEncoder.reconnect_data_port(_worker_name,
+        _data_service, _auth)?
       _cluster.send_control_to_cluster(msg)
     else
       Fail()

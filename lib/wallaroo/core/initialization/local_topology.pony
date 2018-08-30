@@ -2137,6 +2137,8 @@ actor LocalTopologyInitializer is LayoutInitializer
       for builder in sl_builders.values() do
         let sl = builder(_state_step_creator, _env)
         _router_registry.register_source_listener(sl)
+        @printf[I32]("SLF: local_topology.pony _spin_up_source_listeners sl 0x%lx\n".cstring(), sl)
+        _connections.register_source_listener(sl)
       end
     end
 
