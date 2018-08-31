@@ -73,7 +73,6 @@ actor TCPSource is Source
   let _outputs: Map[RoutingId, Consumer] = _outputs.create()
   let _outgoing_boundaries: Map[String, OutgoingBoundary] =
     _outgoing_boundaries.create()
-  var _outgoing_boundary_builders: Map[String, OutgoingBoundaryBuilder] val
   let _layout_initializer: LayoutInitializer
   var _unregistered: Bool = false
 
@@ -151,11 +150,9 @@ actor TCPSource is Source
     _layout_initializer = layout_initializer
     _router_registry = router_registry
     _state_step_creator = state_step_creator
-    _outgoing_boundary_builders = outgoing_boundary_builders
 
     for (target_worker_name, builder) in outgoing_boundary_builders.pairs() do
       if not _outgoing_boundaries.contains(target_worker_name) then
-        @printf[I32]("SLF: tcp_source.pony _accept: target_worker_name %s not contains, build_and_initialize\n".cstring(), target_worker_name.cstring())
         let new_boundary =
           builder.build_and_initialize(_routing_id_gen(), target_worker_name,
             _layout_initializer)
@@ -336,14 +333,8 @@ actor TCPSource is Source
     don't yet have a boundary to. Each TCPSource has its own
     OutgoingBoundary to each worker to allow for higher throughput.
     """
-    _add_boundary_builders(boundary_builders)
-
-  fun ref _add_boundary_builders(
-    boundary_builders: Map[String, OutgoingBoundaryBuilder] val)
-  =>
     for (target_worker_name, builder) in boundary_builders.pairs() do
       if not _outgoing_boundaries.contains(target_worker_name) then
-        @printf[I32]("SLF: tcp_source.pony add_boundary_builders: target_worker_name %s not contains, build_and_initialize\n".cstring(), target_worker_name.cstring())
         let boundary = builder.build_and_initialize(_routing_id_gen(),
           target_worker_name, _layout_initializer)
         _router_registry.register_disposable(boundary)
@@ -359,31 +350,6 @@ actor TCPSource is Source
     //!@ Should we fail here?
     None
 
-  be update_boundary_builders(
-    boundary_builders: Map[String, OutgoingBoundaryBuilder] val)
-  =>
-    @printf[I32]("SLF: TCPSource: update_boundary_builders: top\n".cstring())
-    for (worker_name, bb) in _outgoing_boundary_builders.pairs() do
-      if boundary_builders.contains(worker_name) then
-        @printf[I32]("SLF: TCPSource: update_boundary_builders: worker_name %s...\n".cstring(), worker_name.cstring())
-        try
-          let new_bb = boundary_builders(worker_name)?
-          if not (new_bb is bb) then
-            // Dispose of the current boundary, make a new boundary
-            // via _add_boundary_builders().
-            let old_boundary = _outgoing_boundaries(worker_name)?
-            _remove_boundary(worker_name)
-            old_boundary.dispose()
-          else
-            @printf[I32]("SLF: TCPSource: update_boundary_builders: worker %s has NOT changed\n".cstring(), worker_name.cstring())
-          end
-        else
-          Fail()
-        end
-      end
-    end
-    _add_boundary_builders(boundary_builders)
-
   be remove_boundary(worker: String) =>
     _remove_boundary(worker)
 
@@ -392,8 +358,7 @@ actor TCPSource is Source
 
   be reconnect_boundary(target_worker_name: String) =>
     try
-      @printf[I32]("SLF: TCPSource: reconnect_boundary 0x%lx %s with old host & service\n".cstring(), _outgoing_boundaries(target_worker_name)?, target_worker_name.cstring())
-      _outgoing_boundaries(target_worker_name)?.reconnect("", "")
+      _outgoing_boundaries(target_worker_name)?.reconnect()
     else
       Fail()
     end

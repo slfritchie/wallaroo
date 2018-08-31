@@ -224,15 +224,8 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
           @printf[I32]("Received ReconnectDataPortMsg on Control Channel\n"
             .cstring())
         end
-        try
-          (let host, _) = conn.remote_address().name()?
-          _connections.reconnect_data_connection(m.worker_name, host, m.service)
-          _router_registry.reconnect_source_boundaries(m.worker_name)
-        else
-          // Our TCP connection was broken before we tried remote_address(),
-          // ignore this case.
-          None
-        end
+        _connections.reconnect_data_connection(m.worker_name)
+        _router_registry.reconnect_source_boundaries(m.worker_name)
       | let m: ReplayBoundaryCountMsg =>
         ifdef "trace" then
           @printf[I32]("Received ReplayBoundaryCountMsg on Control Channel\n"

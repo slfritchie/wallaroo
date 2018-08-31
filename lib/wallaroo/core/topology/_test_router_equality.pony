@@ -63,8 +63,8 @@ class iso _TestTargetIdRouterEquality is UnitTest
     let step1 = _StepGenerator(auth, event_log, recovery_replayer)
     let step2 = _StepGenerator(auth, event_log, recovery_replayer)
 
-    let boundary2 = _BoundaryGenerator(h.env, "w1", auth)
-    let boundary3 = _BoundaryGenerator(h.env, "w1", auth)
+    let boundary2 = _BoundaryGenerator("w1", auth)
+    let boundary3 = _BoundaryGenerator("w1", auth)
 
     let target_workers = recover val ["w2"; "w3"] end
 
@@ -236,10 +236,9 @@ primitive _StepGenerator
       _StateStepCreatorGenerator(auth))
 
 primitive _BoundaryGenerator
-  fun apply(env: Env, worker_name: String, auth: AmbientAuth): OutgoingBoundary =>
+  fun apply(worker_name: String, auth: AmbientAuth): OutgoingBoundary =>
     OutgoingBoundary(auth, worker_name, "",
-      MetricsReporter("", "", _NullMetricsSink), "", "",
-      _ConnectionsGenerator(env, auth))
+      MetricsReporter("", "", _NullMetricsSink), "", "")
 
 primitive _RouterRegistryGenerator
   fun apply(env: Env, auth: AmbientAuth): RouterRegistry =>
@@ -277,7 +276,7 @@ primitive _ConnectionsGenerator
 
 primitive _RecoveryReconnecterGenerator
   fun apply(env: Env, auth: AmbientAuth): RecoveryReconnecter =>
-    RecoveryReconnecter(auth, "", "", _DataReceiversGenerator(env, auth),
+    RecoveryReconnecter(auth, "", _DataReceiversGenerator(env, auth),
       _RouterRegistryGenerator(env, auth), _Cluster)
 
 primitive _StatelessPartitionGenerator

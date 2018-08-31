@@ -24,7 +24,7 @@ use "wallaroo/core/data_channel"
 use "wallaroo/core/initialization"
 use "wallaroo/core/messages"
 use "wallaroo/core/metrics"
-use "wallaroo/core/source"
+use "wallaroo/core/source/tcp_source"
 use "wallaroo/core/topology"
 use "wallaroo/ent/data_receiver"
 use "wallaroo/ent/recovery"
@@ -62,8 +62,6 @@ actor Connections is Cluster
   let _spike_config: (SpikeConfig | None)
   let _event_log: EventLog
   let _log_rotation: Bool
-  let _source_listeners: SetIs[SourceListener] =
-    _source_listeners.create()
 
   new create(app_name: String, worker_name: String,
     auth: AmbientAuth, c_host: String, c_service: String,
@@ -632,15 +630,11 @@ actor Connections is Cluster
     let control_conn: TCPConnection =
       TCPConnection(_auth, consume control_notifier, host, service)
 
-  be reconnect_data_connection(target_name: String,
-    target_host: String, target_service: String)
-  =>
-    @printf[I32]("SLF: connections reconnect_data_connection: %s %s:%s\n".cstring(), target_name.cstring(), target_host.cstring(), target_service.cstring())
+  be reconnect_data_connection(target_name: String) =>
     if _data_conns.contains(target_name) then
       try
-        _data_addrs(target_name) = (target_host, target_service)
         let outgoing_boundary = _data_conns(target_name)?
-        outgoing_boundary.reconnect(target_host, target_service)
+        outgoing_boundary.reconnect()
       end
     else
       @printf[I32]("Target: %s not found in data connection map!\n".cstring(),
@@ -651,17 +645,15 @@ actor Connections is Cluster
   be create_data_connection(target_name: String, host: String,
     service: String)
   =>
-    @printf[I32]("SLF: create_data_connection: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _create_data_connection(target_name, host, service)
 
   fun ref _create_data_connection(target_name: String, host: String,
     service: String)
   =>
-    @printf[I32]("SLF: _create_data_connection: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _data_addrs(target_name) = (host, service)
     let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
       MetricsReporter(_app_name, _worker_name, _metrics_conn), host, service,
-      this, _spike_config)
+      _spike_config)
     let outgoing_boundary = boundary_builder(_routing_id_gen(), target_name)
     _data_conn_builders(target_name) = boundary_builder
     _register_disposable(outgoing_boundary)
@@ -672,11 +664,10 @@ actor Connections is Cluster
     state_routing_ids: Map[StateName, RoutingId] val,
     lti: LocalTopologyInitializer)
   =>
-    @printf[I32]("SLF: create_data_connection_to_joining_worker: %s %s:%s\n".cstring(), target_name.cstring(), host.cstring(), service.cstring())
     _data_addrs(target_name) = (host, service)
     let reporter = MetricsReporter(_app_name, _worker_name, _metrics_conn)
     let boundary_builder = OutgoingBoundaryBuilder(_auth, _worker_name,
-      consume reporter, host, service, this, _spike_config)
+      consume reporter, host, service, _spike_config)
     let outgoing_boundary =
       boundary_builder.build_and_initialize(new_boundary_id, target_name, lti)
     _data_conn_builders(target_name) = boundary_builder
@@ -844,47 +835,4 @@ actor Connections is Cluster
     else
       @printf[I32]("WARNING: LogRotation requested, but log_rotation is off!\n"
         .cstring())
-    end
-
-  be register_source_listener(listen: SourceListener tag) =>
-    @printf[I32]("SLF: Connections: register_source_listener 0x%lx\n".cstring(), listen)
-    _source_listeners.set(listen)
-    _register_disposable(listen)
-
-  be update_worker_data_addrs(worker_name: String, host: String, service: String)
-  =>
-    @printf[I32]("SLF: Connections: update_worker_data_channel_info worker %s info %s:%s\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
-    _data_addrs(worker_name) = (host, service)
-
-    if _data_conn_builders.contains(worker_name) then
-      try
-        let old_builder = _data_conn_builders(worker_name)?
-        (let auth, _, let reporter, _, _, _, let spike_config) =
-          old_builder.get_state()
-        // Create a builder with *local* worker name in 2nd arg.
-        let new_builder = OutgoingBoundaryBuilder(auth, _worker_name,
-          reporter.clone(), host, service, this, spike_config)
-        _data_conn_builders(worker_name) = new_builder
-        let outgoing_boundary = new_builder(_routing_id_gen(), worker_name)
-        _data_conns(worker_name) = outgoing_boundary
-
-        @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s update OutgoingBoundaryBuilder, disseminate to listeners and their connections\n".cstring(), worker_name.cstring(), host.cstring(), service.cstring())
-
-        let boundary_builders =
-          recover trn Map[String, OutgoingBoundaryBuilder] end
-        for (worker, builder) in _data_conn_builders.pairs() do
-          boundary_builders(worker) = builder
-        end
-
-        let boundary_builders_to_send = consume val boundary_builders
-
-        for sl in _source_listeners.values() do
-        @printf[I32]("SLF: Connections: TODO update_worker_data_channel_info worker %s sl 0x%x\n".cstring(), worker_name.cstring(), sl)
-          sl.update_boundary_builders(boundary_builders_to_send)
-        end
-      else
-        Fail()
-      end
-    else
-      Fail()
     end

@@ -59,29 +59,25 @@ use @pony_asio_event_destroy[None](event: AsioEventID)
 
 class val OutgoingBoundaryBuilder
   let _auth: AmbientAuth
-  let _worker_name: String // Local worker name, not peer's name!
+  let _worker_name: String
   let _reporter: MetricsReporter val
   let _host: String
   let _service: String
-  let _connections: Connections
   let _spike_config: (SpikeConfig | None)
 
   new val create(auth: AmbientAuth, name: String, r: MetricsReporter iso,
-    h: String, s: String, connections: Connections,
-    spike_config: (SpikeConfig | None) = None)
+    h: String, s: String, spike_config: (SpikeConfig | None) = None)
   =>
     _auth = auth
     _worker_name = name
     _reporter = consume r
     _host = h
     _service = s
-    _connections = connections
     _spike_config = spike_config
 
   fun apply(step_id: RoutingId, target_worker: String): OutgoingBoundary =>
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host, _service, _connections
-      where spike_config = _spike_config)
+      _reporter.clone(), _host, _service where spike_config = _spike_config)
     boundary.register_step_id(step_id)
     boundary
 
@@ -92,16 +88,10 @@ class val OutgoingBoundaryBuilder
     Called when creating a boundary post cluster initialization
     """
     let boundary = OutgoingBoundary(_auth, _worker_name, target_worker,
-      _reporter.clone(), _host, _service, _connections
-       where spike_config = _spike_config)
+      _reporter.clone(), _host, _service where spike_config = _spike_config)
     boundary.register_step_id(step_id)
     boundary.quick_initialize(layout_initializer)
     boundary
-
-  fun get_state():
-    (AmbientAuth, String, MetricsReporter val, String, String, Connections, (SpikeConfig|None))
-  =>
-    (_auth, _worker_name, _reporter, _host, _service, _connections, _spike_config)
 
 actor OutgoingBoundary is Consumer
   // Steplike
@@ -152,22 +142,20 @@ actor OutgoingBoundary is Consumer
   let _worker_name: WorkerName
   let _target_worker: WorkerName
   var _step_id: RoutingId = 0
-  var _host: String
-  var _service: String
+  let _host: String
+  let _service: String
   let _from: String
   let _queue: Array[Array[ByteSeq] val] = _queue.create()
   var _lowest_queue_id: SeqId = 0
   // TODO: this should go away and TerminusRoute entirely takes
   // over seq_id generation whether there is resilience or not.
   var _seq_id: SeqId = 0
-  let _connections: Connections
 
   var _reconnect_pause: U64 = 10_000_000_000
   let _timers: Timers = Timers
 
   new create(auth: AmbientAuth, worker_name: String, target_worker: String,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
-    connections: Connections,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
     spike_config:(SpikeConfig | None) = None)
   =>
@@ -192,7 +180,6 @@ actor OutgoingBoundary is Consumer
     _target_worker = target_worker
     _host = host
     _service = service
-    _connections = connections
     _from = from
     _metrics_reporter = consume metrics_reporter
     _read_buf = recover Array[U8].>undefined(init_size) end
@@ -263,15 +250,8 @@ actor OutgoingBoundary is Consumer
       end
     end
 
-  be reconnect(host: String, service: String) =>
+  be reconnect() =>
     if not _connected and not _no_more_reconnect then
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s OLD %s:%s from %s\n".cstring(), this, _target_worker.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
-      if ((host != "") and (service != "")) then
-        _host = host
-        _service = service
-        _connections.update_worker_data_addrs(_target_worker, host, service)
-      end
-      @printf[I32]("SLF: hey OutgoingBoundary 0x%lx reconnect worker %s NEW %s:%s from %s\n".cstring(), this, _target_worker.cstring(), _host.cstring(), _service.cstring(), _from.cstring())
       _connect_count = @pony_os_connect_tcp[U32](this,
         _host.cstring(), _service.cstring(),
         _from.cstring())
@@ -1231,5 +1211,5 @@ class _PauseBeforeReconnect is TimerNotify
     _ob = ob
 
   fun ref apply(timer: Timer, count: U64): Bool =>
-    _ob.reconnect("", "")
+    _ob.reconnect()
     false

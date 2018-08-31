@@ -28,7 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-use "net" // SLF: Debugging only, remove this line
 use "collections"
 use "wallaroo/core/boundary"
 use "wallaroo/core/common"
@@ -67,7 +66,6 @@ actor TCPSourceListener is SourceListener
   let _event_log: EventLog
   let _state_step_creator: StateStepCreator
   let _target_router: Router
-  let _disposables: SetIs[DisposableActor] = _disposables.create()
 
   new create(env: Env, source_builder: SourceBuilder, router: Router,
     router_registry: RouterRegistry,
@@ -147,16 +145,6 @@ actor TCPSourceListener is SourceListener
   =>
     _outgoing_boundary_builders = boundary_builders
 
-    // Forward the new builders to all listeners
-    @printf[I32]("SLF: tcp_source_listener.pony update_boundary_builders: _disposables.size() = %d\n".cstring(), _disposables.size())
-    for d in _disposables.values() do
-      try
-        (d as TCPSource).update_boundary_builders(_outgoing_boundary_builders)
-      else
-        Fail()
-      end
-    end
-
   be remove_boundary(worker: String) =>
     let new_boundary_builders =
       recover iso Map[String, OutgoingBoundaryBuilder] end
@@ -169,9 +157,6 @@ actor TCPSourceListener is SourceListener
   be dispose() =>
     @printf[I32]("Shutting down TCPSourceListener\n".cstring())
     _close()
-    for d in _disposables.values() do
-      d.dispose()
-    end
 
   be _event_notify(event: AsioEventID, flags: U32, arg: U32) =>
     """
@@ -230,7 +215,6 @@ actor TCPSourceListener is SourceListener
     """
     try
       let source_id = _routing_id_gen()
-      try let ip = recover NetAddress end;  @pony_os_sockname[Bool](_fd, ip); (let qqq_host, let qqq_port) = ip.name()?; @printf[I32]("SLF: tcp_source_listener.pony _spawn: calling tcp_source._accept() for sock %d: %s:%s\n".cstring(), ns, qqq_host.cstring(), qqq_port.cstring()) end
       let source = TCPSource._accept(source_id, _auth, this,
         _notify_connected(source_id)?, _event_log, _router,
         _outgoing_boundary_builders, _layout_initializer,
@@ -249,7 +233,6 @@ actor TCPSourceListener is SourceListener
           spr.partition_id(), source)
       end
       _count = _count + 1
-      _register_disposable(source)
     else
       @pony_os_socket_close[None](ns)
     end
@@ -299,6 +282,3 @@ actor TCPSourceListener is SourceListener
       @pony_os_socket_close[None](_fd)
       _fd = -1
     end
-
-  fun ref _register_disposable(d: DisposableActor) =>
-    _disposables.set(d)
