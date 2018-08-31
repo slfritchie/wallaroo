@@ -613,7 +613,7 @@ actor OutgoingBoundary is Consumer
     host: String, service: String)
   =>
     @printf[I32]("SLF: OutgoingBoundary.update_worker_data_service: %s -> %s %s\n".cstring(), worker.cstring(), host.cstring(), service.cstring())
-    if worker != _worker_name then
+    if worker != _target_worker then
       Fail()
     end
     _host = host
