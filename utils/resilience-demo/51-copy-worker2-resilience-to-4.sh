@@ -12,6 +12,9 @@ if [ $RESTORE_VIA_JOURNAL_DUMP = y ]; then
     ssh -n $USER@$SERVER4_EXT "cd wallaroo ; python ./utils/journal-dump/journal-dump.py /tmp/market-spread-worker2.journal"
     # ssh -n $USER@$SERVER4_EXT "echo AFTER ; ls -l /tmp/mar*"
     # sleep 3
+    echo Rename market-spread-worker2.evlog.journal '->' market-spread-worker2.evlog
+ssh -n $USER@$SERVER4_EXT "mv /tmp/market-spread-worker2.evlog.journal /tmp/market-spread-worker2.evlog"
+
 else
     echo
     echo "NOTE: rsync all resilience files directly from 'failed' worker (cheating)"
@@ -25,6 +28,3 @@ echo "NOTE: Kludge to fix up tcp-control and tcp-data files, TODO"
 echo
 
 ssh -n $USER@$SERVER4_EXT "(echo $SERVER4 ; echo 3131) > /tmp/market-spread-worker2.tcp-control ; (echo $SERVER4 ; echo 3132) > /tmp/market-spread-worker2.tcp-data"
-
-echo Rename market-spread-worker2.evlog.journal '->' market-spread-worker2.evlog
-ssh -n $USER@$SERVER4_EXT "mv /tmp/market-spread-worker2.evlog.journal /tmp/market-spread-worker2.evlog"

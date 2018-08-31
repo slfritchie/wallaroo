@@ -3,7 +3,7 @@
 . ./COMMON.sh
 
 ssh -n $USER@$SERVER1_EXT "git clone $REPO_URL"
-ssh -n $USER@$SERVER1_EXT "cd wallaroo ; git checkout $REPO_BRANCH"
+ssh -n $USER@$SERVER1_EXT "cd wallaroo ; git checkout $REPO_BRANCH ; git diff"
 
 if [ "$SKIP_CLEAN" = "" ]; then
     ssh -n $USER@$SERVER1_EXT "cd wallaroo ; make clean"
