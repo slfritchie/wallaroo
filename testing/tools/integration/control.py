@@ -122,6 +122,7 @@ class SinkAwaitValue(StoppableThread):
         self.func = func
 
     def run(self):
+        print 'SinkAwaitValue: values = %s' % self.values
         started = time.time()
         while not self.stopped():
             msgs = len(self.sink.data)
@@ -129,12 +130,15 @@ class SinkAwaitValue(StoppableThread):
                 while self.position < msgs:
                     for val in list(self.values):
                         sink_data = self.func(self.sink.data[self.position])
+                        print 'run: sink_data = %s, want = %s' % (sink_data, val)
                         if sink_data == val:
+                            print 'run: discard!'
                             self.values.discard(val)
                             logging.debug("{} matched on value {!r}."
                                           .format(self.name,
                                                   val))
                     if not self.values:
+                        print 'run: stop!'
                         self.stop()
                         break
                     self.position += 1

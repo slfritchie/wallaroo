@@ -111,6 +111,7 @@ class SingleSocketReceiver(StoppableThread):
             if not data:
                 self.stop()
             else:
+                print 'got: ', ''.join((header, data))
                 self.append(''.join((header, data)))
                 time.sleep(0.000001)
 
