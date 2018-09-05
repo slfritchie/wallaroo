@@ -19,14 +19,14 @@ ssh -n $USER@$SERVER1_EXT "cd wallaroo ; ./giles/receiver/receiver --ponythreads
 sleep 2
 
 echo Start initializer
-ssh -n $USER@$SERVER1_EXT "cd wallaroo ; ./testing/performance/apps/market-spread/market-spread -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -d ${SERVER1}:12501 -t -e ${SERVER1}:5050 -w 3 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/market-spread1.out 2>&1" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER1_EXT "cd wallaroo ; $WALLAROO_BIN -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -d ${SERVER1}:12501 -t -e ${SERVER1}:5050 -w 3 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/${WALLAROO_NAME}1.out 2>&1" > /dev/null 2>&1 &
 sleep 2
 
 echo Start worker2
-ssh -n $USER@$SERVER2_EXT "cd wallaroo ; ./testing/performance/apps/market-spread/market-spread -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker2 --my-control ${SERVER2}:13131 --my-data ${SERVER2}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/market-spread2.out 2>&1" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER2_EXT "cd wallaroo ; $WALLAROO_BIN -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker2 --my-control ${SERVER2}:13131 --my-data ${SERVER2}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/${WALLAROO_NAME}2.out 2>&1" > /dev/null 2>&1 &
 
 echo Start worker3
-ssh -n $USER@$SERVER3_EXT "cd wallaroo ; ./testing/performance/apps/market-spread/market-spread -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker3 --my-control ${SERVER3}:13131 --my-data ${SERVER3}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/market-spread3.out 2>&1" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER3_EXT "cd wallaroo ; $WALLAROO_BIN -i ${SERVER1}:${ORDERS_PORT},${SERVER1}:${NBBO_PORT} -o ${SERVER1}:5555 -m ${SERVER1}:5001 -c ${SERVER1}:12500 -n worker3 --my-control ${SERVER3}:13131 --my-data ${SERVER3}:13132 $W_DOS_SERVER_ARG --ponynoblock > /tmp/run-dir/${WALLAROO_NAME}3.out 2>&1" > /dev/null 2>&1 &
 
 sleep 1
 for i in $SERVER1_EXT $SERVER2_EXT $SERVER3_EXT; do
