@@ -15,21 +15,21 @@ num_start = int(sys.argv[2])
 num_end   = int(sys.argv[3])
 batch_size = int(sys.argv[4])
 interval = float(sys.argv[5])
+num_part_keys = int(sys.argv[6])
 
 print 'wallaroo_hostsvc = %s, num_start = %d, num_end = %d' % (wallaroo_hostsvc, num_start, num_end)
 
-sender0 = Sender(wallaroo_hostsvc,
-				 Reader(sequence_generator(start=num_start, stop=num_end,
-										   partition='key_0')),
-                 batch_size=batch_size, interval=interval, reconnect=True)
-sender1 = Sender(wallaroo_hostsvc,
-				 Reader(sequence_generator(start=num_start, stop=num_end,
-										   partition='key_1')),
-                 batch_size=batch_size, interval=interval, reconnect=True)
-sender0.start()
-sender1.start()
+senders = []
+for p in range(0, num_part_keys):
+	sender = Sender(wallaroo_hostsvc,
+					Reader(sequence_generator(start=num_start, stop=num_end,
+											  partition='key_%d' % p)),
+                	batch_size=batch_size, interval=interval, reconnect=True)
+	senders.append(sender)
 
-sender0.join()
-sender1.join()
+for s in senders:
+	s.start()
+for s in senders:
+	s.join()
 
 sys.exit(0)
