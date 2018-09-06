@@ -15,27 +15,27 @@ fi
 
 if [ $RESTORE_VIA_JOURNAL_DUMP = y ]; then
     echo Rsync journal file from DOS server $DOS_SERVER to $TARGET
-    ssh -n $USER@$TARGET_EXT "rm -f /tmp/market-spread*"
+    ssh -n $USER@$TARGET_EXT "rm -f /tmp/${WALLAROO_NAME}*"
     ssh -A -n $USER@$TARGET_EXT "rsync -raH -v -e 'ssh -o \"StrictHostKeyChecking no\"' ${DOS_SERVER}:/tmp/dos-data/worker${SOURCE_WORKER}/\* /tmp"
 
     echo Extract journalled I/O ops from the journal file
     # ssh -n $USER@$TARGET_EXT "echo BEFORE ; ls -l /tmp/mar*"
-    ssh -n $USER@$TARGET_EXT "cd wallaroo ; python ./utils/journal-dump/journal-dump.py /tmp/market-spread-worker${SOURCE_WORKER}.journal"
+    ssh -n $USER@$TARGET_EXT "cd wallaroo ; python ./utils/journal-dump/journal-dump.py /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.journal"
     # ssh -n $USER@$TARGET_EXT "echo AFTER ; ls -l /tmp/mar*"
     # sleep 3
-    echo Rename market-spread-worker${SOURCE_WORKER}.evlog.journal '->' market-spread-worker${SOURCE_WORKER}.evlog
-ssh -n $USER@$TARGET_EXT "mv /tmp/market-spread-worker${SOURCE_WORKER}.evlog.journal /tmp/market-spread-worker${SOURCE_WORKER}.evlog"
+    echo Rename ${WALLAROO_NAME}-worker${SOURCE_WORKER}.evlog.journal '->' ${WALLAROO_NAME}-worker${SOURCE_WORKER}.evlog
+ssh -n $USER@$TARGET_EXT "mv /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.evlog.journal /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.evlog"
 
 else
     echo
     echo "NOTE: rsync all resilience files directly from 'failed' worker (cheating)"
     echo
 
-    ssh -A -n $USER@$TARGET_EXT "rsync -raH -v -e 'ssh -o \"StrictHostKeyChecking no\"' ${SOURCE}:/tmp/market-spread\* /tmp"
+    ssh -A -n $USER@$TARGET_EXT "rsync -raH -v -e 'ssh -o \"StrictHostKeyChecking no\"' ${SOURCE}:/tmp/${WALLAROO_NAME}\* /tmp"
 fi
 
 echo
 echo "NOTE: Kludge to fix up tcp-control and tcp-data files, TODO"
 echo
 
-ssh -n $USER@$TARGET_EXT "(echo $TARGET ; echo 3131) > /tmp/market-spread-worker${SOURCE_WORKER}.tcp-control ; (echo $TARGET ; echo 3132) > /tmp/market-spread-worker${SOURCE_WORKER}.tcp-data"
+ssh -n $USER@$TARGET_EXT "(echo $TARGET ; echo 3131) > /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.tcp-control ; (echo $TARGET ; echo 3132) > /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.tcp-data"
