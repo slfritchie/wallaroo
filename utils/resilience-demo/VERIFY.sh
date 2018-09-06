@@ -32,17 +32,21 @@ echo Kill worker2
 ./40-kill-worker.sh 2
 
 #### What we'd do to move worker2 from server 2 to server 3
-####./50-copy-worker-resilience.sh 2 2 3
-####./60-restart-worker.sh 2 3
+##./50-copy-worker-resilience.sh 2 2 3
+##./60-restart-worker.sh 2 3
 
 #### What we'd do to restart worker2 on server 2 but with a different TCP port.
-echo Kludge TCP files on server 2 for worker2
-env TARGET=$SERVER2 TARGET_EXT=$SERVER2_EXT SOURCE_WORKER=2 \
-  ./KLUDGE-TCP-FILES.sh
-ssh -n $USER@$SERVER2_EXT "mkdir -p /tmp/run-dir/OLD ; mv -v /tmp/run-dir/m* /tmp/run-dir/OLD"
+##echo Kludge TCP files on server 2 for worker2
+##env TARGET=$SERVER2 TARGET_EXT=$SERVER2_EXT SOURCE_WORKER=2 \
+##  ./KLUDGE-TCP-FILES.sh
+##ssh -n $USER@$SERVER2_EXT "mkdir -p /tmp/run-dir/OLD ; mv -v /tmp/run-dir/m* /tmp/run-dir/OLD"
+##echo Restart worker2 on server 2
+##./60-restart-worker.sh 2 2
 
-echo Restart worker2 on server 2
-./60-restart-worker.sh 2 2
+## What we'd do to restart worker2 on server 2 with same TCP ports
+echo Restart worker2 on server 2 with same TCP ports
+ssh -n $USER@$SERVER2_EXT "mkdir -p /tmp/run-dir/OLD ; mv -v /tmp/run-dir/m* /tmp/run-dir/OLD"
+./62-restart-worker-no-port-change.sh 2 2
 
 env START_SENDER_CMD="$START_SENDER_CMD2" START_SENDER_BG=n \
   ./30-start-sender.sh
