@@ -18,8 +18,6 @@ expect = int(sys.argv[2])
 num_part_keys = int(sys.argv[3])
 timeout = float(sys.argv[4])
 output_file = sys.argv[5]
-print 'sink_hostsvc = %s, expect = %d, num_part_keys = %d, timeout = %f output_file %s' % \
-	(sink_hostsvc, expect, num_part_keys, timeout, output_file)
 (sink_host, sink_port) = sink_hostsvc.split(":")
 
 of = open(output_file, 'w')

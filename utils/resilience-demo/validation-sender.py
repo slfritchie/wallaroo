@@ -17,8 +17,6 @@ batch_size = int(sys.argv[4])
 interval = float(sys.argv[5])
 num_part_keys = int(sys.argv[6])
 
-print 'wallaroo_hostsvc = %s, num_start = %d, num_end = %d' % (wallaroo_hostsvc, num_start, num_end)
-
 senders = []
 for p in range(0, num_part_keys):
 	sender = Sender(wallaroo_hostsvc,

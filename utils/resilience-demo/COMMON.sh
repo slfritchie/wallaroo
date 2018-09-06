@@ -54,9 +54,6 @@ if [ -z "$WALLAROO_BIN" ]; then
     WALLAROO_BIN=./testing/performance/apps/market-spread/market-spread
 fi
 WALLAROO_NAME=`basename $WALLAROO_BIN`
-if [ $WALLAROO_NAME = multi_partition_detector ]; then
-    WALLAROO_NAME="Multi Partition Detector"
-fi
 
 # TCP source sender control knobs, y/n = on/off
 # Override via environment: SEND_INITIAL_NBBO=y
