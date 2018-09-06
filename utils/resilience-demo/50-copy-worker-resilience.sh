@@ -38,4 +38,4 @@ echo
 echo "NOTE: Kludge to fix up tcp-control and tcp-data files, TODO"
 echo
 
-ssh -n $USER@$TARGET_EXT "(echo $TARGET ; echo 3131) > /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.tcp-control ; (echo $TARGET ; echo 3132) > /tmp/${WALLAROO_NAME}-worker${SOURCE_WORKER}.tcp-data"
+. ./KLUDGE-TCP-FILES.sh

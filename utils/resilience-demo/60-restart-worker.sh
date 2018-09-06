@@ -20,6 +20,12 @@ else
 fi
 
 for i in $SERVER1_EXT $TARGET_EXT; do
-    echo Check Wallaroo worker on $i
-    ssh -n $USER@$i "grep III /tmp/run-dir/mar*out"
+    /bin/echo -n "Check Wallaroo worker on ${i}: "
+    while [ 1 ]; do 
+        /bin/echo -n .
+        ssh -n $USER@$i "grep III /tmp/run-dir/${WALLAROO_NAME}*out"
+        if [ $? -eq 0 ]; then
+            break
+        fi
+    done
 done

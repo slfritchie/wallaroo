@@ -7,7 +7,13 @@ if [ ! -z "$START_SENDER_CMD" ]; then
     echo Start sender via external var
     CMD=`eval echo $START_SENDER_CMD`
     echo "CMD = $CMD"
-    ssh -n $USER@$SERVER1_EXT "cd wallaroo ; (date ; $CMD; date) > /tmp/run-dir/sender.`date +%s`.out 2>&1" > /dev/null 2>&1 &
+    if [ "$START_SENDER_BG" = n ]; then
+        BG=""
+    else
+        BG="&"
+    fi
+    ssh -n $USER@$SERVER1_EXT "cd wallaroo ; (date ; $CMD; date) > /tmp/run-dir/sender.`date +%s`.out 2>&1 $BG" > /dev/null 2>&1 $BG
+    : done yay
 else
     if [ "$SEND_INITIAL_NBBO" = y ]; then
         echo Run NBBO initial sender
@@ -24,3 +30,5 @@ else
         ssh -n $USER@$SERVER1_EXT "cd wallaroo ; ./giles/sender/sender -h ${SERVER1}:$NBBO_PORT -m 999000000 -s 10 -i 50_000_000 -f ./testing/data/market_spread/nbbo/350-symbols_nbbo-fixish.msg -r --ponythreads=1 -y -g 57 > /tmp/run-dir/sender.nbbo.`date +%s`.out 2>&1" > /dev/null 2>&1 &
     fi
 fi
+
+exit 0

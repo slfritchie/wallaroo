@@ -9,4 +9,4 @@ else
     eval 'TARGET_EXT=$SERVER'$1'_EXT'
 fi
 
-ssh -n $USER@$TARGET_EXT "killall -9v market-spread"
+ssh -n $USER@$TARGET_EXT "killall -9v $WALLAROO_NAME"
