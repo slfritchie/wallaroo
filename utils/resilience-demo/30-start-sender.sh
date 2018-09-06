@@ -2,7 +2,6 @@
 
 . ./COMMON.sh
 
-set -x
 if [ ! -z "$START_SENDER_CMD" ]; then
     echo Start sender via external var
     CMD=`eval echo $START_SENDER_CMD`

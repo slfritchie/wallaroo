@@ -3,9 +3,9 @@
 . ./COMMON.sh
 
 ./99-stop-everything.sh
-ssh -n $USER@$SERVER1_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*" > /dev/null 2>&1 &
-ssh -n $USER@$SERVER2_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*" > /dev/null 2>&1 &
-ssh -n $USER@$SERVER3_EXT "rm -f /tmp/market-spread* /tmp/run-dir/*" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER1_EXT "rm -f /tmp/${WALLAROO_NAME}* /tmp/run-dir/*" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER2_EXT "rm -f /tmp/${WALLAROO_NAME}* /tmp/run-dir/*" > /dev/null 2>&1 &
+ssh -n $USER@$SERVER3_EXT "rm -f /tmp/${WALLAROO_NAME}* /tmp/run-dir/*" > /dev/null 2>&1 &
 wait
 
 . ./START-DOS-SERVER.sh
