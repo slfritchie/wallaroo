@@ -357,7 +357,8 @@ actor LocalTopologyInitializer is LayoutInitializer
     _local_topology_file = local_topology_file
     _data_channel_file = data_channel_file
     _worker_names_file = worker_names_file
-    _local_keys_file = LocalKeysFile(local_keys_filepath)
+    _local_keys_file = LocalKeysFile(local_keys_filepath, the_journal, auth,
+      do_local_file_io)
     _the_journal = the_journal
     _do_local_file_io = do_local_file_io
     _cluster_manager = cluster_manager
