@@ -78,7 +78,7 @@ trait Backend
   fun bytes_written(): USize
 
 class EmptyBackend is Backend
-  fun ref dispose() => None
+  fun ref dispose() => Fail()
   fun ref sync() => Fail()
   fun ref datasync() => Fail()
   fun ref start_rollback(checkpoint_id: CheckpointId): USize => Fail(); 0
@@ -96,6 +96,7 @@ class DummyBackend is Backend
   new create(event_log: EventLog ref) =>
     _event_log = event_log
 
+  fun ref dispose() => None
   fun ref sync() => None
   fun ref datasync() => None
   fun ref start_rollback(checkpoint_id: CheckpointId): USize => 0
@@ -143,7 +144,7 @@ class FileBackend is Backend
     _file_path
 
   fun ref start_rollback(checkpoint_id: CheckpointId): USize =>
-    if _filepath.exists() then
+    if _file_path.exists() then
       @printf[I32](("RESILIENCE: Rolling back to checkpoint %s from recovery " +
         "log file: \n").cstring(), checkpoint_id.string().cstring(),
         _file_path.cstring())
