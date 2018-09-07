@@ -175,7 +175,8 @@ primitive _CheckpointInitiatorGenerator
   fun apply(env: Env, auth: AmbientAuth): CheckpointInitiator =>
     CheckpointInitiator(auth, "", "", _ConnectionsGenerator(env, auth), 1,
       EventLog("w1", SimpleJournalNoop, auth),
-      _BarrierInitiatorGenerator(env, auth), "", false)
+      _BarrierInitiatorGenerator(env, auth), "", SimpleJournalNoop, false
+       where is_active = false)
 
 primitive _DataReceiversGenerator
   fun apply(env: Env, auth: AmbientAuth): DataReceivers =>
