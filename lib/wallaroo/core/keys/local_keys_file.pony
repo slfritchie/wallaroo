@@ -21,6 +21,7 @@ use "collections"
 use "files"
 use "wallaroo/core/common"
 use "wallaroo/ent/checkpoint"
+use "wallaroo/ent/recovery"
 use "wallaroo_labs/mort"
 
 
@@ -36,14 +37,18 @@ class LocalKeysFile
   //   x - StateName
   //   4 - Key entry length y
   //   y - Key
-  let _file: File iso
+  //   16 - RoutingId <--- only for add() (TODO still valid?)
+  let _file: AsyncJournalledFile iso
   let _filepath: FilePath
   let _writer: Writer
 
-  new create(fpath: FilePath) =>
+  new create(fpath: FilePath, the_journal: SimpleJournal, auth: AmbientAuth,
+    do_local_file_io: Bool)
+  =>
     _writer = Writer
     _filepath = fpath
-    _file = recover iso File(_filepath) end
+    _file = recover iso AsyncJournalledFile(_filepath, the_journal, auth,
+      do_local_file_io) end
 
   fun ref add_key(state_name: StateName, k: Key, checkpoint_id: CheckpointId)
   =>
@@ -96,7 +101,7 @@ class LocalKeysFile
           let payload_size = r.u32_be()?
           if next_cpoint_id > checkpoint_id then
             // Skip this entry
-            _file.seek(payload_size.isize())
+            _file.seek_start(payload_size.usize())
           else
             r.append(_file.read(4))
             @printf[I32]("!@s_name_size\n".cstring())
