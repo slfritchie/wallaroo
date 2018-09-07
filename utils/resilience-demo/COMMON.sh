@@ -48,7 +48,7 @@ REPO_URL=https://github.com/slfritchie/wallaroo.git
 ####REPO_BRANCH=slf-file-io-journal6
 #REPO_BRANCH=s-res-test-f+slf-worker-migration+issue-2370
 #REPO_BRANCH=res-merge-1
-REPO_BRANCH=res-merge-1+issue-2370
+REPO_BRANCH=res-merge-1+dos
 
 # If the environment variable WALLAROO_BIN is set, then use it
 # for the path to our Wallaroo executable.
