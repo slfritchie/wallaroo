@@ -60,6 +60,8 @@ actor Startup
   var _recovery_listener: (TCPListener | None) = None
 
   // RECOVERY FILES
+  var _the_journal_filepath: (FilePath | None) = None
+  var _the_journal: (SimpleJournal | None) = None
   var _event_log_file: String = ""
   var _event_log_dir_filepath: (FilePath | None) = None
   var _event_log_file_basename: String = ""
@@ -228,6 +230,7 @@ actor Startup
           m_addr(1)?, _application.name(), _startup_options.worker_name)
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
+      _the_journal = _start_journal(auth)
 
       let event_log_filepath = try
         LastLogFilePath(_event_log_file_basename,
@@ -260,22 +263,33 @@ actor Startup
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
           EventLog(_startup_options.worker_name,
+            _the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
             suffix' = _event_log_file_suffix, log_rotation' = true,
-            is_recovering' = _is_recovering))
+            is_recovering' = _is_recovering,
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name,
+            dos_host' = _startup_options.dos_host,
+            dos_service' = _startup_options.dos_service))
         else
           EventLog(_startup_options.worker_name,
+            _the_journal as SimpleJournal, auth,            
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
               _startup_options.event_log_file_length,
-              is_recovering' = _is_recovering))
+              is_recovering' = _is_recovering,
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name,
+            dos_host' = _startup_options.dos_host,
+            dos_service' = _startup_options.dos_service))
         end
       else
         EventLog(_startup_options.worker_name,
+          _the_journal as SimpleJournal, auth,
           EventLogConfig(where is_recovering' = _is_recovering))
       end
       let event_log = _event_log as EventLog
@@ -287,6 +301,7 @@ actor Startup
         metrics_conn, m_addr(0)?, m_addr(1)?, _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
         _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
@@ -302,8 +317,10 @@ actor Startup
       let checkpoint_initiator = CheckpointInitiator(auth,
         _startup_options.worker_name, initializer_name, connections,
         _startup_options.time_between_checkpoints, event_log, barrier_initiator,
-        _checkpoint_ids_file, _startup_options.checkpoints_enabled
-        where is_recovering = _is_recovering)
+        _checkpoint_ids_file, _the_journal as SimpleJournal,
+        _startup_options.do_local_file_io
+        where is_active = _startup_options.checkpoints_enabled,
+          is_recovering = _is_recovering)
       connections.register_disposable(checkpoint_initiator)
 
       let autoscale_initiator = AutoscaleInitiator(
@@ -348,7 +365,8 @@ actor Startup
           _startup_options.is_initializer, data_receivers, event_log, recovery,
           recovery_reconnecter, checkpoint_initiator, barrier_initiator,
           _local_topology_file, _data_channel_file, _worker_names_file,
-          local_keys_filepath)
+          local_keys_filepath, state_step_creator,
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io)
 
       if (_external_host != "") or (_external_service != "") then
         let external_channel_notifier =
@@ -380,6 +398,7 @@ actor Startup
         end
       end
 
+      @printf[I32]("SLF: control_host = %s, control_service = %s\n".cstring(), control_host.cstring(), control_service.cstring())
       let control_notifier: TCPListenNotify iso =
         ControlChannelListenNotifier(_startup_options.worker_name,
           auth, connections, _startup_options.is_initializer,
@@ -387,7 +406,8 @@ actor Startup
           recovery_reconnecter, router_registry, barrier_initiator,
           checkpoint_initiator, control_channel_filepath,
           _startup_options.my_d_host, _startup_options.my_d_service, event_log,
-          this)
+          this, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io, control_host, control_service)
 
       // We need to recover connections before creating our control
       // channel listener, since it's at that point that we notify
@@ -402,15 +422,9 @@ actor Startup
         end
       end
 
-      if _startup_options.is_initializer then
-        connections.make_and_register_recoverable_listener(
-          auth, consume control_notifier, control_channel_filepath,
-          _startup_options.c_host, _startup_options.c_service)
-      else
-        connections.make_and_register_recoverable_listener(
-          auth, consume control_notifier, control_channel_filepath,
-          _startup_options.my_c_host, _startup_options.my_c_service)
-      end
+      connections.make_and_register_recoverable_listener(
+        auth, consume control_notifier, control_channel_filepath,
+        control_host, control_service)
 
       if _is_recovering then
         // need to do this before recreating the data connection as at
@@ -478,23 +492,35 @@ actor Startup
       let new_state_routing_ids = consume val new_state_routing_ids_iso
 
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
+      _the_journal = _start_journal(auth)
       _event_log = ifdef "resilience" then
         if _startup_options.log_rotation then
           EventLog(_startup_options.worker_name,
+            _the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename
             where backend_file_length' =
               _startup_options.event_log_file_length,
-            suffix' = _event_log_file_suffix, log_rotation' = true))
+            suffix' = _event_log_file_suffix, log_rotation' = true,
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name,
+            dos_host' = _startup_options.dos_host,
+            dos_service' = _startup_options.dos_service))
         else
           EventLog(_startup_options.worker_name,
+            _the_journal as SimpleJournal, auth,
             EventLogConfig(event_log_dir_filepath,
             _event_log_file_basename + _event_log_file_suffix
             where backend_file_length' =
-              _startup_options.event_log_file_length))
+              _startup_options.event_log_file_length,
+            do_local_file_io' = _startup_options.do_local_file_io,
+            worker_name' = _startup_options.worker_name,
+            dos_host' = _startup_options.dos_host,
+            dos_service' = _startup_options.dos_service))
         end
       else
-        EventLog(_startup_options.worker_name)
+        EventLog(_startup_options.worker_name,
+          _the_journal as SimpleJournal, auth)
       end
       let event_log = _event_log as EventLog
 
@@ -505,6 +531,7 @@ actor Startup
         _startup_options.is_initializer,
         _connection_addresses_file, _is_joining,
         _startup_options.spike_config, event_log,
+        _the_journal as SimpleJournal, _startup_options.do_local_file_io,
         _startup_options.log_rotation where recovery_file_cleaner = this)
       _connections = connections
       connections.register_disposable(this)
@@ -516,7 +543,9 @@ actor Startup
       let checkpoint_initiator = CheckpointInitiator(auth,
         _startup_options.worker_name, m.primary_checkpoint_worker, connections,
         _startup_options.time_between_checkpoints, event_log, barrier_initiator,
-        _checkpoint_ids_file, _startup_options.checkpoints_enabled)
+        _checkpoint_ids_file, _the_journal as SimpleJournal,
+        _startup_options.do_local_file_io
+        where is_active = _startup_options.checkpoints_enabled)
 
       let autoscale_initiator = AutoscaleInitiator(
         _startup_options.worker_name, barrier_initiator)
@@ -549,7 +578,8 @@ actor Startup
           _startup_options.is_initializer, data_receivers,
           event_log, recovery, recovery_reconnecter, checkpoint_initiator,
           barrier_initiator, _local_topology_file, _data_channel_file,
-          _worker_names_file, local_keys_filepath
+          _worker_names_file, local_keys_filepath,
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io
           where is_joining = true,
           joining_state_routing_ids = new_state_routing_ids)
 
@@ -610,7 +640,9 @@ actor Startup
           recovery_reconnecter, router_registry, barrier_initiator,
           checkpoint_initiator, control_channel_filepath,
           _startup_options.my_d_host, _startup_options.my_d_service,
-          event_log, this)
+          event_log, this, _the_journal as SimpleJournal,
+          _startup_options.do_local_file_io,
+          _startup_options.my_c_host, _startup_options.my_c_service)
 
       connections.make_and_register_recoverable_listener(
         auth, consume control_notifier, control_channel_filepath,
@@ -640,6 +672,9 @@ actor Startup
   fun ref _set_recovery_file_names(auth: AmbientAuth) =>
     try
       _event_log_dir_filepath = FilePath(auth, _startup_options.resilience_dir)?
+      _the_journal_filepath = FilePath(auth,
+        _startup_options.resilience_dir + "/" + _app_name + "-" +
+        _startup_options.worker_name + ".journal")?
     else
       Fail()
     end
@@ -666,6 +701,18 @@ actor Startup
     // check to see if we can recover
     // Use Set to make the logic explicit and clear
     let existing_files: Set[String] = Set[String]
+
+    try (_event_log as EventLog).dispose() end
+    // This is a kludge: we don't want to dispose of _the_journal
+    // until after the _remove_file() async commands have been
+    // processed by _the_journal.  Wheeee!
+    let ts: Timers = Timers
+    let later = _DoLater(recover {(): Bool =>
+      try (_the_journal as SimpleJournal).dispose_journal() end
+      false
+    } end)
+    let t = Timer(consume later, 500_000_000)
+    ts(consume t)
 
     try
       let event_log_dir_filepath = _event_log_dir_filepath as FilePath
@@ -805,7 +852,12 @@ actor Startup
 
   fun ref _remove_file(filename: String) =>
     @printf[I32]("...Removing %s...\n".cstring(), filename.cstring())
-    @remove[I32](filename.cstring())
+    if _startup_options.use_io_journal then
+      try (_the_journal as SimpleJournal).remove(filename) end
+    end
+    if _startup_options.do_local_file_io then
+      @remove[I32](filename.cstring())
+    end
 
   fun ref _recover_worker_names(worker_names_filepath: FilePath):
     Array[String] val
@@ -837,6 +889,36 @@ actor Startup
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.int())
     SignalHandler(WallarooShutdownHandler(c, r, a), Sig.term())
 
+  fun _start_journal(auth: AmbientAuth): SimpleJournal =>
+    if _startup_options.use_io_journal then
+      try
+        let the_journal_filepath = _the_journal_filepath as FilePath
+        let the_journal_basename = the_journal_filepath.path.split("/").pop()?
+        let usedir_name = _startup_options.worker_name
+
+        let j_local = recover iso
+          SimpleJournalBackendLocalFile(the_journal_filepath) end
+
+        let dos_host = _startup_options.dos_host
+        let dos_service = _startup_options.dos_service
+        let make_dos = recover val
+          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
+          =>
+            DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
+          } end
+        let rjc = RemoteJournalClient(auth,
+          the_journal_filepath, the_journal_basename, usedir_name, make_dos)
+        let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
+
+        SimpleJournalMirror(consume j_local, consume j_remote, "main", true, None) // TODO async receiver tag??
+      else
+        Fail()
+        SimpleJournalNoop
+      end
+    else
+      SimpleJournalNoop
+    end
+
 class WallarooShutdownHandler is SignalNotify
   """
   Shutdown gracefully on SIGTERM and SIGINT
@@ -853,3 +935,12 @@ class WallarooShutdownHandler is SignalNotify
   fun ref apply(count: U32): Bool =>
     _connections.clean_files_shutdown(_recovery_file_cleaner)
     false
+
+class _DoLater is TimerNotify
+  let _f: {(): Bool} iso
+
+  new iso create(f: {(): Bool} iso) =>
+    _f = consume f
+
+  fun ref apply(t: Timer, c: U64): Bool =>
+    _f()
