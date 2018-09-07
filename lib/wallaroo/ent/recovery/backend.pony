@@ -110,7 +110,7 @@ class DummyBackend is Backend
 
 class FileBackend is Backend
   let _file: AsyncJournalledFile iso
-  let _file_path: String
+  let _filepath: FilePath
   let _event_log: EventLog ref
   let _the_journal: SimpleJournal
   let _auth: AmbientAuth
@@ -125,7 +125,7 @@ class FileBackend is Backend
     do_local_file_io: Bool)
   =>
     _writer = recover iso Writer end
-    _file_path = filepath.path
+    _filepath = filepath
     _file = recover iso
       AsyncJournalledFile(filepath, the_journal, auth, do_local_file_io) end
     _event_log = event_log
@@ -141,13 +141,13 @@ class FileBackend is Backend
     _bytes_written
 
   fun get_path(): String => // SLF TODO used??
-    _file_path
+    _filepath.path
 
   fun ref start_rollback(checkpoint_id: CheckpointId): USize =>
-    if _file_path.exists() then
+    if _filepath.exists() then
       @printf[I32](("RESILIENCE: Rolling back to checkpoint %s from recovery " +
         "log file: \n").cstring(), checkpoint_id.string().cstring(),
-        _file_path.cstring())
+        _filepath.path.cstring())
 
       let r = Reader
 
@@ -476,7 +476,7 @@ class RotatingFileBackend is Backend
     _rotate_requested = false
 
 class AsyncJournalledFile
-  let _file_path: String
+  let _filepath: FilePath
   let _file: File
   let _journal: SimpleJournal
   let _auth: AmbientAuth
@@ -487,7 +487,7 @@ class AsyncJournalledFile
   new create(filepath: FilePath, journal: SimpleJournal,
     auth: AmbientAuth, do_local_file_io: Bool)
   =>
-    _file_path = filepath.path
+    _filepath = filepath
     _file = if do_local_file_io then
       File(filepath)
     else
@@ -506,7 +506,7 @@ class AsyncJournalledFile
   fun ref datasync() =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: datasync %s\n".cstring(), _file_path.cstring())
+      @printf[I32]("### Journal: datasync %s\n".cstring(), _filepath.path.cstring())
     end
     if _do_local_file_io then
       _file.datasync()
@@ -514,7 +514,7 @@ class AsyncJournalledFile
 
   fun ref dispose() =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: dispose %s\n".cstring(), _file_path.cstring())
+      @printf[I32]("### Journal: dispose %s\n".cstring(), _filepath.path.cstring())
     end
     // Nothing (?) to do for the journal
     if _do_local_file_io then
@@ -532,9 +532,9 @@ class AsyncJournalledFile
 
   fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: print %s {data}\n".cstring(), _file_path.cstring())
+      @printf[I32]("### Journal: print %s {data}\n".cstring(), _filepath.path.cstring())
     end
-    _journal.writev(_offset, _file_path, [data; "\n"], _tag)
+    _journal.writev(_offset, _filepath.path, [data; "\n"], _tag)
     _offset = _offset + (data.size() + 1)
     _tag = _tag + 1
 
@@ -550,7 +550,7 @@ class AsyncJournalledFile
   fun ref seek_end(offset: USize): None =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _file_path.cstring(), offset)
+      @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
     if _do_local_file_io then
       _file.seek_end(offset)
@@ -560,7 +560,7 @@ class AsyncJournalledFile
   fun ref seek_start(offset: USize): None =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _file_path.cstring(), offset)
+      @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
     if _do_local_file_io then
       _file.seek_start(offset)
@@ -569,9 +569,9 @@ class AsyncJournalledFile
 
   fun ref set_length(len: USize): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _file_path.cstring(), len)
+      @printf[I32]("### Journal: set_length %s len %d\n".cstring(), _filepath.path.cstring(), len)
     end
-    _journal.set_length(_file_path, len, _tag)
+    _journal.set_length(_filepath.path, len, _tag)
     _tag = _tag + 1
 
     if _do_local_file_io then
@@ -590,7 +590,7 @@ class AsyncJournalledFile
   fun ref sync() =>
     // TODO journal!
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: sync %s\n".cstring(), _file_path.cstring())
+      @printf[I32]("### Journal: sync %s\n".cstring(), _filepath.path.cstring())
     end
     if _do_local_file_io then
       _file.sync()
@@ -598,9 +598,9 @@ class AsyncJournalledFile
 
   fun ref writev(data: ByteSeqIter val): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _file_path.cstring())
+      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
     end
-    _journal.writev(_offset, _file_path, data, _tag)
+    _journal.writev(_offset, _filepath.path, data, _tag)
     _tag = _tag + 1
 
     var data_size: USize = 0
