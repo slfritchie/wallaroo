@@ -647,22 +647,6 @@ actor Connections is Cluster
     let control_conn: TCPConnection =
       TCPConnection(_auth, consume control_notifier, host, service)
 
-  be reconnect_data_connection(target_name: String,
-    target_host: String, target_service: String)
-  =>
-    @printf[I32]("SLF: connections reconnect_data_connection: %s %s:%s\n".cstring(), target_name.cstring(), target_host.cstring(), target_service.cstring())
-    if _data_conns.contains(target_name) then
-      try
-        _data_addrs(target_name) = (target_host, target_service)
-        let outgoing_boundary = _data_conns(target_name)?
-        outgoing_boundary.reconnect(target_host, target_service)
-      end
-    else
-      @printf[I32]("Target: %s not found in data connection map!\n".cstring(),
-        target_name.cstring())
-      Fail()
-    end
-
   be create_data_connection(target_name: String, host: String,
     service: String)
   =>
