@@ -185,7 +185,7 @@ primitive _DataReceiversGenerator
 primitive _ConnectionsGenerator
   fun apply(env: Env, auth: AmbientAuth): Connections =>
     Connections("", "", auth, "", "", "", "",
-      _NullMetricsSink, "", "", false, "", false,
+      _NullMetricsSink, "", "", false, "", false, None,
       EventLog("w1", SimpleJournalNoop, auth), SimpleJournalNoop)
 
 primitive _RecoveryReconnecterGenerator
