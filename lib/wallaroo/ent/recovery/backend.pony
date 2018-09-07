@@ -335,7 +335,7 @@ class RotatingFileBackend is Backend
   let _dos_service: String
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
-    event_log: EventLog, file_length: (USize | None),
+    event_log: EventLog ref, file_length: (USize | None),
     the_journal: SimpleJournal, auth: AmbientAuth, worker_name: String,
     do_local_file_io: Bool, dos_host: String, dos_service: String,
     rotation_enabled: Bool = true) ?
