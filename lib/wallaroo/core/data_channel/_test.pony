@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+use "files"
 use "ponytest"
 use "wallaroo/core/boundary"
 use "wallaroo/core/common"
@@ -81,14 +82,15 @@ class _TestDataChannel is DataChannelListenNotify
       let app_name = "app_name"
       let worker_name = "worker_name"
       let auth = h.env.root as AmbientAuth
-      let event_log = EventLog(worker_name)
+      let the_journal: SimpleJournal = SimpleJournalNoop
+      let event_log = EventLog(worker_name, the_journal, auth)
       let metrics_sink = _NullMetricsSink
       let conns = Connections(app_name, worker_name, auth,
         "127.0.0.1", "0",
         "127.0.0.1", "0",
         _NullMetricsSink, "127.0.0.1", "0",
         true, "/tmp/foo_connections.txt", false
-        where event_log = event_log)
+        where event_log = event_log, the_journal = the_journal)
       let ssc = StateStepCreator(auth, app_name, worker_name, metrics_sink, event_log)
       let dr = DataReceivers(auth, conns, worker_name, ssc)
       let b_initiator = BarrierInitiator(auth, worker_name, conns, "init")
