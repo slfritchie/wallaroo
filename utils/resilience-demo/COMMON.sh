@@ -68,7 +68,7 @@ ORDERS_PORT=7000
 
 # DOS server-related flags: if USE_DOS_SERVER=n then following two
 # variables will be ignored.
-USE_DOS_SERVER=n
+USE_DOS_SERVER=y
 DOS_SERVER_EXT=$SERVER1_EXT
 DOS_SERVER=$SERVER1
 
@@ -76,4 +76,4 @@ DOS_SERVER=$SERVER1
 # if "n", then rsync all /tmp/market-spread-worker2* files;
 # if "y", then only rsync the /tmp/market-spread-worker2*.journal files
 #         and then restore all recovery files via journal-dump.py.
-RESTORE_VIA_JOURNAL_DUMP=n
+RESTORE_VIA_JOURNAL_DUMP=y
