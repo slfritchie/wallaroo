@@ -574,7 +574,8 @@ actor Startup
           _startup_options.is_initializer, data_receivers,
           event_log, recovery, recovery_reconnecter, checkpoint_initiator,
           barrier_initiator, _local_topology_file, _data_channel_file,
-          _worker_names_file, local_keys_filepath
+          _worker_names_file, local_keys_filepath,
+          _the_journal as SimpleJournal, _startup_options.do_local_file_io
           where is_joining = true,
           joining_state_routing_ids = new_state_routing_ids)
 
