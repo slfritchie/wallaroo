@@ -554,7 +554,6 @@ class AsyncJournalledFile
     _file.read(len)
 
   fun ref seek_end(offset: USize): None =>
-    // TODO journal!
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek_end %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
@@ -564,13 +563,21 @@ class AsyncJournalledFile
     end
 
   fun ref seek_start(offset: USize): None =>
-    // TODO journal!
-    @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
     if _do_local_file_io then
       _file.seek_start(offset)
+      _offset = _file.position()
+    end
+
+  fun ref seek(offset: ISize): None =>
+    @printf[I32]("### Journal: seek %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: seek %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
+    end
+    if _do_local_file_io then
+      _file.seek(offset)
       _offset = _file.position()
     end
 
