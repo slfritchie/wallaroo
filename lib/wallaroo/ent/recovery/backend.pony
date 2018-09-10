@@ -164,7 +164,7 @@ class FileBackend is Backend
       if _file.size() > 0 then
         // Read the initial entry in the file, which should be a checkpoint_id,
         // skipping the is_watermark byte
-        _file.seek_start(1)
+        _file.seek(1)
         r.append(_file.read(8))
         current_checkpoint_id = try r.u64_be()? else Fail(); 0 end
 
@@ -182,7 +182,7 @@ class FileBackend is Backend
           else
             // Skip this entry since we're looking for the next checkpoint id.
             // First skip resilient_id
-            _file.seek_start(16)
+            _file.seek(16)
             // Read payload size
             r.append(_file.read(4))
             let size = try r.u32_be()? else Fail(); 0 end
