@@ -187,7 +187,7 @@ class FileBackend is Backend
             r.append(_file.read(4))
             let size = try r.u32_be()? else Fail(); 0 end
             // Skip payload
-            _file.seek_start(size.usize())
+            _file.seek(size.isize())
           end
         end
         @printf[I32]("!@ Backend: Found end of entries for checkpoint %s.\n".cstring(), current_checkpoint_id.string().cstring())
