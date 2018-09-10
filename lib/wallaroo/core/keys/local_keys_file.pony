@@ -92,7 +92,10 @@ class LocalKeysFile
           /////
           // Read next entry
           /////
-          r.append(_file.read(1))
+          //// QQQ r.append(_file.read(1))
+          let qqq = _file.read(1)
+          @printf[I32]("@! read result size = %d\n".cstring(), qqq.size())
+          r.append(consume qqq)
           @printf[I32]("!@cmd\n".cstring())
           let cmd: U8 = r.u8()?
           @printf[I32]("!@next_cpoint_id\n".cstring())
@@ -103,6 +106,7 @@ class LocalKeysFile
           let payload_size = r.u32_be()?
           if next_cpoint_id > checkpoint_id then
             // Skip this entry
+             @printf[I32]("!@ next_cpoint_id %d > checkpoint_id %d, payload_size = %d\n".cstring(), next_cpoint_id, checkpoint_id, payload_size)
             _file.seek_start(payload_size.usize())
           else
             r.append(_file.read(4))
@@ -145,6 +149,7 @@ class LocalKeysFile
           @printf[I32]("Error reading local keys file!\n".cstring())
           Fail()
         end
+        @printf[I32]("!@bottom of loop: _file.size() %d vs _file.position() %d\n".cstring(), _file.size(), _file.position())
         if _file.size() == _file.position() then
           end_of_checkpoint = true
         end
