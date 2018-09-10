@@ -105,7 +105,7 @@ class LocalKeysFile
           if next_cpoint_id > checkpoint_id then
             // Skip this entry
              @printf[I32]("!@ next_cpoint_id %d > checkpoint_id %d, payload_size = %d\n".cstring(), next_cpoint_id, checkpoint_id, payload_size)
-            _file.seek_start(payload_size.usize())
+            _file.seek(payload_size.isize())
           else
             r.append(_file.read(4))
             @printf[I32]("!@s_name_size\n".cstring())
