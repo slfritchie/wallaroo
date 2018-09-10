@@ -528,6 +528,9 @@ class AsyncJournalledFile
     _file.errno()
 
   fun ref position(): USize val =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: position %s = %d\n".cstring(), _filepath.path.cstring(), _file.position())
+    end
     _file.position()
 
   fun ref print(data: (String val | Array[U8 val] val)): Bool val =>
@@ -545,6 +548,9 @@ class AsyncJournalledFile
     end
 
   fun ref read(len: USize): Array[U8 val] iso^ =>
+    ifdef "journaldbg" then
+      @printf[I32]("### Journal: read %s %d bytes at position %d\n".cstring(), _filepath.path.cstring(), len, _file.position())
+    end
     _file.read(len)
 
   fun ref seek_end(offset: USize): None =>
@@ -559,6 +565,7 @@ class AsyncJournalledFile
 
   fun ref seek_start(offset: USize): None =>
     // TODO journal!
+    @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek_start %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
@@ -598,7 +605,7 @@ class AsyncJournalledFile
 
   fun ref writev(data: ByteSeqIter val): Bool val =>
     ifdef "journaldbg" then
-      @printf[I32]("### Journal: writev %s {data}\n".cstring(), _filepath.path.cstring())
+      @printf[I32]("### Journal: writev %s {data} @ offset %d position %d\n".cstring(), _filepath.path.cstring(), _offset, _file.position())
     end
     _journal.writev(_offset, _filepath.path, data, _tag)
     _tag = _tag + 1
