@@ -164,6 +164,7 @@ class FileBackend is Backend
     // Any _LogDataEntry records found prior to a _LogRestartEntry
     // must be ignored by rollback recovery.
     _file.seek_end(0)
+    @printf[I32](("RESILIENCE: write _LogRestartEntry at offset %d\n").cstring(), _file.position())
     encode_restart()
     try write()? else Fail() end
 
@@ -224,7 +225,10 @@ class FileBackend is Backend
       Fail()
     end
 
-    @printf[I32]("!@ Backend: Found end of entries for checkpoint %s.\n".cstring(), current_checkpoint_id.string().cstring())
+    @printf[I32](("!@ Backend: Found end of entries for checkpoint %s" +
+      " between offset %d and %d.\n").cstring(),
+      current_checkpoint_id.string().cstring(), target_checkpoint_offset_start,
+      target_checkpoint_offset_end)
     _file.seek_start(target_checkpoint_offset_start)
 
     while _file.position() < target_checkpoint_offset_end do
@@ -258,6 +262,7 @@ class FileBackend is Backend
     else
       r.clear()
     end
+    _file.seek_end(0)
 
     var num_replayed: USize = 0
     _event_log.expect_rollback_count(replay_buffer.size())
@@ -318,7 +323,7 @@ class FileBackend is Backend
     end
 
     _writer.u8(_LogRestartEntry.encode())
-    _writer.u64_be(U64.max_value())
+    _writer.u64_be(0x5265736574212121) // value is ignored: "Reset!!!"
 
   fun ref sync() ? =>
     _file.sync()
@@ -620,7 +625,6 @@ class AsyncJournalledFile
     end
 
   fun ref seek(offset: ISize): None =>
-    @printf[I32]("### Journal: seek %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     ifdef "journaldbg" then
       @printf[I32]("### Journal: seek %s offset %d\n".cstring(), _filepath.path.cstring(), offset)
     end
