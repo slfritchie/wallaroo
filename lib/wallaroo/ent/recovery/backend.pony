@@ -115,8 +115,9 @@ class FileBackend is Backend
   let _the_journal: SimpleJournal
   let _auth: AmbientAuth
   let _writer: Writer iso
-  let _checkpoint_id_entry_len: USize = 9 // Bool -- U64
-  let _log_entry_len: USize = 17 // Bool -- U128
+  let _checkpoint_id_entry_len: USize = 9 // U8 -- U64
+  let _log_entry_len: USize = 17 // U8 -- U128
+  let _restart_len: USize = 9 // U8 -- U64
   var _bytes_written: USize = 0
   var _do_local_file_io: Bool = true
 
@@ -144,111 +145,130 @@ class FileBackend is Backend
     _filepath.path
 
   fun ref start_rollback(checkpoint_id: CheckpointId): USize =>
-    if _filepath.exists() then
-      @printf[I32](("RESILIENCE: Rolling back to checkpoint %s from recovery " +
-        "log file: \n").cstring(), checkpoint_id.string().cstring(),
-        _filepath.path.cstring())
-
-      let r = Reader
-
-      //seek beginning of file
-      _file.seek_start(0)
-
-      // array to hold recovered data temporarily until we've sent it off to
-      // be replayed.
-      // (resilient_id, payload)
-      var replay_buffer: Array[(RoutingId, ByteSeq val)] ref =
-        replay_buffer.create()
-
-      var current_checkpoint_id: CheckpointId = 0
-      if _file.size() > 0 then
-        // Read the initial entry in the file, which should be a checkpoint_id,
-        // skipping the is_watermark byte
-        _file.seek(1)
-        r.append(_file.read(8))
-        current_checkpoint_id = try r.u64_be()? else Fail(); 0 end
-
-        // We need to get to the data for the provided checkpoint id. We'll
-        // keep reading until we find the prior checkpoint id, at which point
-        // we're lined up with entries for this checkpoint.
-        while current_checkpoint_id < (checkpoint_id - 1) do
-          r.append(_file.read(1))
-          let is_watermark = BoolConverter.u8_to_bool(
-            try r.u8()? else Fail(); 0 end)
-
-          if is_watermark then
-            r.append(_file.read(8))
-            current_checkpoint_id = try r.u64_be()? else Fail(); 0 end
-          else
-            // Skip this entry since we're looking for the next checkpoint id.
-            // First skip resilient_id
-            _file.seek(16)
-            // Read payload size
-            r.append(_file.read(4))
-            let size = try r.u32_be()? else Fail(); 0 end
-            // Skip payload
-            _file.seek(size.isize())
-          end
-        end
-        @printf[I32]("!@ Backend: Found end of entries for checkpoint %s.\n".cstring(), current_checkpoint_id.string().cstring())
-        r.append(_file.read(1))
-        var end_of_checkpoint = BoolConverter.u8_to_bool(
-          try r.u8()? else Fail(); 0 end)
-        while not end_of_checkpoint do
-          r.append(_file.read(20))
-          let resilient_id = try r.u128_be()? else Fail(); 0 end
-          let payload_length = try r.u32_be()? else Fail(); 0 end
-          let payload = recover val
-            if payload_length > 0 then
-              _file.read(payload_length.usize())
-            else
-              Array[U8]
-            end
-          end
-          // put entry into temporary recovered buffer
-          replay_buffer.push((resilient_id, payload))
-
-          // Check if we're at the end of this checkpoint
-          r.append(_file.read(1))
-          end_of_checkpoint = BoolConverter.u8_to_bool(
-            try r.u8()? else Fail(); 0 end)
-        end
-      else
-        @printf[I32](("Trying to rollback to checkpoint %s from empty " +
-          "recovery file %s\n").cstring(), checkpoint_id.string().cstring())
-        Fail()
-      end
-
-      // clear read buffer to free file data read so far
-      if r.size() > 0 then
-        Fail()
-      else
-        r.clear()
-      end
-
-      var num_replayed: USize = 0
-      _event_log.expect_rollback_count(replay_buffer.size())
-      for entry in replay_buffer.values() do
-        num_replayed = num_replayed + 1
-        _event_log.rollback_from_log_entry(entry._1, entry._2, checkpoint_id)
-      end
-
-      //!@
-      // _file.seek_end(0)
-
-      // Truncate rest of file since we are rolling back to an earlier
-      // checkpoint.
-      _file.set_length(_file.position())
-
-      @printf[I32](("RESILIENCE: Replayed %d entries from recovery log " +
-        "file.\n").cstring(), num_replayed)
-      num_replayed
-    else
+    if not _filepath.exists() then
       @printf[I32]("RESILIENCE: Could not find log file to rollback from.\n"
         .cstring())
       Fail()
-      0
     end
+    if _file.size() == 0 then
+      @printf[I32](("Trying to rollback to checkpoint %s from empty " +
+        "recovery file %s\n").cstring(), checkpoint_id.string().cstring())
+      Fail()
+    end
+
+    @printf[I32](("RESILIENCE: Rolling back to checkpoint %s from recovery " +
+      "log file: \n").cstring(), checkpoint_id.string().cstring(),
+      _filepath.path.cstring())
+
+    // First task: append a _LogRestartEntry record to the log.
+    // Any _LogDataEntry records found prior to a _LogRestartEntry
+    // must be ignored by rollback recovery.
+    _file.seek_end(0)
+    encode_restart()
+    try write()? else Fail() end
+
+    // Second task: find the end offset of our desired checkpoint_id.
+    // While doing so, we also find the starting offset of that checkpoint.
+
+    let r = Reader
+
+    // array to hold recovered data temporarily until we've sent it off to
+    // be replayed.
+    // (resilient_id, payload)
+    var replay_buffer: Array[(RoutingId, ByteSeq val)] ref =
+      replay_buffer.create()
+    var current_checkpoint_id: CheckpointId = 0
+    var target_checkpoint_offset_start: USize = 0
+    var target_checkpoint_offset_end: USize = 0
+    var target_checkpoint_found: Bool = false
+    var first_data_entry_found: Bool = false
+
+    //seek beginning of file
+    _file.seek_start(0)
+
+    while _file.position() < _file.size() do
+      r.clear()
+      r.append(_file.read(1))
+      match try _LogDecoder.decode(r.u8()?)? else Fail(); _LogDataEntry end
+      | _LogDataEntry =>
+        if not first_data_entry_found then
+          first_data_entry_found = true
+          target_checkpoint_offset_start = _file.position() - 1
+        end
+        // First skip resilient_id
+        _file.seek(16)
+        // Read payload size
+        r.append(_file.read(4))
+        let size = try r.u32_be()? else Fail(); 0 end
+        // Skip payload
+        _file.seek(size.isize())
+      | _LogCheckpointIdEntry =>
+        target_checkpoint_offset_end = _file.position() - 1
+        r.append(_file.read(8))
+        current_checkpoint_id = try r.u64_be()? else Fail(); 0 end
+        if current_checkpoint_id == checkpoint_id then
+          target_checkpoint_found = true
+          break
+        end
+        first_data_entry_found = false
+        target_checkpoint_offset_start = _file.position()
+      | _LogRestartEntry =>
+        target_checkpoint_offset_start = (_file.position() - 1) + _restart_len
+        _file.seek_start(target_checkpoint_offset_start)
+      end
+    end
+    if not target_checkpoint_found then
+      @printf[I32](("RESILIENCE: Rolling back to checkpoint %s from recovery "+
+        "log file failed: not found \n").cstring(),
+        checkpoint_id.string().cstring(), _filepath.path.cstring())
+      Fail()
+    end
+
+    @printf[I32]("!@ Backend: Found end of entries for checkpoint %s.\n".cstring(), current_checkpoint_id.string().cstring())
+    _file.seek_start(target_checkpoint_offset_start)
+
+    while _file.position() < target_checkpoint_offset_end do
+      r.clear()
+      r.append(_file.read(1))
+      match try _LogDecoder.decode(r.u8()?)? else Fail(); _LogDataEntry end
+      | _LogDataEntry =>
+        r.append(_file.read(20))
+        let resilient_id = try r.u128_be()? else Fail(); 0 end
+        let payload_length = try r.u32_be()? else Fail(); 0 end
+        let payload = recover val
+          if payload_length > 0 then
+            _file.read(payload_length.usize())
+          else
+            Array[U8]
+          end
+        end
+        // put entry into temporary recovered buffer
+        replay_buffer.push((resilient_id, payload))
+      | _LogCheckpointIdEntry =>
+        break      
+      | _LogRestartEntry =>
+        replay_buffer.clear()
+        _file.seek(_restart_len.isize() - 1)
+      end
+    end
+
+    // clear read buffer to free file data read so far
+    if r.size() > 0 then
+      Fail()
+    else
+      r.clear()
+    end
+
+    var num_replayed: USize = 0
+    _event_log.expect_rollback_count(replay_buffer.size())
+    for entry in replay_buffer.values() do
+      num_replayed = num_replayed + 1
+      _event_log.rollback_from_log_entry(entry._1, entry._2, checkpoint_id)
+    end
+
+    @printf[I32](("RESILIENCE: Replayed %d entries from recovery log " +
+      "file.\n").cstring(), num_replayed)
+    num_replayed
 
   fun ref write(): USize ?
   =>
@@ -278,8 +298,7 @@ class FileBackend is Backend
       payload_size = payload_size + p.size()
     end
 
-    // This is not a watermark so write false
-    _writer.u8(BoolConverter.bool_to_u8(false))
+    _writer.u8(_LogDataEntry.encode())
     _writer.u128_be(resilient_id)
     _writer.u32_be(payload_size.u32())
     _writer.writev(payload)
@@ -290,9 +309,16 @@ class FileBackend is Backend
         .cstring(), checkpoint_id.string().cstring())
     end
 
-    // This is a watermark so write true
-    _writer.u8(BoolConverter.bool_to_u8(true))
+    _writer.u8(_LogCheckpointIdEntry.encode())
     _writer.u64_be(checkpoint_id)
+
+  fun ref encode_restart() =>
+    ifdef "trace" then
+      @printf[I32]("EventLog: Writing restart entry\n".cstring())
+    end
+
+    _writer.u8(_LogRestartEntry.encode())
+    _writer.u64_be(U64.max_value())
 
   fun ref sync() ? =>
     _file.sync()
@@ -309,6 +335,28 @@ class FileBackend is Backend
     | FileOK => None
     else
       @printf[I32]("DBG datasync line %d\n".cstring(), __loc.line())
+      error
+    end
+
+type _LogEntry is (_LogDataEntry | _LogCheckpointIdEntry | _LogRestartEntry)
+
+primitive _LogDataEntry
+  fun encode(): U8 => 0
+primitive _LogCheckpointIdEntry
+  fun encode(): U8 => 1
+primitive _LogRestartEntry
+  fun encode(): U8 => 2
+
+primitive _LogDecoder
+  fun decode(b: U8): _LogEntry ? =>
+    match b
+    | 0 =>
+      return _LogDataEntry
+    | 1 =>
+      return _LogCheckpointIdEntry
+    | 2 =>
+      return _LogRestartEntry
+    else
       error
     end
 
