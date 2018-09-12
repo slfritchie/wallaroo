@@ -1,7 +1,5 @@
 #!/bin/sh
 
-. ./COMMON.sh
-
 VALIDATION_TOTAL=2000
 VALIDATION_MIDWAY=500
 
@@ -17,6 +15,8 @@ export START_SENDER_CMD1='env PYTHONPATH="./testing/tools/integration" \
 export START_SENDER_CMD2='env PYTHONPATH="./testing/tools/integration" \
   python ./utils/resilience-demo/validation-sender.py ${SERVER1}:7000 \
   '$VALIDATION_MIDWAY' '$VALIDATION_TOTAL' 100 0.05 11'
+
+. ./COMMON.sh
 
 ./20-start-2worker-cluster.sh
 if [ $? -ne 0 ]; then
