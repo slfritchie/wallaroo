@@ -27,8 +27,8 @@ fi
 
 env START_SENDER_CMD="$START_SENDER_CMD1" START_SENDER_BG=n \
     ./30-start-sender.sh
-echo First sender has finished; sleep 1
-echo BONUS SLEEP 2; sleep 2
+echo First sender has finished
+echo BONUS SLEEP 3; sleep 3
 
 echo Kill worker2
 ./40-kill-worker.sh 2

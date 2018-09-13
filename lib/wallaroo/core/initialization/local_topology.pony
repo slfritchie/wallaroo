@@ -348,7 +348,6 @@ actor LocalTopologyInitializer is LayoutInitializer
     checkpoint_initiator: CheckpointInitiator, barrier_initiator: BarrierInitiator,
     local_topology_file: String, data_channel_file: String,
     worker_names_file: String, local_keys_filepath: FilePath,
-    state_step_creator: StateStepCreator,
     the_journal: SimpleJournal, do_local_file_io: Bool,
     cluster_manager: (ClusterManager | None) = None,
     is_joining: Bool = false,
