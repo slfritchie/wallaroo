@@ -18,6 +18,8 @@ export START_SENDER_CMD2='env PYTHONPATH="./testing/tools/integration" \
 
 . ./COMMON.sh
 
+echo To stop everything, run: env WALLAROO_BIN="./testing/correctness/apps/multi_partition_detector/multi_partition_detector" ./99-stop-everything.sh
+
 ./20-start-2worker-cluster.sh
 if [ $? -ne 0 ]; then
     echo STOP with non-zero status
@@ -26,7 +28,7 @@ fi
 env START_SENDER_CMD="$START_SENDER_CMD1" START_SENDER_BG=n \
     ./30-start-sender.sh
 echo First sender has finished; sleep 1
-echo BONUS SLEEP 5; sleep 5
+echo BONUS SLEEP 2; sleep 2
 
 echo Kill worker2
 ./40-kill-worker.sh 2
@@ -50,6 +52,12 @@ ssh -n $USER@$SERVER2_EXT "mkdir -p /tmp/run-dir/OLD ; mv -v /tmp/run-dir/m* /tm
 
 env START_SENDER_CMD="$START_SENDER_CMD2" START_SENDER_BG=n \
   ./30-start-sender.sh
-echo Second sender has finished; sleep 1
+S=3; echo Second sender has finished, sleep $S; sleep $S
 
-echo To stop everything, run: env WALLAROO_BIN="./testing/correctness/apps/multi_partition_detector/multi_partition_detector" ./99-stop-everything.sh
+echo Run validator to check for sequence validity.
+echo NOTE: -a flag used to ignore duplicates of same key + window
+ssh -n $USER@$SERVER1_EXT "cd wallaroo; ./testing/correctness/apps/multi_partition_detector/validator/validator -e 2000  -i -k key_0,key_1,key_2,key_3,key_4,key_5,key_6,key_7,key_8,key_9,key_10 -a"
+STATUS=$?
+
+echo Validation status was: $STATUS
+exit $STATUS
