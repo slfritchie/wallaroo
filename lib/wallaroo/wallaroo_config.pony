@@ -51,7 +51,7 @@ class StartupOptions
   var checkpoints_enabled: Bool = true
   var time_between_checkpoints: U64 = 1_000_000_000
   var spike_config: (SpikeConfig | None) = None
-  var dos_host: String = "unconfigured-dos-host"
+  var dos_host: String = ""
   var dos_service: String = "9999"
 
 primitive WallarooConfig
@@ -235,6 +235,11 @@ primitive WallarooConfig
       if so.d_host != "" then
         FatalUserError("Only supply --data to cluster initializer.")
       end
+    end
+
+    if (not so.is_initializer and (so.dos_host != "")) and
+      ((so.my_d_host == "") or (so.my_c_host == "")) then
+        FatalUserError("Non-inititalizer nodes that use --resilience-dos-server must specify --my-control and --my-data flags")
     end
 
     ifdef "spike" then
