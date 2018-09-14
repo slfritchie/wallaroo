@@ -828,6 +828,34 @@ actor RouterRegistry
       .cstring())
     _stop_the_world(exclusions)
 
+  fun ref initiate_stop_the_world_for_shrink_migration(
+    remaining_workers: Array[WorkerName] val,
+    leaving_workers: Array[WorkerName] val)
+  =>
+    _initiated_stop_the_world = true
+    try
+      let msg = ChannelMsgEncoder.initiate_stop_the_world_for_shrink_migration(
+        _worker_name, remaining_workers, leaving_workers, _auth)?
+      _connections.send_control_to_cluster(msg)
+    else
+      Fail()
+    end
+    _stop_the_world_for_shrink_migration()
+
+    let promise = Promise[None]
+    promise.next[None]({(_: None) =>
+      _self.shrink_autoscale_barrier_complete()})
+    _autoscale_initiator.initiate_autoscale(promise)
+
+  fun ref stop_the_world_for_shrink_migration(
+    remaining_workers: Array[WorkerName] val,
+    leaving_workers: Array[WorkerName] val)
+  =>
+    """
+    !@
+    """
+    _stop_the_world_for_shrink_migration()
+
   fun ref _stop_the_world_for_shrink_migration() =>
     """
     We currently stop all message processing before migrating partitions and
@@ -879,6 +907,7 @@ actor RouterRegistry
     _unmute_request(originating_worker)
 
   fun ref _unmute_request(originating_worker: WorkerName) =>
+    @printf[I32]("!@ RouterRegistry: _unmute_request from w\n".cstring(), originating_worker.cstring())
     if _stopped_worker_waiting_list.size() > 0 then
       _stopped_worker_waiting_list.unset(originating_worker)
       if (_stopped_worker_waiting_list.size() == 0) then
@@ -1357,6 +1386,38 @@ actor RouterRegistry
   /////////////////////////////////////////////////////////////////////////////
   // SHRINK TO FIT
   /////////////////////////////////////////////////////////////////////////////
+  be inject_shrink_autoscale_barrier(remaining_workers: Array[WorkerName] val,
+    leaving_workers: Array[WorkerName] val)
+  =>
+    try
+      (_autoscale as Autoscale).inject_shrink_autoscale_barrier(
+        remaining_workers, leaving_workers)
+    else
+      Fail()
+    end
+
+  be shrink_autoscale_barrier_complete() =>
+    try
+      (_autoscale as Autoscale).shrink_autoscale_barrier_complete()
+    else
+      Fail()
+    end
+
+  be remote_stop_the_world_for_shrink_migration_request(
+    coordinator: WorkerName, leaving_workers: Array[WorkerName] val,
+    remaining_workers: Array[WorkerName] val)
+  =>
+    """
+    !@
+    """
+    @printf[I32]("!@ REMOTE SHRINK STOP THE WORLD\n".cstring())
+    try
+      (_autoscale as Autoscale).stop_the_world_for_shrink_migration_initiated(
+        coordinator, remaining_workers, leaving_workers)
+    else
+      Fail()
+    end
+
   be initiate_shrink(remaining_workers: Array[WorkerName] val,
     leaving_workers: Array[WorkerName] val)
   =>
@@ -1364,12 +1425,6 @@ actor RouterRegistry
     This should only be called on the worker contacted via an external
     message to initiate a shrink.
     """
-    try
-      (_autoscale as Autoscale).initiate_shrink(remaining_workers,
-        leaving_workers)
-    else
-      Fail()
-    end
     if ArrayHelpers[WorkerName].contains[WorkerName](leaving_workers,
       _worker_name)
     then
@@ -1394,8 +1449,9 @@ actor RouterRegistry
       for w in leaving_workers.values() do
         @printf[I32]("-- -- %s\n".cstring(), w.cstring())
       end
-      _initiated_stop_the_world = true
-      _stop_the_world_for_shrink_migration()
+      //!@
+      // _initiated_stop_the_world = true
+      // _stop_the_world_for_shrink_migration()
       try
         let msg = ChannelMsgEncoder.prepare_shrink(remaining_workers,
           leaving_workers, _auth)?
@@ -1408,9 +1464,7 @@ actor RouterRegistry
       _prepare_shrink(remaining_workers, leaving_workers)
 
       let promise = Promise[None]
-      promise.next[None]({(_: None) =>
-        _self.announce_leaving_migration(remaining_workers, leaving_workers)})
-      _autoscale_initiator.initiate_autoscale(promise)
+      _announce_leaving_migration(remaining_workers, leaving_workers)
     end
 
   be prepare_shrink(remaining_workers: Array[WorkerName] val,
@@ -1422,20 +1476,22 @@ actor RouterRegistry
     shrink. This behavior is called in response to receiving that message
     from the contacted worker.
     """
-    try
-      (_autoscale as Autoscale).prepare_shrink(remaining_workers,
-        leaving_workers)
-    else
-      Fail()
-    end
+    //!@
+    // try
+    //   (_autoscale as Autoscale).prepare_shrink(remaining_workers,
+    //     leaving_workers)
+    // else
+    //   Fail()
+    // end
     _prepare_shrink(remaining_workers, leaving_workers)
 
   fun ref _prepare_shrink(remaining_workers: Array[WorkerName] val,
     leaving_workers: Array[WorkerName] val)
   =>
-    if not _stop_the_world_in_process then
-      _stop_the_world_for_shrink_migration()
-    end
+    //!@
+    // if not _stop_the_world_in_process then
+    //   _stop_the_world_for_shrink_migration()
+    // end
 
     for (p_id, router) in _stateless_partition_routers.pairs() do
       let new_router = router.calculate_shrink(remaining_workers)
@@ -1507,7 +1563,7 @@ actor RouterRegistry
       try_to_resume_processing_immediately()
     end
 
-  be announce_leaving_migration(remaining_workers: Array[WorkerName] val,
+  fun _announce_leaving_migration(remaining_workers: Array[WorkerName] val,
     leaving_workers: Array[WorkerName] val)
   =>
     try
@@ -1573,6 +1629,8 @@ actor RouterRegistry
     for w in leaving_workers.values() do
       _barrier_initiator.remove_worker(w)
       _checkpoint_initiator.remove_worker(w)
+      //!@ ?? Do we need this ??
+      _unmute_request(w)
     end
     for (state_name, pr) in _partition_routers.pairs() do
       let new_pr = pr.recalculate_hash_partitions_for_shrink(leaving_workers)
