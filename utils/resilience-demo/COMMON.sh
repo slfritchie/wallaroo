@@ -51,8 +51,8 @@ REPO_URL=https://github.com/slfritchie/wallaroo.git
 #REPO_BRANCH=res-merge-1+dos
 #REPO_BRANCH=resilience-project+dos
 #REPO_BRANCH=resilience-project+dos2
-REPO_BRANCH=static-key-graph+dos3
-
+#REPO_BRANCH=static-key-graph+dos3
+REPO_BRANCH=static-key-graph+dos3+3sec-sender-delay
 # If the environment variable WALLAROO_BIN is set, then use it
 # for the path to our Wallaroo executable.
 if [ -z "$WALLAROO_BIN" ]; then

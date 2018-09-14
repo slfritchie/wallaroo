@@ -116,7 +116,7 @@ class SingleSocketReceiver(StoppableThread):
 
     def stop(self):
         super(self.__class__, self).stop()
-        self.sock.close()
+        time.sleep(3.0); self.sock.close()
 
 
 class TCPReceiver(StoppableThread):
@@ -194,7 +194,7 @@ class TCPReceiver(StoppableThread):
 
     def stop(self):
         super(TCPReceiver, self).stop()
-        self.sock.close()
+        time.sleep(3.0); self.sock.close()
         for cl in self.clients:
             cl.stop()
 
@@ -315,7 +315,7 @@ class Sender(StoppableThread):
                     self.batch_send()
                     time.sleep(0.000000001)
                 self.batch_send_final()
-                self.sock.close()
+                time.sleep(3.0); self.sock.close()
             except KeyboardInterrupt:
                 logging.info("KeyboardInterrupt received.")
                 self.stop()
