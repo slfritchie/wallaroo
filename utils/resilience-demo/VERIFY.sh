@@ -28,7 +28,7 @@ fi
 env START_SENDER_CMD="$START_SENDER_CMD1" START_SENDER_BG=n \
     ./30-start-sender.sh
 echo First sender has finished
-echo BONUS SLEEP 3; sleep 3
+echo BONUS SLEEP 4; sleep 4
 
 echo Kill worker2
 ./40-kill-worker.sh 2
@@ -49,14 +49,16 @@ echo Kill worker2
 echo Restart worker2 on server 2 with same TCP ports
 ssh -n $USER@$SERVER2_EXT "mkdir -p /tmp/run-dir/OLD ; mv -v /tmp/run-dir/m* /tmp/run-dir/OLD"
 ./62-restart-worker-no-port-change.sh 2 2
+if [ $? -ne 0 ]; then
+    exit 1
+fi
 
 env START_SENDER_CMD="$START_SENDER_CMD2" START_SENDER_BG=n \
   ./30-start-sender.sh
 S=3; echo Second sender has finished, sleep $S; sleep $S
 
 echo Run validator to check for sequence validity.
-echo NOTE: -a flag used to ignore duplicates of same key + window
-ssh -n $USER@$SERVER1_EXT "cd wallaroo; ./testing/correctness/apps/multi_partition_detector/validator/validator -e 2000  -i -k key_0,key_1,key_2,key_3,key_4,key_5,key_6,key_7,key_8,key_9,key_10 -a"
+ssh -n $USER@$SERVER1_EXT "cd wallaroo; ./testing/correctness/apps/multi_partition_detector/validator/validator -e 2000  -i -k key_0,key_1,key_2,key_3,key_4,key_5,key_6,key_7,key_8,key_9,key_10"
 STATUS=$?
 
 echo Validation status was: $STATUS
