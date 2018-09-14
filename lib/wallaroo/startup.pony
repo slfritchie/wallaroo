@@ -303,6 +303,7 @@ actor Startup
         _startup_options.do_local_file_io
         where is_active = _startup_options.checkpoints_enabled,
           is_recovering = _is_recovering)
+      checkpoint_initiator.initialize_checkpoint_id()
       connections.register_disposable(checkpoint_initiator)
 
       let autoscale_initiator = AutoscaleInitiator(
@@ -529,6 +530,8 @@ actor Startup
         _checkpoint_ids_file, _the_journal as SimpleJournal,
         _startup_options.do_local_file_io
         where is_active = _startup_options.checkpoints_enabled)
+      checkpoint_initiator.initialize_checkpoint_id(
+        (m.checkpoint_id, m.rollback_id))
 
       let autoscale_initiator = AutoscaleInitiator(
         _startup_options.worker_name, barrier_initiator)
