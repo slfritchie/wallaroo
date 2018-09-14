@@ -30,32 +30,34 @@ class Autoscale
 
     JOIN (coordinator):
     1) _WaitingForJoiners: Waiting for provided number of workers to connect
-    2) _WaitingForJoinerInitialization: Waiting for all joiners to initialize
-    3) _WaitingForConnections: Waiting for current workers to connect to
+    2) _WaitingForCheckpointId: Get checkpoint id to inform new
+       workers.
+    3) _InjectAutoscaleBarrier: Stop the world and inject barrier to ensure in
+       flight messages are finished
+    4) _WaitingForJoinerInitialization: Waiting for all joiners to initialize
+    5) _WaitingForConnections: Waiting for current workers to connect to
       joiners
-    4) _WaitingForJoinMigration: We currently delegate coordination of
-      in flight acking and migration back to RouterRegistry. We wait for join
+    6) _WaitingForJoinMigration: We currently delegate coordination of
+      migration back to RouterRegistry. We wait for join
       migration to finish from our side (i.e. we've sent all steps).
       TODO: Handle these remaining phases here.
-    5) _WaitingForJoinMigrationAcks: We wait for new workers to ack incoming
+    7) _WaitingForJoinMigrationAcks: We wait for new workers to ack incoming
       join migration.
-    6) _WaitingForResumeTheWorld: Waiting for unmuting procedure to finish.
-    7) _WaitingForAutoscale: Autoscale is complete and we are back to our
+    8) _WaitingForResumeTheWorld: Waiting for unmuting procedure to finish.
+    9) _WaitingForAutoscale: Autoscale is complete and we are back to our
       initial waiting state.
 
     JOIN (non-coordinator):
     1) _WaitingToConnectToJoiners: After receiving the addresses for all
       joining workers from the coordinator, we connect to all of them. Once all
       boundaries are set up, we inform the coordinator.
-    2) _WaitingForStopTheWorld: We are waiting for the coordinator to tell us
-      to begin preparation for migration.
-    3) _WaitingForJoinMigration: We currently delegate coordination
+    2) _WaitingForJoinMigration: We currently delegate coordination
       of in flight acking and migration back to RouterRegistry. We wait for
       join migration to finish from our side (i.e. we've sent all steps).
-    4) _WaitingForJoinMigrationAcks: We wait for new workers to ack incoming
+    3) _WaitingForJoinMigrationAcks: We wait for new workers to ack incoming
       join migration.
-    5) _WaitingForResumeTheWorld: Waiting for unmuting procedure to finish.
-    6) _WaitingForAutoscale: Autoscale is complete and we are back to our
+    4) _WaitingForResumeTheWorld: Waiting for unmuting procedure to finish.
+    5) _WaitingForAutoscale: Autoscale is complete and we are back to our
       initial waiting state.
 
     JOIN (joining worker):
@@ -119,6 +121,37 @@ class Autoscale
     _phase.worker_join(conn, worker, worker_count, local_topology,
       current_worker_count)
 
+  fun ref request_checkpoint_id(
+    connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)],
+    joining_worker_count: USize, current_worker_count: USize)
+  =>
+    _phase = _WaitingForCheckpointId(this, _router_registry, connected_joiners,
+      joining_worker_count, current_worker_count)
+    _router_registry.request_checkpoint_id_for_autoscale()
+
+  fun ref update_checkpoint_id(checkpoint_id: CheckpointId,
+    rollback_id: RollbackId)
+  =>
+    _phase.update_checkpoint_id(checkpoint_id, rollback_id)
+
+  fun ref inject_autoscale_barrier(
+    connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)],
+    joining_worker_count: USize, current_worker_count: USize,
+    checkpoint_id: CheckpointId, rollback_id: RollbackId)
+  =>
+    let new_workers = recover iso Array[WorkerName] end
+    for w in connected_joiners.keys() do
+      new_workers.push(w)
+    end
+    _phase = _InjectAutoscaleBarrier(this, _router_registry,
+      connected_joiners, joining_worker_count, current_worker_count,
+      checkpoint_id, rollback_id)
+    _router_registry.initiate_stop_the_world_for_grow_migration(
+      consume new_workers)
+
+  fun ref grow_autoscale_barrier_complete() =>
+    _phase.grow_autoscale_barrier_complete()
+
   fun ref wait_for_joiner_initialization(joining_worker_count: USize,
     initialized_workers: _StringSet,
     new_state_routing_ids: Map[WorkerName, Map[StateName, RoutingId] val] val,
@@ -163,16 +196,14 @@ class Autoscale
     _phase = _WaitingToConnectToJoiners(_auth, this, _worker_name, ws,
       coordinator)
 
-  fun ref waiting_for_stop_the_world(joining_workers: Array[WorkerName] val) =>
-    _phase = _WaitingForStopTheWorld(this, joining_workers)
-
   fun ref waiting_for_migration(joining_workers: Array[WorkerName] val) =>
     _phase = _WaitingForMigration(this, joining_workers)
 
-  fun ref stop_the_world_for_join_migration_initiated(
+  fun ref stop_the_world_for_join_migration_initiated(coordinator: WorkerName,
     joining_workers: Array[WorkerName] val)
   =>
-    _phase.stop_the_world_for_join_migration_initiated()
+    _phase.stop_the_world_for_join_migration_initiated(coordinator,
+      joining_workers)
 
   fun ref join_migration_initiated(joining_workers: Array[WorkerName] val,
     checkpoint_id: CheckpointId)
@@ -182,26 +213,28 @@ class Autoscale
   fun ref begin_join_migration(joining_workers: Array[WorkerName] val,
     checkpoint_id: CheckpointId)
   =>
+    @printf[I32]("!@ ---> begin_join_migration\n".cstring())
     _phase = _WaitingForJoinMigration(this, _auth, joining_workers
       where is_coordinator = false)
     _router_registry.begin_join_migration(joining_workers,
       checkpoint_id)
 
-  fun ref initiate_stop_the_world_for_join_migration(
+  fun ref prepare_grow_migration(
     joining_workers: Array[WorkerName] val)
   =>
+    @printf[I32]("!@ ---> initiate_stop_the_world_for_join_migration\n".cstring())
     _phase = _WaitingForJoinMigration(this, _auth, joining_workers
       where is_coordinator = true)
     // TODO: For now, we're handing control of the join protocol over to
     // RouterRegistry at this point. Eventually, we should manage the
     // entire protocol.
-    _router_registry.initiate_stop_the_world_for_grow_migration(
-      joining_workers)
+    _router_registry.prepare_join_migration(joining_workers)
 
-  fun ref stop_the_world_for_join_migration(
+  fun ref stop_the_world_for_join_migration(coordinator: WorkerName,
     joining_workers: Array[WorkerName] val)
   =>
-    _phase = _WaitingForMigration(this, joining_workers)
+    _phase = _WaitingToConnectToJoiners(_auth, this, _worker_name,
+      joining_workers, coordinator)
     // TODO: For now, we're handing control of the join protocol over to
     // RouterRegistry at this point. Eventually, we should manage the
     // entire protocol.
@@ -213,6 +246,7 @@ class Autoscale
   fun ref send_migration_batch_complete(joining_workers: Array[WorkerName] val,
     is_coordinator: Bool)
   =>
+    @printf[I32]("!@ ---> send_migration_batch_complete\n".cstring())
     _phase = _WaitingForJoinMigrationAcks(this, _auth, joining_workers,
       is_coordinator)
     for target in joining_workers.values() do
@@ -295,6 +329,16 @@ trait _AutoscalePhase
     _invalid_call()
     Fail()
 
+  fun ref update_checkpoint_id(checkpoint_id: CheckpointId,
+    rollback_id: RollbackId)
+  =>
+    _invalid_call()
+    Fail()
+
+  fun ref grow_autoscale_barrier_complete() =>
+    _invalid_call()
+    Fail()
+
   fun ref joining_worker_initialized(worker: WorkerName,
     state_routing_ids: Map[StateName, RoutingId] val)
   =>
@@ -305,7 +349,9 @@ trait _AutoscalePhase
     _invalid_call()
     Fail()
 
-  fun ref stop_the_world_for_join_migration_initiated() =>
+  fun ref stop_the_world_for_join_migration_initiated(coordinator: WorkerName,
+    joining_workers: Array[WorkerName] val)
+  =>
     _invalid_call()
     Fail()
 
@@ -349,6 +395,11 @@ class _WaitingForAutoscale is _AutoscalePhase
 
   fun name(): String => "WaitingForAutoscale"
 
+  fun ref stop_the_world_for_join_migration_initiated(coordinator: WorkerName,
+    joining_workers: Array[WorkerName] val)
+  =>
+    _autoscale.stop_the_world_for_join_migration(coordinator, joining_workers)
+
   fun ref worker_join(conn: TCPConnection, worker: WorkerName,
     worker_count: USize, local_topology: LocalTopology,
     current_worker_count: USize)
@@ -364,7 +415,9 @@ class _WaitingForJoiners is _AutoscalePhase
   let _autoscale: Autoscale ref
   let _router_registry: RouterRegistry ref
   let _joining_worker_count: USize
-  let _connected_joiners: _StringSet = _connected_joiners.create()
+  let _connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)] =
+    _connected_joiners.create()
+  //!@
   let _initialized_workers: _StringSet = _initialized_workers.create()
   var _new_state_routing_ids:
     Map[WorkerName, Map[StateName, RoutingId] val] iso =
@@ -415,17 +468,83 @@ class _WaitingForJoiners is _AutoscalePhase
         Fail()
       end
     else
-      _router_registry.inform_joining_worker(conn, worker, local_topology)
-      _connected_joiners.set(worker)
+      _connected_joiners(worker) = (conn, local_topology)
       if _connected_joiners.size() == _joining_worker_count then
-        let new_state_routing_ids:
-          Map[WorkerName, Map[StateName, RoutingId] val] val =
-            (_new_state_routing_ids = recover Map[WorkerName, Map[StateName,
-              RoutingId] val] end)
-        _autoscale.wait_for_joiner_initialization(_joining_worker_count,
-          _initialized_workers, new_state_routing_ids, _current_worker_count)
+        _autoscale.request_checkpoint_id(_connected_joiners,
+          _joining_worker_count, _current_worker_count)
       end
     end
+
+class _WaitingForCheckpointId is _AutoscalePhase
+  let _autoscale: Autoscale ref
+  let _router_registry: RouterRegistry ref
+  let _connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)]
+  let _joining_worker_count: USize
+  let _current_worker_count: USize
+
+  new create(autoscale: Autoscale ref, rr: RouterRegistry ref,
+    connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)],
+    joining_worker_count: USize, current_worker_count: USize)
+  =>
+    _autoscale = autoscale
+    _router_registry = rr
+    _connected_joiners = connected_joiners
+    _joining_worker_count = joining_worker_count
+    _current_worker_count = current_worker_count
+    @printf[I32](("AUTOSCALE: Waiting for next checkpoint id\n").cstring())
+
+  fun name(): String => "_WaitingForCheckpointId"
+
+  fun ref update_checkpoint_id(checkpoint_id: CheckpointId,
+    rollback_id: RollbackId)
+  =>
+    _autoscale.inject_autoscale_barrier(_connected_joiners,
+      _joining_worker_count, _current_worker_count, checkpoint_id,
+      rollback_id)
+
+class _InjectAutoscaleBarrier is _AutoscalePhase
+  let _autoscale: Autoscale ref
+  let _router_registry: RouterRegistry ref
+  let _connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)]
+  let _initialized_workers: _StringSet = _initialized_workers.create()
+  var _new_state_routing_ids:
+    Map[WorkerName, Map[StateName, RoutingId] val] iso =
+    recover Map[WorkerName, Map[StateName, RoutingId] val] end
+  let _joining_worker_count: USize
+  let _current_worker_count: USize
+  let _checkpoint_id: CheckpointId
+  let _rollback_id: RollbackId
+
+  new create(autoscale: Autoscale ref, rr: RouterRegistry ref,
+    connected_joiners: Map[WorkerName, (TCPConnection, LocalTopology)],
+    joining_worker_count: USize, current_worker_count: USize,
+    checkpoint_id: CheckpointId, rollback_id: RollbackId)
+  =>
+    _autoscale = autoscale
+    _router_registry = rr
+    _connected_joiners = connected_joiners
+    _joining_worker_count = joining_worker_count
+    _current_worker_count = current_worker_count
+    _checkpoint_id = checkpoint_id
+    _rollback_id = rollback_id
+    @printf[I32](("AUTOSCALE: Stopping the world and injecting autoscale " +
+      "barrier\n").cstring())
+
+  fun name(): String => "_InjectAutoscaleBarrier"
+
+  fun ref grow_autoscale_barrier_complete() =>
+    for (worker, data) in _connected_joiners.pairs() do
+      let conn = data._1
+      let local_topology = data._2
+      _router_registry.inform_joining_worker(conn, worker, local_topology,
+        _checkpoint_id, _rollback_id)
+    end
+    let new_state_routing_ids:
+      Map[WorkerName, Map[StateName, RoutingId] val] val =
+        (_new_state_routing_ids = recover Map[WorkerName, Map[StateName,
+          RoutingId] val] end)
+    _autoscale.wait_for_joiner_initialization(_joining_worker_count,
+      _initialized_workers, new_state_routing_ids, _current_worker_count)
 
   fun ref joining_worker_initialized(worker: WorkerName,
     state_routing_ids: Map[StateName, RoutingId] val)
@@ -529,7 +648,7 @@ class _WaitingForConnections is _AutoscalePhase
     @printf[I32]("!@ worker_connected_to_joining_workers from %s\n".cstring(), worker.cstring())
     _connected_workers.set(worker)
     if _connected_workers.size() == _connecting_worker_count then
-      _autoscale.initiate_stop_the_world_for_join_migration(_new_workers)
+      _autoscale.prepare_grow_migration(_new_workers)
     end
 
 class _WaitingToConnectToJoiners is _AutoscalePhase
@@ -575,24 +694,8 @@ class _WaitingToConnectToJoiners is _AutoscalePhase
       else
         Fail()
       end
-      _autoscale.waiting_for_stop_the_world(_joining_workers)
+      _autoscale.waiting_for_migration(_joining_workers)
     end
-
-class _WaitingForStopTheWorld is _AutoscalePhase
-  let _autoscale: Autoscale ref
-  let _joining_workers: Array[WorkerName] val
-
-  new create(autoscale: Autoscale ref, joining_workers: Array[WorkerName] val)
-  =>
-    _autoscale = autoscale
-    _joining_workers = joining_workers
-    @printf[I32](("AUTOSCALE: Waiting for signal to begin local stop the " +
-      "world\n").cstring())
-
-  fun name(): String => "WaitingForStopTheWorld"
-
-  fun ref stop_the_world_for_join_migration_initiated() =>
-    _autoscale.stop_the_world_for_join_migration(_joining_workers)
 
 class _WaitingForMigration is _AutoscalePhase
   let _autoscale: Autoscale ref
@@ -692,7 +795,9 @@ class _JoiningWorker is _AutoscalePhase
   fun ref worker_connected_to_joining_workers(worker: WorkerName) =>
     None
 
-  fun ref stop_the_world_for_join_migration_initiated() =>
+  fun ref stop_the_world_for_join_migration_initiated(coordinator: WorkerName,
+    joining_workers: Array[WorkerName] val)
+  =>
     None
 
   fun ref join_migration_initiated(checkpoint_id: CheckpointId) =>

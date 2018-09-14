@@ -257,8 +257,9 @@ primitive ChannelMsgEncoder
 
   // TODO: Update this once new workers become first class citizens
   fun inform_joining_worker(worker_name: String, metric_app_name: String,
-    l_topology: LocalTopology, metric_host: String,
-    metric_service: String, control_addrs: Map[String, (String, String)] val,
+    l_topology: LocalTopology, checkpoint_id: CheckpointId,
+    rollback_id: RollbackId, metric_host: String, metric_service: String,
+    control_addrs: Map[String, (String, String)] val,
     data_addrs: Map[String, (String, String)] val,
     worker_names: Array[String] val, primary_checkpoint_worker: String,
     partition_blueprints: Map[String, PartitionRouterBlueprint] val,
@@ -271,9 +272,10 @@ primitive ChannelMsgEncoder
     This message is sent as a response to a JoinCluster message.
     """
     _encode(InformJoiningWorkerMsg(worker_name, metric_app_name, l_topology,
-      metric_host, metric_service, control_addrs, data_addrs, worker_names,
-      primary_checkpoint_worker, partition_blueprints,
-      stateless_partition_blueprints, target_id_router_blueprints), auth)?
+      checkpoint_id, rollback_id, metric_host, metric_service, control_addrs,
+      data_addrs, worker_names, primary_checkpoint_worker,
+      partition_blueprints, stateless_partition_blueprints,
+      target_id_router_blueprints), auth)?
 
   fun inform_join_error(msg: String, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
@@ -295,10 +297,11 @@ primitive ChannelMsgEncoder
     _encode(JoiningWorkerInitializedMsg(worker_name, c_addr, d_addr,
       state_routing_ids), auth)?
 
-  fun initiate_stop_the_world_for_join_migration(
+  fun initiate_stop_the_world_for_join_migration(sender: WorkerName,
     new_workers: Array[String] val, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(InitiateStopTheWorldForJoinMigrationMsg(new_workers), auth)?
+    _encode(InitiateStopTheWorldForJoinMigrationMsg(sender, new_workers),
+      auth)?
 
   fun initiate_join_migration(new_workers: Array[String] val,
     checkpoint_id: CheckpointId, auth: AmbientAuth): Array[ByteSeq] val ?
@@ -432,12 +435,12 @@ primitive ChannelMsgEncoder
   =>
     _encode(WorkerAckBarrierMsg(sender, token), auth)?
 
-  fun forward_barrier(target_step_id: RoutingId, origin_step_id: RoutingId,
-    token: BarrierToken, seq_id: SeqId, auth: AmbientAuth):
-    Array[ByteSeq] val ?
+  fun forward_barrier(target_step_id: RoutingId,
+    origin_step_id: RoutingId, token: BarrierToken, seq_id: SeqId,
+    auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(ForwardBarrierMsg(target_step_id, origin_step_id, token, seq_id),
-      auth)?
+    _encode(ForwardBarrierMsg(target_step_id, origin_step_id, token,
+      seq_id), auth)?
 
   fun barrier_complete(token: BarrierToken, auth: AmbientAuth):
     Array[ByteSeq] val ?
@@ -498,21 +501,21 @@ primitive ChannelMsgEncoder
     """
     _encode(PrepareForRollbackMsg(sender), auth)?
 
-  fun rollback_topology_graph(sender: WorkerName, checkpoint_id: CheckpointId,
+  fun rollback_local_keys(sender: WorkerName, checkpoint_id: CheckpointId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
     """
     Sent to all workers in cluster by recovering worker.
     """
-    _encode(RollbackTopologyGraphMsg(sender, checkpoint_id), auth)?
+    _encode(RollbackLocalKeysMsg(sender, checkpoint_id), auth)?
 
-  fun ack_rollback_topology_graph(sender: WorkerName, checkpoint_id: CheckpointId,
+  fun ack_rollback_local_keys(sender: WorkerName, checkpoint_id: CheckpointId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
     """
     Sent to ack rolling back topology graph.
     """
-    _encode(AckRollbackTopologyGraphMsg(sender, checkpoint_id), auth)?
+    _encode(AckRollbackLocalKeysMsg(sender, checkpoint_id), auth)?
 
   fun register_producers(sender: WorkerName, auth: AmbientAuth):
     Array[ByteSeq] val ?
@@ -1071,6 +1074,8 @@ class val InformJoiningWorkerMsg is ChannelMsg
   """
   let sender_name: WorkerName
   let local_topology: LocalTopology
+  let checkpoint_id: CheckpointId
+  let rollback_id: CheckpointId
   let metrics_app_name: String
   let metrics_host: String
   let metrics_service: String
@@ -1085,6 +1090,7 @@ class val InformJoiningWorkerMsg is ChannelMsg
   let target_id_router_blueprints: Map[StateName, TargetIdRouterBlueprint] val
 
   new val create(sender: WorkerName, app: String, l_topology: LocalTopology,
+    checkpoint_id': CheckpointId, rollback_id': RollbackId,
     m_host: String, m_service: String,
     c_addrs: Map[WorkerName, (String, String)] val,
     d_addrs: Map[WorkerName, (String, String)] val,
@@ -1096,6 +1102,8 @@ class val InformJoiningWorkerMsg is ChannelMsg
   =>
     sender_name = sender
     local_topology = l_topology
+    checkpoint_id = checkpoint_id'
+    rollback_id = rollback_id'
     metrics_app_name = app
     metrics_host = m_host
     metrics_service = m_service
@@ -1129,9 +1137,11 @@ class val JoiningWorkerInitializedMsg is ChannelMsg
     state_routing_ids = s_routing_ids
 
 class val InitiateStopTheWorldForJoinMigrationMsg is ChannelMsg
+  let sender: WorkerName
   let new_workers: Array[String] val
 
-  new val create(ws: Array[String] val) =>
+  new val create(s: WorkerName, ws: Array[String] val) =>
+    sender = s
     new_workers = ws
 
 class val InitiateJoinMigrationMsg is ChannelMsg
@@ -1373,7 +1383,7 @@ class val PrepareForRollbackMsg is ChannelMsg
   new val create(sender': WorkerName) =>
     sender = sender'
 
-class val RollbackTopologyGraphMsg is ChannelMsg
+class val RollbackLocalKeysMsg is ChannelMsg
   let sender: WorkerName
   let checkpoint_id: CheckpointId
 
@@ -1381,7 +1391,7 @@ class val RollbackTopologyGraphMsg is ChannelMsg
     sender = sender'
     checkpoint_id = s_id
 
-class val AckRollbackTopologyGraphMsg is ChannelMsg
+class val AckRollbackLocalKeysMsg is ChannelMsg
   let sender: WorkerName
   let checkpoint_id: CheckpointId
 

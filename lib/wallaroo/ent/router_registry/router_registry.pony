@@ -224,10 +224,8 @@ actor RouterRegistry
 
   be set_partition_router(state_name: StateName, pr: PartitionRouter) =>
     _partition_routers(state_name) = pr
-    try
-      _local_keys.insert_if_absent(state_name, SetIs[Key])?
-    else
-      Unreachable()
+    if not _local_keys.contains(state_name) then
+      _local_keys(state_name) = SetIs[Key]
     end
 
   be set_stateless_partition_router(partition_id: U128,
@@ -491,9 +489,10 @@ actor RouterRegistry
   fun ref _register_key(state_name: StateName, key: Key,
     checkpoint_id: (CheckpointId | None) = None)
   =>
-    @printf[I32]("!@ RouterRegistry: register_key, key: %s\n".cstring(), key.cstring())
     try
-      _local_keys.insert_if_absent(state_name, SetIs[Key])?
+      if not _local_keys.contains(state_name) then
+        _local_keys(state_name) = SetIs[Key]
+      end
       _local_keys(state_name)?.set(key)
       (_local_topology_initializer as LocalTopologyInitializer)
         .register_key(state_name, key, checkpoint_id)
@@ -509,8 +508,9 @@ actor RouterRegistry
   fun ref _unregister_key(state_name: StateName, key: Key,
     checkpoint_id: (CheckpointId | None) = None)
   =>
-    @printf[I32]("!@ RouterRegistry: unregister_key, key: %s\n".cstring(), key.cstring())
     try
+      _local_keys.insert_if_absent(state_name, SetIs[Key])?
+      _local_keys(state_name)?.unset(key)
       (_local_topology_initializer as LocalTopologyInitializer)
         .unregister_key(state_name, key, checkpoint_id)
     else
@@ -672,6 +672,7 @@ actor RouterRegistry
 
   be create_partition_routers_from_blueprints(workers: Array[WorkerName] val,
     state_steps: Map[StateName, Array[Step] val] val,
+    state_step_ids: Map[StateName, Map[RoutingId, Step] val] val,
     partition_blueprints: Map[StateName, PartitionRouterBlueprint] val)
   =>
     let obs_trn = recover trn Map[WorkerName, OutgoingBoundary] end
@@ -679,14 +680,18 @@ actor RouterRegistry
       obs_trn(w) = ob
     end
     let obs = consume val obs_trn
-    for (s, b) in partition_blueprints.pairs() do
+    for (state_name, b) in partition_blueprints.pairs() do
       try
-        let local_state_steps = state_steps(s)?
+        let local_state_steps = state_steps(state_name)?
+        let local_state_step_ids = state_step_ids(state_name)?
         let next_router = b.build_router(_worker_name, workers,
-          local_state_steps, obs, _auth)
+          local_state_steps, local_state_step_ids, obs, _auth)
         _distribute_partition_router(next_router)
-        _partition_routers(s) = next_router
-        _local_keys.insert_if_absent(s, SetIs[Key])?
+        _partition_routers(state_name) = next_router
+
+        if not _local_keys.contains(state_name) then
+          _local_keys(state_name) = SetIs[Key]
+        end
       else
         Fail()
       end
@@ -790,7 +795,7 @@ actor RouterRegistry
     _initiated_stop_the_world = true
     try
       let msg = ChannelMsgEncoder.initiate_stop_the_world_for_join_migration(
-        new_workers, _auth)?
+        _worker_name, new_workers, _auth)?
       _connections.send_control_to_cluster_with_exclusions(msg, new_workers)
     else
       Fail()
@@ -800,7 +805,7 @@ actor RouterRegistry
 
     let promise = Promise[None]
     promise.next[None]({(_: None) =>
-      _self.prepare_join_migration(new_workers)})
+      _self.join_autoscale_barrier_complete()})
     _autoscale_initiator.initiate_autoscale(promise)
 
   fun ref stop_the_world_for_grow_migration(
@@ -934,7 +939,9 @@ actor RouterRegistry
       end
       new_keys(state_name) = ks
     end
+
     _local_keys = new_keys
+
     promise(None)
 
   /////////////////////////////////////////////////////////////////////////////
@@ -947,6 +954,25 @@ actor RouterRegistry
     try
       (_autoscale as Autoscale).worker_join(conn, worker, worker_count,
         local_topology, current_worker_count)
+    else
+      Fail()
+    end
+
+  fun ref request_checkpoint_id_for_autoscale() =>
+    let promise = Promise[(CheckpointId, RollbackId)]
+    promise.next[None](_self~update_checkpoint_id_for_autoscale())
+    _checkpoint_initiator.lookup_checkpoint_id(promise)
+
+  be update_checkpoint_id_for_autoscale(ids: (CheckpointId, RollbackId)) =>
+    try
+      (_autoscale as Autoscale).update_checkpoint_id(ids._1, ids._2)
+    else
+      Fail()
+    end
+
+  be join_autoscale_barrier_complete() =>
+    try
+      (_autoscale as Autoscale).grow_autoscale_barrier_complete()
     else
       Fail()
     end
@@ -995,7 +1021,8 @@ actor RouterRegistry
     end
 
   fun inform_joining_worker(conn: TCPConnection, worker: WorkerName,
-    local_topology: LocalTopology)
+    local_topology: LocalTopology, checkpoint_id: CheckpointId,
+    rollback_id: RollbackId)
   =>
     let state_blueprints =
       recover iso Map[StateName, PartitionRouterBlueprint] end
@@ -1016,7 +1043,7 @@ actor RouterRegistry
     end
 
     _connections.inform_joining_worker(conn, worker, local_topology,
-      _initializer_name, consume state_blueprints,
+      checkpoint_id, rollback_id, _initializer_name, consume state_blueprints,
       consume stateless_blueprints, consume tidr_blueprints)
 
   be inform_contacted_worker_of_initialization(
@@ -1066,7 +1093,7 @@ actor RouterRegistry
       Fail()
     end
 
-  be remote_stop_the_world_for_join_migration_request(
+  be remote_stop_the_world_for_join_migration_request(coordinator: WorkerName,
     joining_workers: Array[WorkerName] val)
   =>
     """
@@ -1076,9 +1103,10 @@ actor RouterRegistry
     telling them to it's time to stop the world. This behavior is called when
     that message is received.
     """
+    @printf[I32]("!@ REMOTE STOP THE WORLD\n".cstring())
     try
       (_autoscale as Autoscale).stop_the_world_for_join_migration_initiated(
-        joining_workers)
+        coordinator, joining_workers)
     else
       Fail()
     end
@@ -1183,7 +1211,6 @@ actor RouterRegistry
     """
     Step with provided step id has been created on another worker.
     """
-    @printf[I32]("!@ RouterRegistry: key_migration_complete for key %s with %s in there\n".cstring(), key.cstring(), _key_waiting_list.size().string().cstring())
     if _key_waiting_list.size() > 0 then
       _key_waiting_list.unset(key)
       if (_key_waiting_list.size() == 0) then
