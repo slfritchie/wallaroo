@@ -264,8 +264,20 @@ actor BarrierSource is Source
 
   be barrier_complete(token: BarrierToken) =>
     @printf[I32]("!@ barrier_complete %s at BarrierSource %s\n".cstring(), token.string().cstring(), _source_id.string().cstring())
-    // SLF: DEBUG MAYBE: inform _outputs that barrier is complete??
-    None
+/***
+    // SLF: Experimental kludge, but: couldn't find 'clear' in 'Consumer'
+    for (o_id, o) in _outputs.pairs() do
+      match o
+      | let ob: OutgoingBoundary =>
+        @printf[I32]("!@ barrier_complete %s output OutgoingBoundary\n".cstring(), token.string().cstring())
+        // @printf[I32]("!@ BarrierSource: barrier over boundary to %s!\n".cstring(), o_id.string().cstring())
+        None
+      else
+        @printf[I32]("!@ barrier_complete %s output else\n".cstring(), token.string().cstring())
+        o.clear()
+      end
+    end
+ ***/
 
   be update_worker_data_service(worker_name: String,
     host: String, service: String)

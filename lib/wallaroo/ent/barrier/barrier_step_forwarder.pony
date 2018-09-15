@@ -111,6 +111,7 @@ class BarrierStepForwarder
   fun ref check_completion(inputs: Map[RoutingId, Producer] box) =>
     if (inputs.size() == (_inputs_blocking.size() + _removed_inputs.size()))
     then
+      @printf[I32]("!@ BarrierStepForwarder: That was last barrier at Forwarder.  FORWARDING %s!\n".cstring(), _barrier_token.string().cstring())
       // @printf[I32]("!@ That was last barrier at Forwarder.  FORWARDING!\n".cstring())
       for (o_id, o) in _step.outputs().pairs() do
         match o
@@ -129,6 +130,7 @@ class BarrierStepForwarder
     //!@
     else
       //!@
+      @printf[I32]("!@ BarrierStepForwarder: NOT last barrier (%d vs %d) at Forwarder for %s\n".cstring(), inputs.size(), (_inputs_blocking.size() + _removed_inputs.size()), _barrier_token.string().cstring())
       None
       // @printf[I32]("!@ Not last barrier at Forwarder. inputs: %s, inputs_blocking: %s, removed_inputs: %s\n".cstring(), inputs.size().string().cstring(), _inputs_blocking.size().string().cstring(), _removed_inputs.size().string().cstring())
       // @printf[I32]("!@ Inputs:\n".cstring())
@@ -139,6 +141,7 @@ class BarrierStepForwarder
     end
 
   fun ref clear() =>
+    @printf[I32]("!@ BarrierStepForwarder: clear at %s\n".cstring(), _barrier_token.string().cstring())
     _inputs_blocking.clear()
     _removed_inputs.clear()
     _barrier_token = InitialBarrierToken
