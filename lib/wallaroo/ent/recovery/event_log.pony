@@ -77,7 +77,7 @@ actor EventLog
 
   var _log_rotation_id: LogRotationId = 0
 
-  let qqset: Set[String] = qqset.create() // Gah, really, I want a set of 2-tuples, instead kludge with string
+  var qqset: Set[String] = qqset.create() // Gah, really, I want a set of 2-tuples, instead kludge with string
 
   new create(worker: WorkerName,
     event_log_config: EventLogConfig = EventLogConfig())
@@ -182,7 +182,7 @@ actor EventLog
     if qqset.contains(qqmember) then
       @printf[I32]("!@ EventLog: REPEAT %s checkpoint_state %d, payload size %d printable %s.\n".cstring(), qqmember.cstring(), checkpoint_id, qqsize, qq.cstring())
     else
-      qqset.add(qqmember)
+      qqset = qqset.add(qqmember)
       @printf[I32]("!@ EventLog: NEW %s checkpoint_state %d, payload size %d printable %s.\n".cstring(), qqmember.cstring(), checkpoint_id, qqsize, qq.cstring())
       _phase.checkpoint_state(resilient_id, checkpoint_id, payload)
     end
