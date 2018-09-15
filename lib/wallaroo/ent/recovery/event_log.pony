@@ -154,7 +154,38 @@ actor EventLog
   be checkpoint_state(resilient_id: RoutingId, checkpoint_id: CheckpointId,
     payload: Array[ByteSeq] val)
   =>
-    _phase.checkpoint_state(resilient_id, checkpoint_id, payload)
+    let qq: String ref = recover String() end
+    var qqsize: USize = 0
+    for q1 in payload.values() do
+      match q1
+      | let q1s: String =>
+        for q in q1s.values() do
+          qqsize = qqsize + 1
+          if (q >= 32) and (q <= 127) then
+            qq.push(q)
+          else
+            qq.append(".")
+          end
+        end
+      | let q1a: Array[U8] val =>
+        for q in q1a.values() do
+          qqsize = qqsize + 1
+          if (q >= 32) and (q <= 127) then
+            qq.push(q)
+          else
+            qq.append(".")
+          end
+        end
+      end
+    end
+    let qqmember = (resilient_id.string() + ",") + checkpoint_id.string()
+    if qqset.contains(qqmember) then
+      @printf[I32]("!@ EventLog: REPEAT checkpoint_state %d, payload size %d printable %s.\n".cstring(), checkpoint_id, qqsize, qq.cstring())
+    else
+      qqset.add(qqmember)
+      @printf[I32]("!@ EventLog: NEW checkpoint_state %d, payload size %d printable %s.\n".cstring(), checkpoint_id, qqsize, qq.cstring())
+      _phase.checkpoint_state(resilient_id, checkpoint_id, payload)
+    end
 
   fun ref _initiate_checkpoint(checkpoint_id: CheckpointId,
     promise: Promise[CheckpointId])
