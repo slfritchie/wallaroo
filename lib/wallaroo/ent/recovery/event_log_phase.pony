@@ -76,19 +76,23 @@ class _NormalEventLogPhase is _EventLogPhase
 
   new create(next_checkpoint_id: CheckpointId, event_log: EventLog ref) =>
     _next_checkpoint_id = next_checkpoint_id
+    @printf[I32]("!@ EventLogPhase: create, _next_checkpoint_id = %d\n".cstring(), _next_checkpoint_id)
     _event_log = event_log
 
   fun ref initiate_checkpoint(checkpoint_id: CheckpointId,
     promise: Promise[CheckpointId], event_log: EventLog ref)
   =>
+    @printf[I32]("!@ EventLogPhase: initiate_checkpoint, _next_checkpoint_id = %d\n".cstring(), _next_checkpoint_id)
     event_log._initiate_checkpoint(checkpoint_id, promise)
 
   fun ref write_initial_checkpoint_id(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLogPhase: write_initial_checkpoint_id, _next_checkpoint_id = %d\n".cstring(), _next_checkpoint_id)
     _event_log._write_checkpoint_id(checkpoint_id)
 
   fun ref checkpoint_state(resilient_id: RoutingId,
     checkpoint_id: CheckpointId, payload: Array[ByteSeq] val)
   =>
+    @printf[I32]("!@ EventLogPhase: checkpoint_state, _next_checkpoint_id = %d\n".cstring(), _next_checkpoint_id)
     // @printf[I32]("!@ _NormalEventLogPhase: checkpoint_state() for checkpoint_id %s\n".cstring(), checkpoint_id.string().cstring())
 
     ifdef debug then
@@ -108,6 +112,7 @@ class _NormalEventLogPhase is _EventLogPhase
     end
 
   fun ref checkpoint_id_written(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLogPhase: checkpoint_id_written, _next_checkpoint_id = %d\n".cstring(), _next_checkpoint_id)
     _event_log.update_normal_event_log_checkpoint_id(checkpoint_id)
 
   fun name(): String => "_NormalEventLogPhase"

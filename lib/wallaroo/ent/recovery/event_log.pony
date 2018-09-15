@@ -77,6 +77,8 @@ actor EventLog
 
   var _log_rotation_id: LogRotationId = 0
 
+  let qqset: Set[String] = qqset.create() // Gah, really, I want a set of 2-tuples, instead kludge with string
+
   new create(worker: WorkerName,
     event_log_config: EventLogConfig = EventLogConfig())
   =>
@@ -145,6 +147,7 @@ actor EventLog
   be initiate_checkpoint(checkpoint_id: CheckpointId,
     promise: Promise[CheckpointId])
   =>
+    @printf[I32]("!@ EventLog: initiate_checkpoint %d\n".cstring(), checkpoint_id)
     @printf[I32]("!@ EventLog: initiate_checkpoint\n".cstring())
     _phase.initiate_checkpoint(checkpoint_id, promise, this)
 
@@ -156,17 +159,20 @@ actor EventLog
   fun ref _initiate_checkpoint(checkpoint_id: CheckpointId,
     promise: Promise[CheckpointId])
   =>
+    @printf[I32]("!@ EventLog: _initiate_checkpoint %d\n".cstring(), checkpoint_id)
     _phase = _CheckpointEventLogPhase(this, checkpoint_id, promise)
 
   fun ref _checkpoint_state(resilient_id: RoutingId,
     checkpoint_id: CheckpointId, payload: Array[ByteSeq] val)
   =>
+    @printf[I32]("!@ EventLog: _checkpoint_state %d\n".cstring(), checkpoint_id)
     _queue_log_entry(resilient_id, checkpoint_id, payload)
 
   fun ref _queue_log_entry(resilient_id: RoutingId,
     checkpoint_id: CheckpointId, payload: Array[ByteSeq] val,
     force_write: Bool = false)
   =>
+    @printf[I32]("!@ EventLog: _queue_log_entry %d\n".cstring(), checkpoint_id)
     ifdef "resilience" then
       // add to backend buffer after encoding
       // encode right away to amortize encoding cost per entry when received
@@ -184,22 +190,27 @@ actor EventLog
     end
 
   be write_initial_checkpoint_id(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLog: write_initial_checkpoint_id %d\n".cstring(), checkpoint_id)
     _phase.write_initial_checkpoint_id(checkpoint_id)
 
   be write_checkpoint_id(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLog: write_checkpoint_id %d\n".cstring(), checkpoint_id)
     _phase.write_checkpoint_id(checkpoint_id)
 
   fun ref _write_checkpoint_id(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLog: write_checkpoint_id %d\n".cstring(), checkpoint_id)
     // @printf[I32]("!@ EventLog: write_checkpoint_id\n".cstring())
     _backend.encode_checkpoint_id(checkpoint_id)
     _phase.checkpoint_id_written(checkpoint_id)
 
   fun ref update_normal_event_log_checkpoint_id(checkpoint_id: CheckpointId)
   =>
+    @printf[I32]("!@ EventLog: update_normal_event_log_checkpoint_id %d\n".cstring(), checkpoint_id)
     // We need to update the next checkpoint id we're expecting.
     _phase = _NormalEventLogPhase(checkpoint_id + 1, this)
 
   fun ref checkpoint_complete(checkpoint_id: CheckpointId) =>
+    @printf[I32]("!@ EventLog: checkpoint_complete %d\n".cstring(), checkpoint_id)
     // @printf[I32]("!@ EventLog: checkpoint_complete()\n".cstring())
     write_log()
     _phase = _NormalEventLogPhase(checkpoint_id + 1, this)
