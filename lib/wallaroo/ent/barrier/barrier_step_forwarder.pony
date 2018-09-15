@@ -46,6 +46,7 @@ class BarrierStepForwarder
   fun ref receive_new_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("!@ StepForwarder: receive_new_barrier %s\n".cstring(), barrier_token.string().cstring())
     // @printf[I32]("!@ StepForwarder: receive_new_barrier\n".cstring())
     _barrier_token = barrier_token
     receive_barrier(step_id, producer, barrier_token)

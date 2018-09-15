@@ -247,7 +247,7 @@ actor BarrierSource is Source
     None
 
   be initiate_barrier(token: BarrierToken) =>
-    @printf[I32]("!@ BarrierSource initiate_barrier. Forwarding to %s outputs\n".cstring(), _outputs.size().string().cstring())
+    @printf[I32]("!@ BarrierSource initiate_barrier %s. Forwarding to %s outputs\n".cstring(), token.string().cstring(), _outputs.size().string().cstring())
     match token
     | let sbt: CheckpointBarrierToken =>
       checkpoint_state(sbt.id)
@@ -263,7 +263,8 @@ actor BarrierSource is Source
     end
 
   be barrier_complete(token: BarrierToken) =>
-    @printf[I32]("!@ barrier_complete at BarrierSource %s\n".cstring(), _source_id.string().cstring())
+    @printf[I32]("!@ barrier_complete %s at BarrierSource %s\n".cstring(), token.string().cstring(), _source_id.string().cstring())
+    // SLF: DEBUG MAYBE: inform _outputs that barrier is complete??
     None
 
   be update_worker_data_service(worker_name: String,
