@@ -180,10 +180,10 @@ actor EventLog
     end
     let qqmember = (resilient_id.string() + ",") + checkpoint_id.string()
     if qqset.contains(qqmember) then
-      @printf[I32]("!@ EventLog: REPEAT checkpoint_state %d, payload size %d printable %s.\n".cstring(), checkpoint_id, qqsize, qq.cstring())
+      @printf[I32]("!@ EventLog: REPEAT %s checkpoint_state %d, payload size %d printable %s.\n".cstring(), qqmember.cstring(), checkpoint_id, qqsize, qq.cstring())
     else
       qqset.add(qqmember)
-      @printf[I32]("!@ EventLog: NEW checkpoint_state %d, payload size %d printable %s.\n".cstring(), checkpoint_id, qqsize, qq.cstring())
+      @printf[I32]("!@ EventLog: NEW %s checkpoint_state %d, payload size %d printable %s.\n".cstring(), qqmember.cstring(), checkpoint_id, qqsize, qq.cstring())
       _phase.checkpoint_state(resilient_id, checkpoint_id, payload)
     end
 
