@@ -63,7 +63,7 @@ class BarrierStepForwarder
         @printf[I32]("Invariant violation: received barrier %s is greater than current barrier %s \n".cstring(), barrier_token.string().cstring(), _barrier_token.string().cstring())
       end
 
-      if (barrier_token < _barrier_token) then
+      if (barrier_token > _barrier_token) then
         @printf[I32]("@! FWD: receive_barrier: KLUDGE RETURN %s %s %s %d\n".cstring(), step_id.string().cstring(), barrier_token.string().cstring(), __loc.file().cstring(), __loc.line())
         return
       end
