@@ -292,6 +292,7 @@ actor OutgoingBoundary is Consumer
 
   be register_step_id(step_id: RoutingId) =>
     _step_id = step_id
+    try (_notify as BoundaryNotify).register_step_id(step_id) else Fail() end
 
   be run[D: Any val](metric_name: String, pipeline_time_spent: U64, data: D,
     i_producer_id: RoutingId, i_producer: Producer, msg_uid: MsgId,
@@ -1093,6 +1094,7 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
   let _outgoing_boundary: OutgoingBoundary tag
   let _reconnect_closed_delay: U64
   let _reconnect_failed_delay: U64
+  var _step_id: RoutingId = 0
 
   new create(auth: AmbientAuth, outgoing_boundary: OutgoingBoundary tag,
     reconnect_closed_delay: U64 = 100_000_000,
@@ -1102,6 +1104,9 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     _outgoing_boundary = outgoing_boundary
     _reconnect_closed_delay = reconnect_closed_delay
     _reconnect_failed_delay = reconnect_failed_delay
+
+  fun ref register_step_id(step_id: RoutingId) =>
+    _step_id = step_id
 
   fun ref received(conn: WallarooOutgoingNetworkActor ref, data: Array[U8] iso,
     times: USize): Bool
@@ -1168,7 +1173,7 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
     conn.expect(4)
 
   fun ref closed(conn: WallarooOutgoingNetworkActor ref) =>
-    @printf[I32]("BoundaryNotify: closed\n\n".cstring())
+    @printf[I32]("BoundaryNotify: closed for step_id %s\n\n".cstring(), _step_id.string().cstring())
 
   fun ref connect_failed(conn: WallarooOutgoingNetworkActor ref) =>
     @printf[I32]("BoundaryNotify: connect_failed\n\n".cstring())
