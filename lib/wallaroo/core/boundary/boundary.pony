@@ -522,6 +522,7 @@ actor OutgoingBoundary is Consumer
   be forward_barrier(target_step_id: RoutingId, origin_step_id: RoutingId,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("@! OutgoingBoundary: forward_barrier: %s %s %s\n".cstring(), target_step_id.string().cstring(), origin_step_id.string().cstring(), barrier_token.string().cstring())
     match barrier_token
     | let srt: CheckpointRollbackBarrierToken =>
       _queue.clear()
@@ -543,6 +544,7 @@ actor OutgoingBoundary is Consumer
   be receive_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("@! FWD: receive_barrier: %s %s %s %d\n".cstring(), step_id.string().cstring(), barrier_token.string().cstring(), __loc.file().cstring(), __loc.line())
     // We only forward barriers at the boundary. The OutgoingBoundary
     // does not participate directly in the barrier protocol.
     Fail()

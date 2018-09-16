@@ -540,6 +540,7 @@ actor Step is (Producer & Consumer & BarrierProcessor)
   be receive_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("@! FWD: receive_barrier: %s %s %s %d\n".cstring(), step_id.string().cstring(), barrier_token.string().cstring(), __loc.file().cstring(), __loc.line())
     // @printf[I32]("!@ Step %s received barrier %s from %s\n".cstring(), _id.string().cstring(), barrier_token.string().cstring(), step_id.string().cstring())
     process_barrier(step_id, producer, barrier_token)
 

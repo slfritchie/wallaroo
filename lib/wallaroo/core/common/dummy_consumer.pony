@@ -77,6 +77,7 @@ actor DummyConsumer is Consumer
   be receive_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("@! FWD: receive_barrier: %s %s %s %d\n".cstring(), step_id.string().cstring(), barrier_token.string().cstring(), __loc.file().cstring(), __loc.line())
     None
 
   fun ref barrier_complete(barrier_token: BarrierToken) =>

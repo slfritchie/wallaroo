@@ -229,15 +229,19 @@ actor BarrierSource is Source
     None
 
   be add_boundaries(bs: Map[String, OutgoingBoundary] val) =>
+@printf[I32]("@!@!@!@!@!@! yodel add_boundaries arg %s\n".cstring(), "some map".cstring())
     None
 
   be remove_boundary(worker: String) =>
+@printf[I32]("@!@!@!@!@!@! yodel remove_boundary() arg %s\n".cstring(), worker.cstring())
     None
 
   be reconnect_boundary(target_worker_name: String) =>
+@printf[I32]("@!@!@!@!@!@! yodel reconnect_boundary() arg %s\n".cstring(), target_worker_name.cstring())
     None
 
   be disconnect_boundary(worker: WorkerName) =>
+@printf[I32]("@!@!@!@!@!@! yodel disconnect_boundary arg %s\n".cstring(), worker.cstring())
     None
 
   be mute(c: Consumer) =>
@@ -253,6 +257,7 @@ actor BarrierSource is Source
       checkpoint_state(sbt.id)
     end
     for (o_id, o) in _outputs.pairs() do
+      @printf[I32]("!@ BarrierSource initiate_barrier %s. Forwarding to %s\n".cstring(), token.string().cstring(), o_id.string().cstring())
       match o
       | let ob: OutgoingBoundary =>
         // @printf[I32]("!@ BarrierSource: barrier over boundary to %s!\n".cstring(), o_id.string().cstring())
@@ -265,13 +270,12 @@ actor BarrierSource is Source
   be barrier_complete(token: BarrierToken) =>
     @printf[I32]("!@ barrier_complete %s at BarrierSource %s\n".cstring(), token.string().cstring(), _source_id.string().cstring())
 /***
-    // SLF: Experimental kludge, but: couldn't find 'clear' in 'Consumer'
+    // SLF: Experimental kludge, but: type BarrierStepForwarder can never match
     for (o_id, o) in _outputs.pairs() do
       match o
-      | let ob: OutgoingBoundary =>
-        @printf[I32]("!@ barrier_complete %s output OutgoingBoundary\n".cstring(), token.string().cstring())
-        // @printf[I32]("!@ BarrierSource: barrier over boundary to %s!\n".cstring(), o_id.string().cstring())
-        None
+      | let bsf: BarrierStepForwarder =>
+        @printf[I32]("!@ barrier_complete %s output BarrierStepForwarder\n".cstring(), token.string().cstring())
+        bsf.clear()
       else
         @printf[I32]("!@ barrier_complete %s output else\n".cstring(), token.string().cstring())
         o.clear()

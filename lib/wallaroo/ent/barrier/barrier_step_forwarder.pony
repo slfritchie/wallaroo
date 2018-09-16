@@ -54,6 +54,7 @@ class BarrierStepForwarder
   fun ref receive_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
+    @printf[I32]("@! FWD: receive_barrier: %s %s %s %d\n".cstring(), step_id.string().cstring(), barrier_token.string().cstring(), __loc.file().cstring(), __loc.line())
     // If this new token is a higher priority token, then the forwarder should
     // have already been cleared to make way for it.
     ifdef debug then
