@@ -686,6 +686,8 @@ actor DataChannel
           else
             if _read_buf.size() > _read_buf_offset then
 
+              @printf[I32]("read BEFORE fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line())
+              @printf[I32]("read read_buf-size %d fd %d %s %d\n".cstring(), _read_buf.size() - _read_buf_offset, _fd, __loc.file().cstring(), __loc.line())
               // Read as much data as possible.
               let len = @pony_os_recv[USize](
                 _event,
@@ -710,6 +712,7 @@ actor DataChannel
               _read_buf_offset = _read_buf_offset + len
               sum = sum + len
             else
+              @printf[I32]("read blah-else fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line())
               _read_buf_size()
               _read_again()
             end
