@@ -445,13 +445,13 @@ actor Step is (Producer & Consumer & BarrierProcessor)
     _routes.contains(c)
 
   be register_producer(id: RoutingId, producer: Producer) =>
-    // @printf[I32]("!@ Registered producer %s at step %s. Total %s upstreams.\n".cstring(), id.string().cstring(), _id.string().cstring(), _upstreams.size().string().cstring())
+    @printf[I32]("!@ Registered producer %s at step %s. Total %s upstreams.\n".cstring(), id.string().cstring(), _id.string().cstring(), _upstreams.size().string().cstring())
 
     _inputs(id) = producer
     _upstreams.set(producer)
 
   be unregister_producer(id: RoutingId, producer: Producer) =>
-    // @printf[I32]("!@ Unregistered producer %s at step %s. Total %s upstreams.\n".cstring(), id.string().cstring(), _id.string().cstring(), _upstreams.size().string().cstring())
+    @printf[I32]("!@ Unregistered producer %s at step %s. Total %s upstreams.\n".cstring(), id.string().cstring(), _id.string().cstring(), _upstreams.size().string().cstring())
 
     if _inputs.contains(id) then
       try
@@ -540,15 +540,15 @@ actor Step is (Producer & Consumer & BarrierProcessor)
   be receive_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
-    // @printf[I32]("!@ Step %s received barrier %s from %s\n".cstring(), _id.string().cstring(), barrier_token.string().cstring(), step_id.string().cstring())
+    @printf[I32]("!@ Step %s received barrier %s from %s\n".cstring(), _id.string().cstring(), barrier_token.string().cstring(), step_id.string().cstring())
     process_barrier(step_id, producer, barrier_token)
 
   fun ref process_barrier(step_id: RoutingId, producer: Producer,
     barrier_token: BarrierToken)
   =>
-    // @printf[I32]("!@ >>Step %s PROCESS_barrier %s from %s\n".cstring(), _id.string().cstring(), barrier_token.string().cstring(), step_id.string().cstring())
+    @printf[I32]("!@ >>Step %s PROCESS_barrier %s from %s\n".cstring(), _id.string().cstring(), barrier_token.string().cstring(), step_id.string().cstring())
     if _inputs.contains(step_id) then
-      // @printf[I32]("!@ Receive Barrier %s at Step %s\n".cstring(), barrier_token.string().cstring(), _id.string().cstring())
+      @printf[I32]("!@ Receive Barrier %s at Step %s\n".cstring(), barrier_token.string().cstring(), _id.string().cstring())
       match barrier_token
       | let srt: CheckpointRollbackBarrierToken =>
         try
@@ -588,7 +588,7 @@ actor Step is (Producer & Consumer & BarrierProcessor)
     end
 
   fun ref barrier_complete(barrier_token: BarrierToken) =>
-    // @printf[I32]("!@ Barrier complete at Step %s\n".cstring(), _id.string().cstring())
+    @printf[I32]("!@ Barrier complete at Step %s\n".cstring(), _id.string().cstring())
     ifdef debug then
       Invariant(_step_message_processor.barrier_in_progress())
     end
@@ -637,5 +637,5 @@ actor Step is (Producer & Consumer & BarrierProcessor)
     ifdef "resilience" then
       StepRollbacker(payload, _runner)
     end
-    // @printf[I32]("!@ Step %s acking rollback\n".cstring(), _id.string().cstring())
+    @printf[I32]("!@ Step %s acking rollback\n".cstring(), _id.string().cstring())
     event_log.ack_rollback(_id)

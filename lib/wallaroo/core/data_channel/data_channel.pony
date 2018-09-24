@@ -451,7 +451,7 @@ actor DataChannel
       if rem == 0 then
         // IOCP reported a failed write on this chunk. Non-graceful shutdown.
         try _pending.shift()? end
-        _hard_close()
+        @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
         return
       end
 
@@ -547,7 +547,7 @@ actor DataChannel
           end
         else
           // Non-graceful shutdown on error.
-          _hard_close()
+          @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
         end
       end
     end
@@ -607,7 +607,7 @@ actor DataChannel
           _read_buf.cpointer().usize() + _read_len,
           _read_buf.size() - _read_len) ?
       else
-        _hard_close()
+        @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
       end
     end
 
@@ -691,7 +691,7 @@ actor DataChannel
                 _event,
                 _read_buf.cpointer(_read_buf_offset),
                 _read_buf.size() - _read_buf_offset) ?
-
+              @printf[I32]("read len %d fd %d %s %d\n".cstring(), len, _fd, __loc.file().cstring(), __loc.line())
               match len
               | 0 =>
                 // Would block, try again later.
@@ -718,7 +718,7 @@ actor DataChannel
       else
         // The socket has been closed from the other side.
         _shutdown_peer = true
-        _hard_close()
+        @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
       end
       _reading = false
     end
@@ -731,7 +731,7 @@ actor DataChannel
       _notify.connecting(this, _connect_count)
     else
       _notify.connect_failed(this)
-      _hard_close()
+      @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
     end
 
   fun ref close() =>
@@ -739,7 +739,7 @@ actor DataChannel
     Shut our connection down immediately. Stop reading data from the incoming
     source.
     """
-    _hard_close()
+    @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
 
   fun ref _close() =>
     _closed = true
@@ -775,7 +775,7 @@ actor DataChannel
     end
 
     if _connected and _shutdown and _shutdown_peer then
-      _hard_close()
+      @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
     end
 
     ifdef windows then
