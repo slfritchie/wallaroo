@@ -379,23 +379,21 @@ actor DataChannel
       end
     else
       // At this point, it's our event.
-      if _connected and not _shutdown_peer then
-        if AsioEvent.writeable(flags) then
-          _writeable = true
-          _complete_writes(arg)
-            ifdef not windows then
-              if _pending_writes() then
-                //sent all data; release backpressure
-                _release_backpressure()
-              end
+      if AsioEvent.writeable(flags) then
+        _writeable = true
+        _complete_writes(arg)
+          ifdef not windows then
+            if _pending_writes() then
+              //sent all data; release backpressure
+              _release_backpressure()
             end
-        end
+          end
+      end
 
-        if AsioEvent.readable(flags) then
-          _readable = true
-          _complete_reads(arg)
-          _pending_reads()
-        end
+      if AsioEvent.readable(flags) then
+        _readable = true
+        _complete_reads(arg)
+        _pending_reads()
       end
 
       if AsioEvent.disposable(flags) then
@@ -604,7 +602,7 @@ actor DataChannel
       try
         @pony_os_recv[USize](
           _event,
-          _read_buf.cpointer().usize() + _read_len,
+          _read_buf.cpointer(_read_len),
           _read_buf.size() - _read_len) ?
       else
         @printf[I32]("before _hard_close fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line()); _hard_close()
@@ -686,7 +684,7 @@ actor DataChannel
           else
             if _read_buf.size() > _read_buf_offset then
 
-              @printf[I32]("read BEFORE fd %d %s %d\n".cstring(), _fd, __loc.file().cstring(), __loc.line())
+              @printf[I32]("read BEFORE fd %d _read_buf_offset %d _read_len %d %s %d\n".cstring(), _fd, _read_buf_offset, _read_len, __loc.file().cstring(), __loc.line())
               @printf[I32]("read read_buf-size %d fd %d %s %d\n".cstring(), _read_buf.size() - _read_buf_offset, _fd, __loc.file().cstring(), __loc.line())
               // Read as much data as possible.
               let len = @pony_os_recv[USize](
