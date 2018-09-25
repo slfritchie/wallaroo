@@ -684,14 +684,15 @@ actor DataChannel
           else
             if _read_buf.size() > _read_buf_offset then
 
+              let amount = _read_buf.size() - _read_buf_offset
               @printf[I32]("read BEFORE fd %d _read_buf_offset %d _read_len %d %s %d\n".cstring(), _fd, _read_buf_offset, _read_len, __loc.file().cstring(), __loc.line())
-              @printf[I32]("read read_buf-size %d fd %d %s %d\n".cstring(), _read_buf.size() - _read_buf_offset, _fd, __loc.file().cstring(), __loc.line())
+              @printf[I32]("read amount %ld fd %d %s %d\n".cstring(), amount, _fd, __loc.file().cstring(), __loc.line())
               // Read as much data as possible.
               let len = @pony_os_recv[USize](
                 _event,
                 _read_buf.cpointer(_read_buf_offset),
-                _read_buf.size() - _read_buf_offset) ?
-              @printf[I32]("read len %d fd %d %s %d\n".cstring(), len, _fd, __loc.file().cstring(), __loc.line())
+                amount) ?
+              @printf[I32]("read len %ld fd %d %s %d\n".cstring(), len, _fd, __loc.file().cstring(), __loc.line())
               match len
               | 0 =>
                 // Would block, try again later.
@@ -702,7 +703,7 @@ actor DataChannel
                 @pony_asio_event_resubscribe_read(_event)
                 _reading = false
                 return
-              | (_read_buf.size() - _read_buf_offset) =>
+              | (amount) =>
                 // Increase the read buffer size.
                 _next_size = _max_size.min(_next_size * 2)
               end
