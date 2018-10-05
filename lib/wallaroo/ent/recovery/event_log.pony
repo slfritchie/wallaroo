@@ -115,7 +115,7 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
               RotatingFileBackend(ld, f, _config.suffix, this,
                 _config.backend_file_length, _the_journal, _auth,
                 _config.worker_name, _config.do_local_file_io,
-                _config.dos_host, _config.dos_service
+                _config.dos_servers
                 where rotation_enabled = true)?
             else
               Fail()
@@ -127,13 +127,13 @@ actor EventLog is SimpleJournalAsyncResponseReceiver
               RotatingFileBackend(ld, f, "", this,
                 _config.backend_file_length, _the_journal, _auth,
                 _config.worker_name, _config.do_local_file_io,
-                _config.dos_host, _config.dos_service
+                _config.dos_servers
                 where rotation_enabled = false)?
             | let ld: AmbientAuth =>
               RotatingFileBackend(FilePath(ld, f)?, f, "", this,
                 _config.backend_file_length, _the_journal, _auth,
                 _config.worker_name, _config.do_local_file_io,
-                _config.dos_host, _config.dos_service
+                _config.dos_servers
                 where rotation_enabled = false)?
             else
               Fail()

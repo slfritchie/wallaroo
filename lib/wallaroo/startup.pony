@@ -874,19 +874,21 @@ actor Startup
 
         let j_local = recover iso
           SimpleJournalBackendLocalFile(the_journal_filepath) end
-        let rjcs = recover trn Array[RemoteJournalClient] end
-        for (dos_host, dos_service) in _startup_options.dos_servers.values() do
-          let make_dos = recover val
-            {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
-            =>
-              DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
-            } end
-          let rjc = RemoteJournalClient(auth,
-            the_journal_filepath, the_journal_basename, usedir_name, make_dos)
-          rjcs.push(rjc)
+        let dos_servers = _startup_options.dos_servers
+        let j_remote = recover iso
+          let rjcs = recover trn Array[RemoteJournalClient] end
+          for (dos_host, dos_service) in dos_servers.values() do
+            let make_dos = recover val
+              {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
+              =>
+                DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
+              } end
+            let rjc = RemoteJournalClient(auth,
+              the_journal_filepath, the_journal_basename, usedir_name, make_dos)
+            rjcs.push(rjc)
+          end
+          SimpleJournalBackendRemote(consume rjcs)
         end
-        let j_remote = recover iso SimpleJournalBackendRemote(
-          consume rjcs) end
 
         SimpleJournalMirror(consume j_local, consume j_remote, "main", true, None) // TODO async receiver tag??
       else
