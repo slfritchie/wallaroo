@@ -229,16 +229,19 @@ class SimpleJournalBackendLocalFile is SimpleJournalBackend
     true
 
 class SimpleJournalBackendRemote is SimpleJournalBackend
-  let _rjc: RemoteJournalClient
+  let _rjcs: Array[RemoteJournalClient] val
 
-  new create(rjc: RemoteJournalClient) =>
-    _rjc = rjc
+  new create(rjcs: Array[RemoteJournalClient] val) =>
+    _rjcs = rjcs
 
   fun ref be_dispose() =>
-    _rjc.dispose()
+    for rjc in _rjcs.values() do
+      rjc.dispose()
+    end
 
   fun ref be_position(): USize =>
-    666 // TODO
+    Fail()
+    666
 
   fun ref be_writev(offset: USize, data: ByteSeqIter val, data_size: USize)
     : Bool
@@ -246,7 +249,9 @@ class SimpleJournalBackendRemote is SimpleJournalBackend
     // TODO offset sanity check
     // TODO offset update
     _D.d66("SimpleJournalBackendRemote: be_writev offset %d data_size %d\n", offset, data_size)
-    _rjc.be_writev(offset, data, data_size)
+    for rjc in _rjcs.values() do
+      rjc.be_writev(offset, data, data_size)
+    end
     true
 
 /**********************************************************
