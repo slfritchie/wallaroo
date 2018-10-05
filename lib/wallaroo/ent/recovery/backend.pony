@@ -386,13 +386,12 @@ class RotatingFileBackend is Backend
   var _offset: U64
   var _rotate_requested: Bool = false
   let _rotation_enabled: Bool
-  let _dos_host: String
-  let _dos_service: String
+  let _dos_servers: Array[(String,String)] val
 
   new create(base_dir: FilePath, base_name: String, suffix: String = ".evlog",
     event_log: EventLog ref, file_length: (USize | None),
     the_journal: SimpleJournal, auth: AmbientAuth, worker_name: String,
-    do_local_file_io: Bool, dos_host: String, dos_service: String,
+    do_local_file_io: Bool, dos_servers: Array[(String,String)] val,
     rotation_enabled: Bool = true) ?
   =>
     _base_dir = base_dir
@@ -404,8 +403,7 @@ class RotatingFileBackend is Backend
     _auth = auth
     _worker_name = worker_name
     _do_local_file_io = do_local_file_io
-    _dos_host = dos_host
-    _dos_service = dos_service
+    _dos_servers = dos_servers
     _rotation_enabled = rotation_enabled
 
     // scan existing files matching _base_path, and identify the latest one
@@ -426,14 +424,13 @@ class RotatingFileBackend is Backend
     let fp = FilePath(_base_dir, p)?
     let local_journal_filepath = FilePath(_base_dir, p + ".journal")?
     let local_journal = _start_journal(auth, the_journal, local_journal_filepath, false, _event_log, worker_name,
-      dos_host, dos_service)
+      dos_servers)
     _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
-  // TODO Derp nearly cut-and-paste from startup.pony's version
   fun tag _start_journal(auth: AmbientAuth, the_journal: SimpleJournal,
     local_journal_filepath: FilePath, encode_io_ops: Bool,
     event_log: EventLog, worker_name: String,
-    dos_host: String, dos_service: String): SimpleJournal
+    dos_servers: Array[(String,String)] val): SimpleJournal
    =>
     match the_journal
     | let lj: SimpleJournalNoop =>
@@ -514,7 +511,7 @@ class RotatingFileBackend is Backend
       let fp = FilePath(_base_dir, p)?
       let local_journal_filepath = FilePath(_base_dir, p + ".journal")?
       let local_journal = _start_journal(_auth, _the_journal, local_journal_filepath, false, _event_log, _worker_name,
-        _dos_host, _dos_service)
+        _dos_servers)
       _backend = FileBackend(fp, _event_log, local_journal, _auth, _do_local_file_io)
 
       // TODO Part two of the log rotation hack.  Sync
