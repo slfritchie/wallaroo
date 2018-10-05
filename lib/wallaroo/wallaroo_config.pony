@@ -51,8 +51,7 @@ class StartupOptions
   var checkpoints_enabled: Bool = true
   var time_between_checkpoints: U64 = 1_000_000_000
   var spike_config: (SpikeConfig | None) = None
-  var dos_host: String = ""
-  var dos_service: String = "9999"
+  var dos_servers: Array[(String,String)] val = recover dos_servers.create() end
 
 primitive WallarooConfig
   fun application_args(args: Array[String] val): Array[String] val ? =>
@@ -170,9 +169,12 @@ primitive WallarooConfig
           so.resilience_dir = arg
         end
       | ("resilience-dos-server", let arg: String) =>
-        let a = arg.split(":")
-        so.dos_host = a(0)?
-        so.dos_service = a(1)?
+        let dos_servers: Array[(String,String)] trn = recover dos_servers.create() end
+        for s in arg.split(",").values() do
+          let h_s = s.split(":")
+          dos_servers.push((h_s(0)?, h_s(1)?))
+        end
+        so.dos_servers = consume dos_servers
       | ("resilience-no-local-file-io", let arg: None) =>
         so.do_local_file_io = false
       | ("resilience-enable-io-journal", let arg: None) =>
@@ -237,7 +239,7 @@ primitive WallarooConfig
       end
     end
 
-    if (not so.is_initializer and (so.dos_host != "")) and
+    if (not so.is_initializer and (so.dos_servers.size() > 0)) and
       ((so.my_d_host == "") or (so.my_c_host == "")) then
         FatalUserError("Non-inititalizer nodes that use --resilience-dos-server must specify --my-control and --my-data flags")
     end

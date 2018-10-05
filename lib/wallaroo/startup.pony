@@ -256,8 +256,7 @@ actor Startup
             is_recovering' = _is_recovering,
             do_local_file_io' = _startup_options.do_local_file_io,
             worker_name' = _startup_options.worker_name,
-            dos_host' = _startup_options.dos_host,
-            dos_service' = _startup_options.dos_service))
+            dos_servers' = _startup_options.dos_servers))
         else
           EventLog(auth, _startup_options.worker_name,
             _the_journal as SimpleJournal,
@@ -268,8 +267,7 @@ actor Startup
               is_recovering' = _is_recovering,
             do_local_file_io' = _startup_options.do_local_file_io,
             worker_name' = _startup_options.worker_name,
-            dos_host' = _startup_options.dos_host,
-            dos_service' = _startup_options.dos_service))
+            dos_servers' = _startup_options.dos_servers))
         end
       else
         EventLog(auth, _startup_options.worker_name,
@@ -490,8 +488,7 @@ actor Startup
             suffix' = _event_log_file_suffix, log_rotation' = true,
             do_local_file_io' = _startup_options.do_local_file_io,
             worker_name' = _startup_options.worker_name,
-            dos_host' = _startup_options.dos_host,
-            dos_service' = _startup_options.dos_service))
+            dos_servers' = _startup_options.dos_servers))
         else
           EventLog(auth, _startup_options.worker_name,
             _the_journal as SimpleJournal,
@@ -501,8 +498,7 @@ actor Startup
               _startup_options.event_log_file_length,
             do_local_file_io' = _startup_options.do_local_file_io,
             worker_name' = _startup_options.worker_name,
-            dos_host' = _startup_options.dos_host,
-            dos_service' = _startup_options.dos_service))
+            dos_servers' = _startup_options.dos_servers))
         end
       else
         EventLog(auth, _startup_options.worker_name,
@@ -878,17 +874,19 @@ actor Startup
 
         let j_local = recover iso
           SimpleJournalBackendLocalFile(the_journal_filepath) end
-
-        let dos_host = _startup_options.dos_host
-        let dos_service = _startup_options.dos_service
-        let make_dos = recover val
-          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
-          =>
-            DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
-          } end
-        let rjc = RemoteJournalClient(auth,
-          the_journal_filepath, the_journal_basename, usedir_name, make_dos)
-        let j_remote = recover iso SimpleJournalBackendRemote(rjc) end
+        let rjcs = recover trn Array[RemoteJournalClient] end
+        for (dos_host, dos_service) in _startup_options.dos_servers.values() do
+          let make_dos = recover val
+            {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
+            =>
+              DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
+            } end
+          let rjc = RemoteJournalClient(auth,
+            the_journal_filepath, the_journal_basename, usedir_name, make_dos)
+          rjcs.push(rjc)
+        end
+        let j_remote = recover iso SimpleJournalBackendRemote(
+          consume rjcs) end
 
         SimpleJournalMirror(consume j_local, consume j_remote, "main", true, None) // TODO async receiver tag??
       else
