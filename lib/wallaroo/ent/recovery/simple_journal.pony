@@ -20,6 +20,34 @@ use "buffered"
 use "files"
 use "wallaroo_labs/mort"
 
+
+primitive StartJournal
+  fun start(auth: AmbientAuth, journal_filepath: FilePath,
+    journal_basename: String, usedir_name: String, encode_io_ops: Bool,
+    worker_name: String, dos_servers: Array[(String,String)] val,
+    type_string: String):
+    SimpleJournal
+  =>
+    let j_local = recover iso
+      SimpleJournalBackendLocalFile(journal_filepath) end
+    let j_remote = recover iso
+      let rjcs = recover trn Array[RemoteJournalClient] end
+      for (dos_host, dos_service) in dos_servers.values() do
+        let make_dos = recover val
+          {(rjc: RemoteJournalClient, usedir_name: String): DOSclient
+          =>
+            DOSclient(auth, dos_host, dos_service, rjc, usedir_name)
+          } end
+        let rjc = RemoteJournalClient(auth,
+          journal_filepath, journal_basename, usedir_name, make_dos)
+        rjcs.push(rjc)
+      end
+      SimpleJournalBackendRemote(consume rjcs)
+    end
+
+    SimpleJournalMirror(consume j_local, consume j_remote, type_string,
+      encode_io_ops, None) // TODO async receiver tag??
+
 trait SimpleJournalAsyncResponseReceiver
   be async_io_ok(j: SimpleJournal tag, optag: USize)
   be async_io_error(j: SimpleJournal tag, optag: USize)
